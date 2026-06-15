@@ -1,0 +1,25 @@
+# Compiled binaries
+main
+/ingest
+*.exe
+*.test
+/cmd/ingest/__debug_bin*
+
+# IDE
+.idea/
+.vscode/
+.claude/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build output
+bin/
+
+# Local env files
+.env
+.env.local

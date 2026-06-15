@@ -1,0 +1,166 @@
+{
+  "annotations": {"list": []},
+  "description": "Query traffic for both MySQL and ClickHouse, split by engine + operation. Use to triage slow reads/writes and error spikes on either backend.",
+  "editable": false,
+  "graphTooltip": 1,
+  "liveNow": false,
+  "refresh": "10s",
+  "schemaVersion": 39,
+  "tags": ["optikk", "db", "mysql", "clickhouse"],
+  "templating": {
+    "list": [
+      {
+        "name": "system",
+        "label": "System",
+        "type": "query",
+        "datasource": {"type": "prometheus", "uid": "prometheus"},
+        "definition": "label_values(optikk_db_queries_total, system)",
+        "query": "label_values(optikk_db_queries_total, system)",
+        "includeAll": true,
+        "multi": true,
+        "refresh": 2,
+        "current": {"selected": true, "text": ["All"], "value": ["$__all"]}
+      },
+      {
+        "name": "op",
+        "label": "Operation",
+        "type": "query",
+        "datasource": {"type": "prometheus", "uid": "prometheus"},
+        "definition": "label_values(optikk_db_queries_total{system=~\"$system\"}, op)",
+        "query": "label_values(optikk_db_queries_total{system=~\"$system\"}, op)",
+        "includeAll": true,
+        "multi": true,
+        "refresh": 2,
+        "current": {"selected": true, "text": ["All"], "value": ["$__all"]}
+      }
+    ]
+  },
+  "time": {"from": "now-1h", "to": "now"},
+  "timepicker": {},
+  "title": "Optikk DB (MySQL + ClickHouse)",
+  "uid": "optikk-db",
+  "version": 1,
+  "panels": [
+    {
+      "title": "Query rate (ops/s)",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "targets": [
+        {
+          "expr": "sum by (system, op) (rate(optikk_db_queries_total{system=~\"$system\",op=~\"$op\",result=\"ok\"}[1m]))",
+          "legendFormat": "{{system}} {{op}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "ops"}}
+    },
+    {
+      "title": "Error rate (ops/s)",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "targets": [
+        {
+          "expr": "sum by (system, op) (rate(optikk_db_queries_total{system=~\"$system\",op=~\"$op\",result=\"err\"}[1m]))",
+          "legendFormat": "{{system}} {{op}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "ops"}}
+    },
+    {
+      "title": "p50 query latency",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 8},
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.5, sum by (system, op, le) (rate(optikk_db_query_duration_seconds_bucket{system=~\"$system\",op=~\"$op\"}[5m])))",
+          "legendFormat": "{{system}} {{op}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "s"}}
+    },
+    {
+      "title": "p95 query latency",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 8, "x": 8, "y": 8},
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (system, op, le) (rate(optikk_db_query_duration_seconds_bucket{system=~\"$system\",op=~\"$op\"}[5m])))",
+          "legendFormat": "{{system}} {{op}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "s"}}
+    },
+    {
+      "title": "p99 query latency",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 8, "x": 16, "y": 8},
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum by (system, op, le) (rate(optikk_db_query_duration_seconds_bucket{system=~\"$system\",op=~\"$op\"}[5m])))",
+          "legendFormat": "{{system}} {{op}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "s"}}
+    },
+    {
+      "title": "MySQL error ratio",
+      "type": "stat",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 5, "w": 8, "x": 0, "y": 16},
+      "targets": [
+        {
+          "expr": "100 * sum(rate(optikk_db_queries_total{system=\"mysql\",result=\"err\"}[5m])) / clamp_min(sum(rate(optikk_db_queries_total{system=\"mysql\"}[5m])), 1)",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "percent", "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 1}, {"color": "red", "value": 5}]}}}
+    },
+    {
+      "title": "ClickHouse error ratio",
+      "type": "stat",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 5, "w": 8, "x": 8, "y": 16},
+      "targets": [
+        {
+          "expr": "100 * sum(rate(optikk_db_queries_total{system=\"clickhouse\",result=\"err\"}[5m])) / clamp_min(sum(rate(optikk_db_queries_total{system=\"clickhouse\"}[5m])), 1)",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "percent", "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 1}, {"color": "red", "value": 5}]}}}
+    },
+    {
+      "title": "Total query rate",
+      "type": "stat",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 5, "w": 8, "x": 16, "y": 16},
+      "targets": [
+        {"expr": "sum(rate(optikk_db_queries_total[1m]))", "refId": "A"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "ops"}}
+    },
+    {
+      "title": "Top 10 slowest (system, op) by p95",
+      "type": "table",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 9, "w": 24, "x": 0, "y": 21},
+      "targets": [
+        {
+          "expr": "topk(10, histogram_quantile(0.95, sum by (system, op, le) (rate(optikk_db_query_duration_seconds_bucket[5m]))))",
+          "instant": true,
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "s"}}
+    }
+  ]
+}

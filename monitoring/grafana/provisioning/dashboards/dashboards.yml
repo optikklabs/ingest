@@ -1,0 +1,19 @@
+# Tells Grafana to scan /var/lib/grafana/dashboards for JSON dashboards on
+# container start. Dashboards are read-only (editable: false) so a user
+# accidentally editing one in the UI doesn't drift from the file in git.
+
+apiVersion: 1
+
+providers:
+  - name: optikk-local
+    orgId: 1
+    folder: Optikk
+    folderUid: optikk
+    type: file
+    disableDeletion: true
+    editable: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: false
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false

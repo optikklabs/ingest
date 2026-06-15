@@ -1,0 +1,141 @@
+{
+  "annotations": {"list": []},
+  "description": "Kafka client health — produce/consume rate by topic, produce latency, consumer-group lag by partition, rebalances, broker-connect outcomes.",
+  "editable": false,
+  "graphTooltip": 1,
+  "liveNow": false,
+  "refresh": "10s",
+  "schemaVersion": 39,
+  "tags": ["optikk", "kafka"],
+  "templating": {
+    "list": [
+      {
+        "name": "topic",
+        "label": "Topic",
+        "type": "query",
+        "datasource": {"type": "prometheus", "uid": "prometheus"},
+        "definition": "label_values(optikk_kafka_produced_total, topic)",
+        "query": "label_values(optikk_kafka_produced_total, topic)",
+        "includeAll": true,
+        "multi": true,
+        "refresh": 2,
+        "current": {"selected": true, "text": ["All"], "value": ["$__all"]}
+      }
+    ]
+  },
+  "time": {"from": "now-1h", "to": "now"},
+  "timepicker": {},
+  "title": "Optikk Kafka",
+  "uid": "optikk-kafka",
+  "version": 1,
+  "panels": [
+    {
+      "title": "Produce rate by topic",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "targets": [
+        {
+          "expr": "sum by (topic, result) (rate(optikk_kafka_produced_total{topic=~\"$topic\"}[1m]))",
+          "legendFormat": "{{topic}} {{result}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "ops"}}
+    },
+    {
+      "title": "Consume rate by topic",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "targets": [
+        {
+          "expr": "sum by (topic) (rate(optikk_kafka_consumed_total{topic=~\"$topic\"}[1m]))",
+          "legendFormat": "{{topic}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "ops"}}
+    },
+    {
+      "title": "Produce latency p50 / p99",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.5, sum by (topic, le) (rate(optikk_kafka_produce_duration_seconds_bucket{topic=~\"$topic\"}[5m])))",
+          "legendFormat": "{{topic}} p50",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum by (topic, le) (rate(optikk_kafka_produce_duration_seconds_bucket{topic=~\"$topic\"}[5m])))",
+          "legendFormat": "{{topic}} p99",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "s"}}
+    },
+    {
+      "title": "Consumer lag (records)",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+      "targets": [
+        {
+          "expr": "sum by (topic, group) (optikk_kafka_consumer_lag_records{topic=~\"$topic\"})",
+          "legendFormat": "{{topic}} / {{group}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "short"}}
+    },
+    {
+      "title": "Per-partition lag",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 16},
+      "targets": [
+        {
+          "expr": "optikk_kafka_consumer_lag_records{topic=~\"$topic\"}",
+          "legendFormat": "{{topic}} p{{partition}} / {{group}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "short"}}
+    },
+    {
+      "title": "Produce error ratio",
+      "type": "stat",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 5, "w": 8, "x": 0, "y": 24},
+      "targets": [
+        {
+          "expr": "100 * sum(rate(optikk_kafka_produced_total{result=\"err\"}[5m])) / clamp_min(sum(rate(optikk_kafka_produced_total[5m])), 1)",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "percent", "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 1}, {"color": "red", "value": 5}]}}}
+    },
+    {
+      "title": "Rebalances (5m rate)",
+      "type": "stat",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 5, "w": 8, "x": 8, "y": 24},
+      "targets": [
+        {"expr": "sum(rate(optikk_kafka_rebalances_total[5m]))", "refId": "A"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "ops"}}
+    },
+    {
+      "title": "Broker connect errors (5m rate)",
+      "type": "stat",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 5, "w": 8, "x": 16, "y": 24},
+      "targets": [
+        {"expr": "sum(rate(optikk_kafka_broker_connects_total{result=\"err\"}[5m]))", "refId": "A"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "ops", "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 0.1}]}}}
+    }
+  ]
+}

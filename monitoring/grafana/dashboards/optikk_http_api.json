@@ -1,0 +1,205 @@
+{
+  "annotations": {"list": []},
+  "description": "Per-API HTTP traffic — request rate, latency, error rate, top slow and error-heavy routes. Route label uses the Gin template (e.g. /api/v1/users/:id) so cardinality stays bounded.",
+  "editable": false,
+  "graphTooltip": 1,
+  "liveNow": false,
+  "refresh": "10s",
+  "schemaVersion": 39,
+  "tags": ["optikk", "http", "api"],
+  "templating": {
+    "list": [
+      {
+        "name": "route",
+        "label": "Route",
+        "type": "query",
+        "datasource": {"type": "prometheus", "uid": "prometheus"},
+        "definition": "label_values(optikk_http_requests_total, route)",
+        "query": "label_values(optikk_http_requests_total, route)",
+        "includeAll": true,
+        "multi": true,
+        "refresh": 2,
+        "current": {"selected": true, "text": ["All"], "value": ["$__all"]}
+      },
+      {
+        "name": "method",
+        "label": "Method",
+        "type": "query",
+        "datasource": {"type": "prometheus", "uid": "prometheus"},
+        "definition": "label_values(optikk_http_requests_total, method)",
+        "query": "label_values(optikk_http_requests_total, method)",
+        "includeAll": true,
+        "multi": true,
+        "refresh": 2,
+        "current": {"selected": true, "text": ["All"], "value": ["$__all"]}
+      }
+    ]
+  },
+  "time": {"from": "now-1h", "to": "now"},
+  "timepicker": {},
+  "title": "Optikk HTTP API",
+  "uid": "optikk-http-api",
+  "version": 1,
+  "panels": [
+    {
+      "title": "Request rate (req/s)",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "targets": [
+        {
+          "expr": "sum by (route, method) (rate(optikk_http_requests_total{route=~\"$route\",method=~\"$method\"}[1m]))",
+          "legendFormat": "{{method}} {{route}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "reqps"}}
+    },
+    {
+      "title": "Error rate (4xx + 5xx, req/s)",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "targets": [
+        {
+          "expr": "sum by (route, status_class) (rate(optikk_http_requests_total{route=~\"$route\",method=~\"$method\",status_class=~\"4xx|5xx\"}[1m]))",
+          "legendFormat": "{{status_class}} {{route}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "reqps"}}
+    },
+    {
+      "title": "Latency p50",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 8},
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.5, sum by (route, method, le) (rate(optikk_http_request_duration_seconds_bucket{route=~\"$route\",method=~\"$method\"}[5m])))",
+          "legendFormat": "{{method}} {{route}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "s"}}
+    },
+    {
+      "title": "Latency p95",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 8, "x": 8, "y": 8},
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (route, method, le) (rate(optikk_http_request_duration_seconds_bucket{route=~\"$route\",method=~\"$method\"}[5m])))",
+          "legendFormat": "{{method}} {{route}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "s"}}
+    },
+    {
+      "title": "Latency p99",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 8, "x": 16, "y": 8},
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum by (route, method, le) (rate(optikk_http_request_duration_seconds_bucket{route=~\"$route\",method=~\"$method\"}[5m])))",
+          "legendFormat": "{{method}} {{route}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "s"}}
+    },
+    {
+      "title": "In-flight requests",
+      "type": "stat",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 4, "w": 6, "x": 0, "y": 16},
+      "targets": [
+        {"expr": "optikk_http_in_flight_requests", "refId": "A"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "short"}}
+    },
+    {
+      "title": "5xx / total (%)",
+      "type": "stat",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 4, "w": 6, "x": 6, "y": 16},
+      "targets": [
+        {
+          "expr": "100 * sum(rate(optikk_http_requests_total{status_class=\"5xx\"}[5m])) / clamp_min(sum(rate(optikk_http_requests_total[5m])), 1)",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "percent", "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 1}, {"color": "red", "value": 5}]}}}
+    },
+    {
+      "title": "4xx / total (%)",
+      "type": "stat",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 4, "w": 6, "x": 12, "y": 16},
+      "targets": [
+        {
+          "expr": "100 * sum(rate(optikk_http_requests_total{status_class=\"4xx\"}[5m])) / clamp_min(sum(rate(optikk_http_requests_total[5m])), 1)",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "percent"}}
+    },
+    {
+      "title": "Total req/s (all routes)",
+      "type": "stat",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 4, "w": 6, "x": 18, "y": 16},
+      "targets": [
+        {"expr": "sum(rate(optikk_http_requests_total[1m]))", "refId": "A"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "reqps"}}
+    },
+    {
+      "title": "Top 10 slowest routes (p95, 5m)",
+      "type": "table",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 9, "w": 12, "x": 0, "y": 20},
+      "targets": [
+        {
+          "expr": "topk(10, histogram_quantile(0.95, sum by (route, method, le) (rate(optikk_http_request_duration_seconds_bucket[5m]))))",
+          "instant": true,
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "s"}}
+    },
+    {
+      "title": "Top 10 error-prone routes (5xx rate, 5m)",
+      "type": "table",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 9, "w": 12, "x": 12, "y": 20},
+      "targets": [
+        {
+          "expr": "topk(10, sum by (route, method) (rate(optikk_http_requests_total{status_class=\"5xx\"}[5m])))",
+          "instant": true,
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "reqps"}}
+    },
+    {
+      "title": "Status-class mix (rate)",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 29},
+      "targets": [
+        {
+          "expr": "sum by (status_class) (rate(optikk_http_requests_total{route=~\"$route\",method=~\"$method\"}[1m]))",
+          "legendFormat": "{{status_class}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "reqps"}}
+    }
+  ]
+}

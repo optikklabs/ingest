@@ -1,0 +1,16 @@
+# Auto-registers the local Prometheus as Grafana's default datasource on
+# container start. No manual UI setup needed — the Optikk Ingest dashboard
+# is immediately queryable.
+
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    orgId: 1
+    uid: prometheus
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false
+    version: 1

@@ -1,0 +1,154 @@
+{
+  "annotations": {"list": []},
+  "description": "Per-method gRPC traffic — OTLP ingest surface (/opentelemetry.proto.collector.*) and any other gRPC handlers. Rate, latency p50/p95/p99, status-code mix.",
+  "editable": false,
+  "graphTooltip": 1,
+  "liveNow": false,
+  "refresh": "10s",
+  "schemaVersion": 39,
+  "tags": ["optikk", "grpc", "otlp-ingest"],
+  "templating": {
+    "list": [
+      {
+        "name": "method",
+        "label": "Method",
+        "type": "query",
+        "datasource": {"type": "prometheus", "uid": "prometheus"},
+        "definition": "label_values(optikk_grpc_started_total, method)",
+        "query": "label_values(optikk_grpc_started_total, method)",
+        "includeAll": true,
+        "multi": true,
+        "refresh": 2,
+        "current": {"selected": true, "text": ["All"], "value": ["$__all"]}
+      }
+    ]
+  },
+  "time": {"from": "now-1h", "to": "now"},
+  "timepicker": {},
+  "title": "Optikk gRPC (OTLP)",
+  "uid": "optikk-grpc",
+  "version": 1,
+  "panels": [
+    {
+      "title": "Calls started (per method)",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "targets": [
+        {
+          "expr": "sum by (method) (rate(optikk_grpc_started_total{method=~\"$method\"}[1m]))",
+          "legendFormat": "{{method}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "ops"}}
+    },
+    {
+      "title": "Handled by code (non-OK)",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "targets": [
+        {
+          "expr": "sum by (method, code) (rate(optikk_grpc_handled_total{method=~\"$method\",code!=\"OK\"}[1m]))",
+          "legendFormat": "{{code}} — {{method}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "ops"}}
+    },
+    {
+      "title": "p50 latency",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 8},
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.5, sum by (method, le) (rate(optikk_grpc_handling_duration_seconds_bucket{method=~\"$method\"}[5m])))",
+          "legendFormat": "{{method}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "s"}}
+    },
+    {
+      "title": "p95 latency",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 8, "x": 8, "y": 8},
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (method, le) (rate(optikk_grpc_handling_duration_seconds_bucket{method=~\"$method\"}[5m])))",
+          "legendFormat": "{{method}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "s"}}
+    },
+    {
+      "title": "p99 latency",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 8, "x": 16, "y": 8},
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum by (method, le) (rate(optikk_grpc_handling_duration_seconds_bucket{method=~\"$method\"}[5m])))",
+          "legendFormat": "{{method}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "s"}}
+    },
+    {
+      "title": "Error ratio (non-OK / all handled)",
+      "type": "stat",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 5, "w": 8, "x": 0, "y": 16},
+      "targets": [
+        {
+          "expr": "100 * sum(rate(optikk_grpc_handled_total{code!=\"OK\"}[5m])) / clamp_min(sum(rate(optikk_grpc_handled_total[5m])), 1)",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "percent", "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 1}, {"color": "red", "value": 5}]}}}
+    },
+    {
+      "title": "Unauthenticated denials (auth interceptor)",
+      "type": "stat",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 5, "w": 8, "x": 8, "y": 16},
+      "targets": [
+        {
+          "expr": "sum(rate(optikk_grpc_handled_total{code=\"Unauthenticated\"}[5m]))",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "ops"}}
+    },
+    {
+      "title": "Total calls/s (all methods)",
+      "type": "stat",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 5, "w": 8, "x": 16, "y": 16},
+      "targets": [
+        {"expr": "sum(rate(optikk_grpc_started_total[1m]))", "refId": "A"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "ops"}}
+    },
+    {
+      "title": "Top 10 slowest methods (p99)",
+      "type": "table",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 9, "w": 24, "x": 0, "y": 21},
+      "targets": [
+        {
+          "expr": "topk(10, histogram_quantile(0.99, sum by (method, le) (rate(optikk_grpc_handling_duration_seconds_bucket[5m]))))",
+          "instant": true,
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "s"}}
+    }
+  ]
+}

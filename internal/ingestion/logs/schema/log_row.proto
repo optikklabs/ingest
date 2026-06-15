@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+package optikk.ingest.logs.v1;
+
+option go_package = "github.com/Optikk-Org/optikk-backend/internal/ingestion/logs/schema;schema";
+
+// Row is the wire format on Kafka. One record == one log row bound for observability.logs_v2.
+message Row {
+  uint32 team_id = 1;
+  uint32 ts_bucket = 2;
+  int64 timestamp_ns = 3;
+  uint64 observed_timestamp_ns = 4;
+  string trace_id = 5;
+  string span_id = 6;
+  uint32 trace_flags = 7;
+  string severity_text = 8;
+  uint32 severity_number = 9;
+  string body = 10;
+  map<string, string> attributes_string = 11;
+  map<string, double> attributes_number = 12;
+  map<string, bool>   attributes_bool = 13;
+  map<string, string> resource = 14;
+  uint64 fingerprint = 15;
+  string scope_name = 16;
+  string scope_version = 17;
+  // field 18 (scope_string) intentionally retired.
+  string service = 19;
+  string host = 20;
+  string pod = 21;
+  string container = 22;
+  string environment = 23;
+  // log_id is the FNV-64a hash of (trace_id, timestamp_ns, body, fingerprint),
+  // formatted as a 16-char lowercase hex string. Computed in the mapper so the
+  // writer + reader stay in lockstep without round-tripping through CH hash
+  // semantics. Used by logdetail for single-PREWHERE row lookup.
+  string log_id = 24;
+}

@@ -1,0 +1,49 @@
+environment: development
+
+# HTTP listener for /metrics and /health only (no query API).
+server:
+  port: "18090"
+
+# Read-only access for OTLP API-key authentication. Schema owned by the query
+# service; ingest never migrates MySQL.
+mysql:
+  host: "127.0.0.1"
+  port: "13306"
+  database: observability
+  user: root
+  password: root123
+  max_open_conns: 10
+  max_idle_conns: 5
+
+clickhouse:
+  host: "127.0.0.1"
+  port: "19000"
+  database: observability
+  user: default
+  password: clickhouse123
+  secure: false
+
+otlp:
+  grpc_port: "4317"
+
+ingestion:
+  spans:
+    partitions: 8
+    replicas: 1
+    retention_hours: 24
+  logs:
+    partitions: 8
+    replicas: 1
+    retention_hours: 24
+  metrics:
+    partitions: 8
+    replicas: 1
+    retention_hours: 24
+
+kafka:
+  broker_list: "127.0.0.1:9092"
+  topic_prefix: optikk.ingest
+  dlq_prefix: optikk.dlq
+  compression: zstd
+  linger_ms: 20
+  batch_max_bytes: 1048576

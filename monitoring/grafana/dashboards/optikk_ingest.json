@@ -1,0 +1,223 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "Optikk OTLP ingest pipeline — throughput, batch flush latency, queue depth, CH insert duration, DLQ rate, Kafka consumer lag. One row per concern.",
+  "editable": false,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "liveNow": false,
+  "refresh": "5s",
+  "schemaVersion": 39,
+  "tags": ["optikk", "ingest"],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "selected": true,
+          "text": ["All"],
+          "value": ["$__all"]
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "definition": "label_values(optikk_ingest_records_total, signal)",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Signal",
+        "multi": true,
+        "name": "signal",
+        "options": [],
+        "query": "label_values(optikk_ingest_records_total, signal)",
+        "refresh": 2,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "type": "query"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-30m",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "",
+  "title": "Optikk Ingest",
+  "uid": "optikk-ingest",
+  "version": 1,
+  "weekStart": "",
+  "panels": [
+    {
+      "title": "Records/sec by signal",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "targets": [
+        {
+          "expr": "sum by (signal) (rate(optikk_ingest_records_total{signal=~\"$signal\",result=\"ok\"}[1m]))",
+          "legendFormat": "{{signal}} ok",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (signal) (rate(optikk_ingest_records_total{signal=~\"$signal\",result=\"err\"}[1m]))",
+          "legendFormat": "{{signal}} err",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {"unit": "ops"}
+      }
+    },
+    {
+      "title": "Handler publish latency — p50 / p99",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.5, sum by (signal, le) (rate(optikk_ingest_handler_publish_duration_seconds_bucket{signal=~\"$signal\"}[5m])))",
+          "legendFormat": "{{signal}} p50",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum by (signal, le) (rate(optikk_ingest_handler_publish_duration_seconds_bucket{signal=~\"$signal\"}[5m])))",
+          "legendFormat": "{{signal}} p99",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "s"}}
+    },
+    {
+      "title": "Worker flush duration — p50 / p99",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.5, sum by (signal, le) (rate(optikk_ingest_worker_flush_duration_seconds_bucket{signal=~\"$signal\"}[5m])))",
+          "legendFormat": "{{signal}} p50",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum by (signal, le) (rate(optikk_ingest_worker_flush_duration_seconds_bucket{signal=~\"$signal\"}[5m])))",
+          "legendFormat": "{{signal}} p99",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "s"}}
+    },
+    {
+      "title": "CH insert duration — p99",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum by (signal, le) (rate(optikk_ingest_writer_ch_insert_duration_seconds_bucket{signal=~\"$signal\"}[5m])))",
+          "legendFormat": "{{signal}} p99",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "s"}}
+    },
+    {
+      "title": "Worker queue depth by partition",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
+      "targets": [
+        {
+          "expr": "optikk_ingest_worker_queue_depth{signal=~\"$signal\"}",
+          "legendFormat": "{{signal}} p{{partition}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "short"}}
+    },
+    {
+      "title": "Paused partitions",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
+      "targets": [
+        {
+          "expr": "optikk_ingest_worker_paused_partitions{signal=~\"$signal\"}",
+          "legendFormat": "{{signal}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "short"}}
+    },
+    {
+      "title": "Flush rows by reason",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 24},
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (signal, reason, le) (rate(optikk_ingest_worker_flush_rows_bucket{signal=~\"$signal\"}[5m])))",
+          "legendFormat": "{{signal}} {{reason}} p95",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "short"}}
+    },
+    {
+      "title": "DLQ rate",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 24},
+      "targets": [
+        {
+          "expr": "sum by (signal, reason_code) (rate(optikk_ingest_writer_dlq_sent_total{signal=~\"$signal\"}[5m]))",
+          "legendFormat": "{{signal}} {{reason_code}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "ops"}}
+    },
+    {
+      "title": "Kafka consumer lag",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 32},
+      "targets": [
+        {
+          "expr": "sum by (topic, group) (optikk_kafka_consumer_lag_records)",
+          "legendFormat": "{{topic}} {{group}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "short"}}
+    },
+    {
+      "title": "Attribute drops per signal",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 32},
+      "targets": [
+        {
+          "expr": "sum by (signal) (rate(optikk_ingest_mapper_attrs_dropped_total{signal=~\"$signal\"}[5m]))",
+          "legendFormat": "{{signal}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "ops"}}
+    }
+  ]
+}
