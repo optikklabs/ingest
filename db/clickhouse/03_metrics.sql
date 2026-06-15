@@ -1,4 +1,4 @@
-CREATE TABLE IF NOT EXISTS observability.metrics (
+CREATE TABLE IF NOT EXISTS optikk.metrics (
     team_id              UInt32 CODEC(T64, ZSTD(1)),
     metric_name          LowCardinality(String),
     metric_type          LowCardinality(String),
@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS observability.metrics (
     container            LowCardinality(String) CODEC(ZSTD(1)),
     resource             JSON(max_dynamic_paths=100) CODEC(ZSTD(1)),
     attributes           JSON(max_dynamic_paths=100) CODEC(ZSTD(1))
-) ENGINE = ReplicatedMergeTree('/clickhouse/tables/{shard}/observability/metrics', '{replica}')
+) ENGINE = ReplicatedMergeTree('/clickhouse/tables/{shard}/optikk/metrics', '{replica}')
 PARTITION BY toYYYYMMDD(timestamp)
 ORDER BY (team_id, ts_bucket, fingerprint, metric_name, timestamp)
 TTL timestamp + INTERVAL 30 DAY DELETE

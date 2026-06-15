@@ -7,7 +7,7 @@
 -- ts_bucket is hour-aligned here; hour boundaries are also valid 5-min
 -- boundaries, so Go-side BETWEEN bucket filters keep working unchanged.
 
-CREATE TABLE IF NOT EXISTS observability.spans_1h (
+CREATE TABLE IF NOT EXISTS optikk.spans_1h (
     team_id              UInt32 CODEC(T64, ZSTD(1)),
     ts_bucket            UInt32 CODEC(DoubleDelta, LZ4),
     timestamp            DateTime CODEC(DoubleDelta, LZ4),
@@ -50,7 +50,7 @@ CREATE TABLE IF NOT EXISTS observability.spans_1h (
     request_count        SimpleAggregateFunction(sum, UInt64)  CODEC(T64, ZSTD(1)),
     error_count          SimpleAggregateFunction(sum, UInt64)  CODEC(T64, ZSTD(1)),
     duration_ms_sum      SimpleAggregateFunction(sum, Float64) CODEC(Gorilla, ZSTD(1))
-) ENGINE = ReplicatedAggregatingMergeTree('/clickhouse/tables/{shard}/observability/spans_1h', '{replica}')
+) ENGINE = ReplicatedAggregatingMergeTree('/clickhouse/tables/{shard}/optikk/spans_1h', '{replica}')
 PARTITION BY toYYYYMMDD(timestamp)
 ORDER BY (team_id, ts_bucket, fingerprint, service, name, kind_string, timestamp)
 TTL timestamp + INTERVAL 30 DAY DELETE
@@ -58,8 +58,8 @@ SETTINGS
     index_granularity = 8192,
     ttl_only_drop_parts = 1;
 
-CREATE MATERIALIZED VIEW IF NOT EXISTS observability.spans_1h_mv
-TO observability.spans_1h AS
+CREATE MATERIALIZED VIEW IF NOT EXISTS optikk.spans_1h_mv
+TO optikk.spans_1h AS
 SELECT
     team_id,
     toUInt32(toUnixTimestamp(toStartOfHour(timestamp))) AS ts_bucket,
@@ -96,7 +96,7 @@ SELECT
     sum(request_count)                      AS request_count,
     sum(error_count)                        AS error_count,
     sum(duration_ms_sum)                    AS duration_ms_sum
-FROM observability.spans_1m
+FROM optikk.spans_1m
 GROUP BY
     team_id, ts_bucket, timestamp, fingerprint,
     service, name, kind_string, peer_service, host, pod, environment, is_root,

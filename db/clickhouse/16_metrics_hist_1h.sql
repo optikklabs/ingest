@@ -6,7 +6,7 @@
 -- ts_bucket is hour-aligned here; hour boundaries are also valid 5-min
 -- boundaries, so Go-side BETWEEN bucket filters keep working unchanged.
 
-CREATE TABLE IF NOT EXISTS observability.metrics_hist_1h (
+CREATE TABLE IF NOT EXISTS optikk.metrics_hist_1h (
     team_id              UInt32 CODEC(T64, ZSTD(1)),
     ts_bucket            UInt32 CODEC(DoubleDelta, LZ4),
     timestamp            DateTime CODEC(DoubleDelta, LZ4),
@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS observability.metrics_hist_1h (
     hist_sum             SimpleAggregateFunction(sum, Float64) CODEC(Gorilla, ZSTD(1)),
     hist_count           SimpleAggregateFunction(sum, UInt64)  CODEC(T64, ZSTD(1)),
     latency_state        AggregateFunction(quantilesPrometheusHistogram(0.5, 0.95, 0.99), Float64, UInt64) CODEC(ZSTD(1))
-) ENGINE = ReplicatedAggregatingMergeTree('/clickhouse/tables/{shard}/observability/metrics_hist_1h', '{replica}')
+) ENGINE = ReplicatedAggregatingMergeTree('/clickhouse/tables/{shard}/optikk/metrics_hist_1h', '{replica}')
 PARTITION BY toYYYYMMDD(timestamp)
 ORDER BY (team_id, metric_name, ts_bucket, fingerprint, db_system, db_connection_state, messaging_destination, messaging_consumer_group, messaging_system, timestamp)
 TTL timestamp + INTERVAL 30 DAY DELETE
@@ -31,8 +31,8 @@ SETTINGS
     index_granularity = 8192,
     ttl_only_drop_parts = 1;
 
-CREATE MATERIALIZED VIEW IF NOT EXISTS observability.metrics_hist_1h_mv
-TO observability.metrics_hist_1h AS
+CREATE MATERIALIZED VIEW IF NOT EXISTS optikk.metrics_hist_1h_mv
+TO optikk.metrics_hist_1h AS
 SELECT
     team_id,
     toUInt32(toUnixTimestamp(toStartOfHour(timestamp))) AS ts_bucket,
@@ -49,7 +49,7 @@ SELECT
     sum(hist_sum)   AS hist_sum,
     sum(hist_count) AS hist_count,
     quantilesPrometheusHistogramMergeState(0.5, 0.95, 0.99)(latency_state) AS latency_state
-FROM observability.metrics_hist_1m
+FROM optikk.metrics_hist_1m
 GROUP BY
     team_id,
     ts_bucket,

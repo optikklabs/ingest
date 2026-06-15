@@ -1,3 +1,3 @@
-CREATE DATABASE IF NOT EXISTS observability;
+CREATE DATABASE IF NOT EXISTS optikk;
 
--- docker exec -it optikk-backend-clickhouse-1 clickhouse-client --query "DROP DATABASE IF EXISTS observability; CREATE DATABASE observability;"
+-- docker exec -it ingest-clickhouse-1 clickhouse-client --query "DROP DATABASE IF EXISTS optikk; CREATE DATABASE optikk;"

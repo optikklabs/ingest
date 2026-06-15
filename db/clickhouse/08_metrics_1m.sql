@@ -1,7 +1,7 @@
--- 1-minute scalar (Gauge/Sum) rollup from observability.metrics via
+-- 1-minute scalar (Gauge/Sum) rollup from optikk.metrics via
 -- metrics_1m_mv. Carries series identity + scalar aggregates + fixed attributes.
 
-CREATE TABLE IF NOT EXISTS observability.metrics_1m (
+CREATE TABLE IF NOT EXISTS optikk.metrics_1m (
     team_id              UInt32 CODEC(T64, ZSTD(1)),
     ts_bucket            UInt32 CODEC(DoubleDelta, LZ4),
     timestamp            DateTime CODEC(DoubleDelta, LZ4),
@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS observability.metrics_1m (
     val_max              SimpleAggregateFunction(max, Float64) CODEC(Gorilla, ZSTD(1)),
     val_sum              SimpleAggregateFunction(sum, Float64) CODEC(Gorilla, ZSTD(1)),
     val_count            SimpleAggregateFunction(sum, UInt64)  CODEC(T64, ZSTD(1))
-) ENGINE = ReplicatedAggregatingMergeTree('/clickhouse/tables/{shard}/observability/metrics_1m', '{replica}')
+) ENGINE = ReplicatedAggregatingMergeTree('/clickhouse/tables/{shard}/optikk/metrics_1m', '{replica}')
 PARTITION BY toYYYYMMDD(timestamp)
 ORDER BY (team_id, metric_name, ts_bucket, fingerprint, db_system, db_connection_state, messaging_destination, messaging_consumer_group, messaging_system, timestamp)
 TTL timestamp + INTERVAL 30 DAY DELETE
@@ -29,8 +29,8 @@ SETTINGS
     enable_mixed_granularity_parts = 1,
     ttl_only_drop_parts = 1;
 
-CREATE MATERIALIZED VIEW IF NOT EXISTS observability.metrics_1m_mv
-TO observability.metrics_1m AS
+CREATE MATERIALIZED VIEW IF NOT EXISTS optikk.metrics_1m_mv
+TO optikk.metrics_1m AS
 SELECT
     team_id,
     toUInt32(intDiv(toUnixTimestamp(timestamp), 300) * 300) AS ts_bucket,
@@ -49,7 +49,7 @@ SELECT
     max(value)   AS val_max,
     sum(value)   AS val_sum,
     count()      AS val_count
-FROM observability.metrics
+FROM optikk.metrics
 WHERE metric_type IN ('Gauge', 'Sum')
 GROUP BY
     team_id,

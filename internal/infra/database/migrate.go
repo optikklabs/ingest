@@ -15,7 +15,7 @@ import (
 type Migrator struct {
 	DB       clickhouse.Conn
 	FS       fs.FS
-	Database string // defaults to "observability"
+	Database string // defaults to "optikk"
 	Logger   func(format string, args ...any)
 }
 
@@ -60,7 +60,7 @@ func (m *Migrator) Up(ctx context.Context) (applied int, skipped int, err error)
 
 func (m *Migrator) ensureTrackingTable(ctx context.Context) error {
 	if m.Database == "" {
-		m.Database = "observability"
+		m.Database = "optikk"
 	}
 	// Database and tracking table are created if not exist, making it safe
 	// to re-run on a fresh cluster.

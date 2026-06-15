@@ -1,7 +1,7 @@
--- 1-minute histogram rollup from observability.metrics via metrics_hist_1m_mv.
+-- 1-minute histogram rollup from optikk.metrics via metrics_hist_1m_mv.
 -- Carries series identity + histogram aggregate state + fixed attributes.
 
-CREATE TABLE IF NOT EXISTS observability.metrics_hist_1m (
+CREATE TABLE IF NOT EXISTS optikk.metrics_hist_1m (
     team_id              UInt32 CODEC(T64, ZSTD(1)),
     ts_bucket            UInt32 CODEC(DoubleDelta, LZ4),
     timestamp            DateTime CODEC(DoubleDelta, LZ4),
@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS observability.metrics_hist_1m (
     hist_sum             SimpleAggregateFunction(sum, Float64) CODEC(Gorilla, ZSTD(1)),
     hist_count           SimpleAggregateFunction(sum, UInt64)  CODEC(T64, ZSTD(1)),
     latency_state        AggregateFunction(quantilesPrometheusHistogram(0.5, 0.95, 0.99), Float64, UInt64) CODEC(ZSTD(1))
-) ENGINE = ReplicatedAggregatingMergeTree('/clickhouse/tables/{shard}/observability/metrics_hist_1m', '{replica}')
+) ENGINE = ReplicatedAggregatingMergeTree('/clickhouse/tables/{shard}/optikk/metrics_hist_1m', '{replica}')
 PARTITION BY toYYYYMMDD(timestamp)
 ORDER BY (team_id, metric_name, ts_bucket, fingerprint, db_system, db_connection_state, messaging_destination, messaging_consumer_group, messaging_system, timestamp)
 TTL timestamp + INTERVAL 30 DAY DELETE
@@ -27,8 +27,8 @@ SETTINGS
     enable_mixed_granularity_parts = 1,
     ttl_only_drop_parts = 1;
 
-CREATE MATERIALIZED VIEW IF NOT EXISTS observability.metrics_hist_1m_mv
-TO observability.metrics_hist_1m AS
+CREATE MATERIALIZED VIEW IF NOT EXISTS optikk.metrics_hist_1m_mv
+TO optikk.metrics_hist_1m AS
 SELECT
     team_id,
     toUInt32(intDiv(toUnixTimestamp(timestamp), 300) * 300) AS ts_bucket,
@@ -49,7 +49,7 @@ SELECT
         hist_buckets,
         arrayCumSum(hist_counts)
     ) AS latency_state
-FROM observability.metrics
+FROM optikk.metrics
 WHERE metric_type = 'Histogram'
 GROUP BY
     team_id,

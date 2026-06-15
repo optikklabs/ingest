@@ -8,7 +8,7 @@
   "schemaVersion": 39,
   "tags": ["optikk", "db", "mysql", "clickhouse"],
   "templating": {
-    "list": [
+    "list": [{"name": "service", "label": "Service", "type": "query", "datasource": {"type": "prometheus", "uid": "prometheus"}, "definition": "label_values(go_goroutines, job)", "query": "label_values(go_goroutines, job)", "regex": "/optikk-.*/", "includeAll": true, "allValue": ".*", "multi": true, "refresh": 2, "current": {"selected": true, "text": ["All"], "value": ["$__all"]}},
       {
         "name": "system",
         "label": "System",
@@ -48,8 +48,8 @@
       "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
       "targets": [
         {
-          "expr": "sum by (system, op) (rate(optikk_db_queries_total{system=~\"$system\",op=~\"$op\",result=\"ok\"}[1m]))",
-          "legendFormat": "{{system}} {{op}}",
+          "expr": "sum by (system, op, job) (rate(optikk_db_queries_total{job=~\"$service\",system=~\"$system\",op=~\"$op\",result=\"ok\"}[1m]))",
+          "legendFormat": "{{job}} {{system}} {{op}}",
           "refId": "A"
         }
       ],
@@ -62,8 +62,8 @@
       "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
       "targets": [
         {
-          "expr": "sum by (system, op) (rate(optikk_db_queries_total{system=~\"$system\",op=~\"$op\",result=\"err\"}[1m]))",
-          "legendFormat": "{{system}} {{op}}",
+          "expr": "sum by (system, op, job) (rate(optikk_db_queries_total{job=~\"$service\",system=~\"$system\",op=~\"$op\",result=\"err\"}[1m]))",
+          "legendFormat": "{{job}} {{system}} {{op}}",
           "refId": "A"
         }
       ],
@@ -76,8 +76,8 @@
       "gridPos": {"h": 8, "w": 8, "x": 0, "y": 8},
       "targets": [
         {
-          "expr": "histogram_quantile(0.5, sum by (system, op, le) (rate(optikk_db_query_duration_seconds_bucket{system=~\"$system\",op=~\"$op\"}[5m])))",
-          "legendFormat": "{{system}} {{op}}",
+          "expr": "histogram_quantile(0.5, sum by (system, op, le, job) (rate(optikk_db_query_duration_seconds_bucket{job=~\"$service\",system=~\"$system\",op=~\"$op\"}[5m])))",
+          "legendFormat": "{{job}} {{system}} {{op}}",
           "refId": "A"
         }
       ],
@@ -90,8 +90,8 @@
       "gridPos": {"h": 8, "w": 8, "x": 8, "y": 8},
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum by (system, op, le) (rate(optikk_db_query_duration_seconds_bucket{system=~\"$system\",op=~\"$op\"}[5m])))",
-          "legendFormat": "{{system}} {{op}}",
+          "expr": "histogram_quantile(0.95, sum by (system, op, le, job) (rate(optikk_db_query_duration_seconds_bucket{job=~\"$service\",system=~\"$system\",op=~\"$op\"}[5m])))",
+          "legendFormat": "{{job}} {{system}} {{op}}",
           "refId": "A"
         }
       ],
@@ -104,8 +104,8 @@
       "gridPos": {"h": 8, "w": 8, "x": 16, "y": 8},
       "targets": [
         {
-          "expr": "histogram_quantile(0.99, sum by (system, op, le) (rate(optikk_db_query_duration_seconds_bucket{system=~\"$system\",op=~\"$op\"}[5m])))",
-          "legendFormat": "{{system}} {{op}}",
+          "expr": "histogram_quantile(0.99, sum by (system, op, le, job) (rate(optikk_db_query_duration_seconds_bucket{job=~\"$service\",system=~\"$system\",op=~\"$op\"}[5m])))",
+          "legendFormat": "{{job}} {{system}} {{op}}",
           "refId": "A"
         }
       ],
@@ -118,7 +118,7 @@
       "gridPos": {"h": 5, "w": 8, "x": 0, "y": 16},
       "targets": [
         {
-          "expr": "100 * sum(rate(optikk_db_queries_total{system=\"mysql\",result=\"err\"}[5m])) / clamp_min(sum(rate(optikk_db_queries_total{system=\"mysql\"}[5m])), 1)",
+          "expr": "100 * sum(rate(optikk_db_queries_total{job=~\"$service\",system=\"mysql\",result=\"err\"}[5m])) / clamp_min(sum(rate(optikk_db_queries_total{job=~\"$service\",system=\"mysql\"}[5m])), 1)",
           "refId": "A"
         }
       ],
@@ -131,7 +131,7 @@
       "gridPos": {"h": 5, "w": 8, "x": 8, "y": 16},
       "targets": [
         {
-          "expr": "100 * sum(rate(optikk_db_queries_total{system=\"clickhouse\",result=\"err\"}[5m])) / clamp_min(sum(rate(optikk_db_queries_total{system=\"clickhouse\"}[5m])), 1)",
+          "expr": "100 * sum(rate(optikk_db_queries_total{job=~\"$service\",system=\"clickhouse\",result=\"err\"}[5m])) / clamp_min(sum(rate(optikk_db_queries_total{job=~\"$service\",system=\"clickhouse\"}[5m])), 1)",
           "refId": "A"
         }
       ],
@@ -143,7 +143,7 @@
       "datasource": {"type": "prometheus", "uid": "prometheus"},
       "gridPos": {"h": 5, "w": 8, "x": 16, "y": 16},
       "targets": [
-        {"expr": "sum(rate(optikk_db_queries_total[1m]))", "refId": "A"}
+        {"expr": "sum(rate(optikk_db_queries_total{job=~\"$service\"}[1m]))", "refId": "A"}
       ],
       "fieldConfig": {"defaults": {"unit": "ops"}}
     },
@@ -154,7 +154,7 @@
       "gridPos": {"h": 9, "w": 24, "x": 0, "y": 21},
       "targets": [
         {
-          "expr": "topk(10, histogram_quantile(0.95, sum by (system, op, le) (rate(optikk_db_query_duration_seconds_bucket[5m]))))",
+          "expr": "topk(10, histogram_quantile(0.95, sum by (system, op, le, job) (rate(optikk_db_query_duration_seconds_bucket{job=~\"$service\"}[5m]))))",
           "instant": true,
           "format": "table",
           "refId": "A"

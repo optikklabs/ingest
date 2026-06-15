@@ -5,7 +5,7 @@ services:
       - "18123:8123"
       - "19000:9000"
     environment:
-      CLICKHOUSE_DB: observability
+      CLICKHOUSE_DB: optikk
       CLICKHOUSE_USER: default
       CLICKHOUSE_PASSWORD: clickhouse123
     volumes:
@@ -24,7 +24,7 @@ services:
       - "13306:3306"
     environment:
       MARIADB_ROOT_PASSWORD: root123
-      MARIADB_DATABASE: observability
+      MARIADB_DATABASE: optikk
     volumes:
       - mariadb_data:/var/lib/mysql
     healthcheck:
@@ -47,13 +47,14 @@ services:
     volumes:
       - mq_data:/var/lib/mq
 
-  # Local Prometheus + Grafana for ingest-pipeline dashboards.
-  # Ingest runs on the host (`go run ./cmd/ingest`); Prometheus scrapes its
-  # /metrics via host.docker.internal.
+  # Local Prometheus + Grafana for the Optikk dashboards.
+  # Both services run on the host (`go run ./cmd/...`); Prometheus scrapes
+  # ingest (:18090) and query (:19090) /metrics via host.docker.internal.
+  # Dashboards carry a $service variable to scope per-service or view both.
   # Grafana → http://localhost:13001   Prometheus → http://localhost:19091
   prometheus:
     image: prom/prometheus:v2.54.1
-    container_name: optikk-ingest-prometheus
+    container_name: optikk-prometheus
     restart: unless-stopped
     ports:
       - "19091:9090"
@@ -70,7 +71,7 @@ services:
 
   grafana:
     image: grafana/grafana:11.2.0
-    container_name: optikk-ingest-grafana
+    container_name: optikk-grafana
     restart: unless-stopped
     ports:
       - "13001:3000"

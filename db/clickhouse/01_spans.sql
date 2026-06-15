@@ -1,5 +1,5 @@
 -- INVARIANT: bucket values are computed Go-side (internal/infra/timebucket); no CH bucket functions in this file.
-CREATE TABLE IF NOT EXISTS observability.spans (
+CREATE TABLE IF NOT EXISTS optikk.spans (
     ts_bucket                             UInt32          CODEC(DoubleDelta, LZ4),
     team_id                               UInt32          CODEC(T64, ZSTD(1)),
     timestamp                             DateTime64(9)   CODEC(DoubleDelta, LZ4),
@@ -58,7 +58,7 @@ CREATE TABLE IF NOT EXISTS observability.spans (
     http_status_code         UInt16                 ALIAS toUInt16OrZero(response_status_code),
     is_error                 UInt8                  ALIAS if(has_error OR toUInt16OrZero(response_status_code) >= 400, 1, 0),
     is_root                  UInt8                  ALIAS if((parent_span_id = '') OR (parent_span_id = '0000000000000000'), 1, 0)
-) ENGINE = ReplicatedMergeTree('/clickhouse/tables/{shard}/observability/spans', '{replica}')
+) ENGINE = ReplicatedMergeTree('/clickhouse/tables/{shard}/optikk/spans', '{replica}')
 PARTITION BY toYYYYMMDD(timestamp)
 ORDER BY (team_id, ts_bucket, fingerprint, service, name, timestamp, trace_id, span_id)
 TTL timestamp + INTERVAL 30 DAY DELETE

@@ -8,7 +8,7 @@ import (
 	"github.com/optikklabs/ingest/internal/ingestion/spans/schema"
 )
 
-const chTable = "observability.spans"
+const chTable = "optikk.spans"
 
 // chColumns mirrors the column order in db/clickhouse/01_spans.sql.
 var chColumns = []string{

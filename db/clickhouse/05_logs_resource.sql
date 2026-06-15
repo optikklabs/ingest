@@ -1,7 +1,7 @@
 -- Logs resource helper — narrow MV-fed dictionary used to resolve fingerprint
 -- before the raw-table scan. ts_bucket passes through from the upstream raw table.
 
-CREATE TABLE IF NOT EXISTS observability.logs_resource (
+CREATE TABLE IF NOT EXISTS optikk.logs_resource (
     team_id     UInt32 CODEC(T64, ZSTD(1)),
     ts_bucket   UInt32 CODEC(DoubleDelta, LZ4),
     fingerprint UInt64 CODEC(ZSTD(1)),
@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS observability.logs_resource (
     pod         LowCardinality(String) CODEC(ZSTD(1)),
     container   LowCardinality(String) CODEC(ZSTD(1)),
     environment LowCardinality(String) CODEC(ZSTD(1))
-) ENGINE = ReplicatedReplacingMergeTree('/clickhouse/tables/{shard}/observability/logs_resource', '{replica}')
+) ENGINE = ReplicatedReplacingMergeTree('/clickhouse/tables/{shard}/optikk/logs_resource', '{replica}')
 PARTITION BY toYYYYMMDD(toDateTime(ts_bucket))
 ORDER BY (team_id, ts_bucket, service, host, pod, fingerprint)
 TTL toDateTime(ts_bucket) + INTERVAL 30 DAY DELETE
@@ -18,8 +18,8 @@ SETTINGS
     index_granularity = 8192,
     ttl_only_drop_parts = 1;
 
-CREATE MATERIALIZED VIEW IF NOT EXISTS observability.logs_to_logs_resource
-TO observability.logs_resource AS
+CREATE MATERIALIZED VIEW IF NOT EXISTS optikk.logs_to_logs_resource
+TO optikk.logs_resource AS
 SELECT DISTINCT
     team_id,
     ts_bucket,
@@ -29,5 +29,5 @@ SELECT DISTINCT
     pod,
     container,
     environment
-FROM observability.logs
+FROM optikk.logs
 WHERE fingerprint != 0;

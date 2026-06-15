@@ -24,7 +24,7 @@
   "schemaVersion": 39,
   "tags": ["optikk", "ingest"],
   "templating": {
-    "list": [
+    "list": [{"name": "service", "label": "Service", "type": "query", "datasource": {"type": "prometheus", "uid": "prometheus"}, "definition": "label_values(go_goroutines, job)", "query": "label_values(go_goroutines, job)", "regex": "/optikk-.*/", "includeAll": true, "allValue": ".*", "multi": true, "refresh": 2, "current": {"selected": true, "text": ["All"], "value": ["$__all"]}},
       {
         "current": {
           "selected": true,
@@ -69,13 +69,13 @@
       "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
       "targets": [
         {
-          "expr": "sum by (signal) (rate(optikk_ingest_records_total{signal=~\"$signal\",result=\"ok\"}[1m]))",
-          "legendFormat": "{{signal}} ok",
+          "expr": "sum by (signal, job) (rate(optikk_ingest_records_total{job=~\"$service\",signal=~\"$signal\",result=\"ok\"}[1m]))",
+          "legendFormat": "{{job}} {{signal}} ok",
           "refId": "A"
         },
         {
-          "expr": "sum by (signal) (rate(optikk_ingest_records_total{signal=~\"$signal\",result=\"err\"}[1m]))",
-          "legendFormat": "{{signal}} err",
+          "expr": "sum by (signal, job) (rate(optikk_ingest_records_total{job=~\"$service\",signal=~\"$signal\",result=\"err\"}[1m]))",
+          "legendFormat": "{{job}} {{signal}} err",
           "refId": "B"
         }
       ],
@@ -90,13 +90,13 @@
       "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
       "targets": [
         {
-          "expr": "histogram_quantile(0.5, sum by (signal, le) (rate(optikk_ingest_handler_publish_duration_seconds_bucket{signal=~\"$signal\"}[5m])))",
-          "legendFormat": "{{signal}} p50",
+          "expr": "histogram_quantile(0.5, sum by (signal, le, job) (rate(optikk_ingest_handler_publish_duration_seconds_bucket{job=~\"$service\",signal=~\"$signal\"}[5m])))",
+          "legendFormat": "{{job}} {{signal}} p50",
           "refId": "A"
         },
         {
-          "expr": "histogram_quantile(0.99, sum by (signal, le) (rate(optikk_ingest_handler_publish_duration_seconds_bucket{signal=~\"$signal\"}[5m])))",
-          "legendFormat": "{{signal}} p99",
+          "expr": "histogram_quantile(0.99, sum by (signal, le, job) (rate(optikk_ingest_handler_publish_duration_seconds_bucket{job=~\"$service\",signal=~\"$signal\"}[5m])))",
+          "legendFormat": "{{job}} {{signal}} p99",
           "refId": "B"
         }
       ],
@@ -109,13 +109,13 @@
       "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
       "targets": [
         {
-          "expr": "histogram_quantile(0.5, sum by (signal, le) (rate(optikk_ingest_worker_flush_duration_seconds_bucket{signal=~\"$signal\"}[5m])))",
-          "legendFormat": "{{signal}} p50",
+          "expr": "histogram_quantile(0.5, sum by (signal, le, job) (rate(optikk_ingest_worker_flush_duration_seconds_bucket{job=~\"$service\",signal=~\"$signal\"}[5m])))",
+          "legendFormat": "{{job}} {{signal}} p50",
           "refId": "A"
         },
         {
-          "expr": "histogram_quantile(0.99, sum by (signal, le) (rate(optikk_ingest_worker_flush_duration_seconds_bucket{signal=~\"$signal\"}[5m])))",
-          "legendFormat": "{{signal}} p99",
+          "expr": "histogram_quantile(0.99, sum by (signal, le, job) (rate(optikk_ingest_worker_flush_duration_seconds_bucket{job=~\"$service\",signal=~\"$signal\"}[5m])))",
+          "legendFormat": "{{job}} {{signal}} p99",
           "refId": "B"
         }
       ],
@@ -128,8 +128,8 @@
       "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
       "targets": [
         {
-          "expr": "histogram_quantile(0.99, sum by (signal, le) (rate(optikk_ingest_writer_ch_insert_duration_seconds_bucket{signal=~\"$signal\"}[5m])))",
-          "legendFormat": "{{signal}} p99",
+          "expr": "histogram_quantile(0.99, sum by (signal, le, job) (rate(optikk_ingest_writer_ch_insert_duration_seconds_bucket{job=~\"$service\",signal=~\"$signal\"}[5m])))",
+          "legendFormat": "{{job}} {{signal}} p99",
           "refId": "A"
         }
       ],
@@ -142,8 +142,8 @@
       "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
       "targets": [
         {
-          "expr": "optikk_ingest_worker_queue_depth{signal=~\"$signal\"}",
-          "legendFormat": "{{signal}} p{{partition}}",
+          "expr": "optikk_ingest_worker_queue_depth{job=~\"$service\",signal=~\"$signal\"}",
+          "legendFormat": "{{job}} {{signal}} p{{partition}}",
           "refId": "A"
         }
       ],
@@ -156,8 +156,8 @@
       "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
       "targets": [
         {
-          "expr": "optikk_ingest_worker_paused_partitions{signal=~\"$signal\"}",
-          "legendFormat": "{{signal}}",
+          "expr": "optikk_ingest_worker_paused_partitions{job=~\"$service\",signal=~\"$signal\"}",
+          "legendFormat": "{{job}} {{signal}}",
           "refId": "A"
         }
       ],
@@ -170,8 +170,8 @@
       "gridPos": {"h": 8, "w": 12, "x": 0, "y": 24},
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum by (signal, reason, le) (rate(optikk_ingest_worker_flush_rows_bucket{signal=~\"$signal\"}[5m])))",
-          "legendFormat": "{{signal}} {{reason}} p95",
+          "expr": "histogram_quantile(0.95, sum by (signal, reason, le, job) (rate(optikk_ingest_worker_flush_rows_bucket{job=~\"$service\",signal=~\"$signal\"}[5m])))",
+          "legendFormat": "{{job}} {{signal}} {{reason}} p95",
           "refId": "A"
         }
       ],
@@ -184,8 +184,8 @@
       "gridPos": {"h": 8, "w": 12, "x": 12, "y": 24},
       "targets": [
         {
-          "expr": "sum by (signal, reason_code) (rate(optikk_ingest_writer_dlq_sent_total{signal=~\"$signal\"}[5m]))",
-          "legendFormat": "{{signal}} {{reason_code}}",
+          "expr": "sum by (signal, reason_code, job) (rate(optikk_ingest_writer_dlq_sent_total{job=~\"$service\",signal=~\"$signal\"}[5m]))",
+          "legendFormat": "{{job}} {{signal}} {{reason_code}}",
           "refId": "A"
         }
       ],
@@ -198,8 +198,8 @@
       "gridPos": {"h": 8, "w": 12, "x": 0, "y": 32},
       "targets": [
         {
-          "expr": "sum by (topic, group) (optikk_kafka_consumer_lag_records)",
-          "legendFormat": "{{topic}} {{group}}",
+          "expr": "sum by (topic, group, job) (optikk_kafka_consumer_lag_records{job=~\"$service\"})",
+          "legendFormat": "{{job}} {{topic}} {{group}}",
           "refId": "A"
         }
       ],
@@ -212,8 +212,8 @@
       "gridPos": {"h": 8, "w": 12, "x": 12, "y": 32},
       "targets": [
         {
-          "expr": "sum by (signal) (rate(optikk_ingest_mapper_attrs_dropped_total{signal=~\"$signal\"}[5m]))",
-          "legendFormat": "{{signal}}",
+          "expr": "sum by (signal, job) (rate(optikk_ingest_mapper_attrs_dropped_total{job=~\"$service\",signal=~\"$signal\"}[5m]))",
+          "legendFormat": "{{job}} {{signal}}",
           "refId": "A"
         }
       ],

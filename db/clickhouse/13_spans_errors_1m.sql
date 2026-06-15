@@ -8,7 +8,7 @@
 -- ts_bucket invariant preserved (5-min Go-side semantics; the MV derives it
 -- server-side at MV evaluation only).
 
-CREATE TABLE IF NOT EXISTS observability.spans_errors_1m (
+CREATE TABLE IF NOT EXISTS optikk.spans_errors_1m (
     team_id              UInt32 CODEC(T64, ZSTD(1)),
     ts_bucket            UInt32 CODEC(DoubleDelta, LZ4),
     timestamp            DateTime CODEC(DoubleDelta, LZ4),
@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS observability.spans_errors_1m (
     http_route           LowCardinality(String) CODEC(ZSTD(1)),
 
     error_count          SimpleAggregateFunction(sum, UInt64) CODEC(T64, ZSTD(1))
-) ENGINE = ReplicatedAggregatingMergeTree('/clickhouse/tables/{shard}/observability/spans_errors_1m', '{replica}')
+) ENGINE = ReplicatedAggregatingMergeTree('/clickhouse/tables/{shard}/optikk/spans_errors_1m', '{replica}')
 PARTITION BY toYYYYMMDD(timestamp)
 ORDER BY (team_id, ts_bucket, service, name, error_group_id, fingerprint, timestamp)
 TTL timestamp + INTERVAL 30 DAY DELETE
@@ -36,8 +36,8 @@ SETTINGS
     index_granularity = 8192,
     ttl_only_drop_parts = 1;
 
-CREATE MATERIALIZED VIEW IF NOT EXISTS observability.spans_errors_1m_mv
-TO observability.spans_errors_1m AS
+CREATE MATERIALIZED VIEW IF NOT EXISTS optikk.spans_errors_1m_mv
+TO optikk.spans_errors_1m AS
 SELECT
     team_id,
     toUInt32(intDiv(toUnixTimestamp(timestamp), 300) * 300) AS ts_bucket,
@@ -57,7 +57,7 @@ SELECT
     http_route,
 
     count() AS error_count
-FROM observability.spans
+FROM optikk.spans
 WHERE has_error OR toUInt16OrZero(response_status_code) >= 400
 GROUP BY
     team_id, ts_bucket, timestamp, fingerprint, error_group_id,

@@ -8,7 +8,7 @@
   "schemaVersion": 39,
   "tags": ["optikk", "http", "api"],
   "templating": {
-    "list": [
+    "list": [{"name": "service", "label": "Service", "type": "query", "datasource": {"type": "prometheus", "uid": "prometheus"}, "definition": "label_values(go_goroutines, job)", "query": "label_values(go_goroutines, job)", "regex": "/optikk-.*/", "includeAll": true, "allValue": ".*", "multi": true, "refresh": 2, "current": {"selected": true, "text": ["All"], "value": ["$__all"]}},
       {
         "name": "route",
         "label": "Route",
@@ -48,8 +48,8 @@
       "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
       "targets": [
         {
-          "expr": "sum by (route, method) (rate(optikk_http_requests_total{route=~\"$route\",method=~\"$method\"}[1m]))",
-          "legendFormat": "{{method}} {{route}}",
+          "expr": "sum by (route, method, job) (rate(optikk_http_requests_total{job=~\"$service\",route=~\"$route\",method=~\"$method\"}[1m]))",
+          "legendFormat": "{{job}} {{method}} {{route}}",
           "refId": "A"
         }
       ],
@@ -62,8 +62,8 @@
       "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
       "targets": [
         {
-          "expr": "sum by (route, status_class) (rate(optikk_http_requests_total{route=~\"$route\",method=~\"$method\",status_class=~\"4xx|5xx\"}[1m]))",
-          "legendFormat": "{{status_class}} {{route}}",
+          "expr": "sum by (route, status_class, job) (rate(optikk_http_requests_total{job=~\"$service\",route=~\"$route\",method=~\"$method\",status_class=~\"4xx|5xx\"}[1m]))",
+          "legendFormat": "{{job}} {{status_class}} {{route}}",
           "refId": "A"
         }
       ],
@@ -76,8 +76,8 @@
       "gridPos": {"h": 8, "w": 8, "x": 0, "y": 8},
       "targets": [
         {
-          "expr": "histogram_quantile(0.5, sum by (route, method, le) (rate(optikk_http_request_duration_seconds_bucket{route=~\"$route\",method=~\"$method\"}[5m])))",
-          "legendFormat": "{{method}} {{route}}",
+          "expr": "histogram_quantile(0.5, sum by (route, method, le, job) (rate(optikk_http_request_duration_seconds_bucket{job=~\"$service\",route=~\"$route\",method=~\"$method\"}[5m])))",
+          "legendFormat": "{{job}} {{method}} {{route}}",
           "refId": "A"
         }
       ],
@@ -90,8 +90,8 @@
       "gridPos": {"h": 8, "w": 8, "x": 8, "y": 8},
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum by (route, method, le) (rate(optikk_http_request_duration_seconds_bucket{route=~\"$route\",method=~\"$method\"}[5m])))",
-          "legendFormat": "{{method}} {{route}}",
+          "expr": "histogram_quantile(0.95, sum by (route, method, le, job) (rate(optikk_http_request_duration_seconds_bucket{job=~\"$service\",route=~\"$route\",method=~\"$method\"}[5m])))",
+          "legendFormat": "{{job}} {{method}} {{route}}",
           "refId": "A"
         }
       ],
@@ -104,8 +104,8 @@
       "gridPos": {"h": 8, "w": 8, "x": 16, "y": 8},
       "targets": [
         {
-          "expr": "histogram_quantile(0.99, sum by (route, method, le) (rate(optikk_http_request_duration_seconds_bucket{route=~\"$route\",method=~\"$method\"}[5m])))",
-          "legendFormat": "{{method}} {{route}}",
+          "expr": "histogram_quantile(0.99, sum by (route, method, le, job) (rate(optikk_http_request_duration_seconds_bucket{job=~\"$service\",route=~\"$route\",method=~\"$method\"}[5m])))",
+          "legendFormat": "{{job}} {{method}} {{route}}",
           "refId": "A"
         }
       ],
@@ -117,7 +117,7 @@
       "datasource": {"type": "prometheus", "uid": "prometheus"},
       "gridPos": {"h": 4, "w": 6, "x": 0, "y": 16},
       "targets": [
-        {"expr": "optikk_http_in_flight_requests", "refId": "A"}
+        {"expr": "optikk_http_in_flight_requests{job=~\"$service\"}", "refId": "A"}
       ],
       "fieldConfig": {"defaults": {"unit": "short"}}
     },
@@ -128,7 +128,7 @@
       "gridPos": {"h": 4, "w": 6, "x": 6, "y": 16},
       "targets": [
         {
-          "expr": "100 * sum(rate(optikk_http_requests_total{status_class=\"5xx\"}[5m])) / clamp_min(sum(rate(optikk_http_requests_total[5m])), 1)",
+          "expr": "100 * sum(rate(optikk_http_requests_total{job=~\"$service\",status_class=\"5xx\"}[5m])) / clamp_min(sum(rate(optikk_http_requests_total{job=~\"$service\"}[5m])), 1)",
           "refId": "A"
         }
       ],
@@ -141,7 +141,7 @@
       "gridPos": {"h": 4, "w": 6, "x": 12, "y": 16},
       "targets": [
         {
-          "expr": "100 * sum(rate(optikk_http_requests_total{status_class=\"4xx\"}[5m])) / clamp_min(sum(rate(optikk_http_requests_total[5m])), 1)",
+          "expr": "100 * sum(rate(optikk_http_requests_total{job=~\"$service\",status_class=\"4xx\"}[5m])) / clamp_min(sum(rate(optikk_http_requests_total{job=~\"$service\"}[5m])), 1)",
           "refId": "A"
         }
       ],
@@ -153,7 +153,7 @@
       "datasource": {"type": "prometheus", "uid": "prometheus"},
       "gridPos": {"h": 4, "w": 6, "x": 18, "y": 16},
       "targets": [
-        {"expr": "sum(rate(optikk_http_requests_total[1m]))", "refId": "A"}
+        {"expr": "sum(rate(optikk_http_requests_total{job=~\"$service\"}[1m]))", "refId": "A"}
       ],
       "fieldConfig": {"defaults": {"unit": "reqps"}}
     },
@@ -164,7 +164,7 @@
       "gridPos": {"h": 9, "w": 12, "x": 0, "y": 20},
       "targets": [
         {
-          "expr": "topk(10, histogram_quantile(0.95, sum by (route, method, le) (rate(optikk_http_request_duration_seconds_bucket[5m]))))",
+          "expr": "topk(10, histogram_quantile(0.95, sum by (route, method, le, job) (rate(optikk_http_request_duration_seconds_bucket{job=~\"$service\"}[5m]))))",
           "instant": true,
           "format": "table",
           "refId": "A"
@@ -179,7 +179,7 @@
       "gridPos": {"h": 9, "w": 12, "x": 12, "y": 20},
       "targets": [
         {
-          "expr": "topk(10, sum by (route, method) (rate(optikk_http_requests_total{status_class=\"5xx\"}[5m])))",
+          "expr": "topk(10, sum by (route, method, job) (rate(optikk_http_requests_total{job=~\"$service\",status_class=\"5xx\"}[5m])))",
           "instant": true,
           "format": "table",
           "refId": "A"
@@ -194,8 +194,8 @@
       "gridPos": {"h": 8, "w": 24, "x": 0, "y": 29},
       "targets": [
         {
-          "expr": "sum by (status_class) (rate(optikk_http_requests_total{route=~\"$route\",method=~\"$method\"}[1m]))",
-          "legendFormat": "{{status_class}}",
+          "expr": "sum by (status_class, job) (rate(optikk_http_requests_total{job=~\"$service\",route=~\"$route\",method=~\"$method\"}[1m]))",
+          "legendFormat": "{{job}} {{status_class}}",
           "refId": "A"
         }
       ],

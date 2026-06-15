@@ -1,5 +1,5 @@
 -- INVARIANT: bucket values are computed Go-side (internal/infra/timebucket); no CH bucket functions in this file.
-CREATE TABLE IF NOT EXISTS observability.logs (
+CREATE TABLE IF NOT EXISTS optikk.logs (
     team_id              UInt32 CODEC(T64, ZSTD(1)),
     ts_bucket            UInt32 CODEC(Delta(4), LZ4),
     timestamp            DateTime64(9) CODEC(DoubleDelta, LZ4),
@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS observability.logs (
     severity_bucket      UInt8 CODEC(T64, ZSTD(1)),
     INDEX idx_log_id       log_id       TYPE bloom_filter(0.01)        GRANULARITY 4,
     INDEX idx_body_text    body         TYPE text(tokenizer = 'splitByNonAlpha', preprocessor = lowerUTF8(body)) GRANULARITY 1
-) ENGINE = ReplicatedMergeTree('/clickhouse/tables/{shard}/observability/logs', '{replica}')
+) ENGINE = ReplicatedMergeTree('/clickhouse/tables/{shard}/optikk/logs', '{replica}')
 PARTITION BY toYYYYMMDD(timestamp)
 ORDER BY (team_id, ts_bucket, fingerprint, timestamp)
 TTL timestamp + INTERVAL 30 DAY DELETE

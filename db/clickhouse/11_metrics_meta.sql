@@ -5,22 +5,22 @@
 -- metrics_1m row. No partition or TTL: the table is tiny (cardinality = number
 -- of distinct metrics) and the MV refreshes it continuously.
 
-CREATE TABLE IF NOT EXISTS observability.metrics_meta (
+CREATE TABLE IF NOT EXISTS optikk.metrics_meta (
     team_id          UInt32 CODEC(T64, ZSTD(1)),
     metric_name      LowCardinality(String),
     metric_type      LowCardinality(String) CODEC(ZSTD(1)),
     unit             LowCardinality(String) DEFAULT '' CODEC(ZSTD(1)),
     description      LowCardinality(String) DEFAULT '' CODEC(ZSTD(1))
-) ENGINE = ReplicatedReplacingMergeTree('/clickhouse/tables/{shard}/observability/metrics_meta', '{replica}')
+) ENGINE = ReplicatedReplacingMergeTree('/clickhouse/tables/{shard}/optikk/metrics_meta', '{replica}')
 ORDER BY (team_id, metric_name)
 SETTINGS index_granularity = 8192;
 
-CREATE MATERIALIZED VIEW IF NOT EXISTS observability.metrics_to_metrics_meta
-TO observability.metrics_meta AS
+CREATE MATERIALIZED VIEW IF NOT EXISTS optikk.metrics_to_metrics_meta
+TO optikk.metrics_meta AS
 SELECT DISTINCT
     team_id,
     metric_name,
     metric_type,
     unit,
     description
-FROM observability.metrics;
+FROM optikk.metrics;

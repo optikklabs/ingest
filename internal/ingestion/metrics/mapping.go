@@ -8,7 +8,7 @@ import (
 	"github.com/optikklabs/ingest/internal/ingestion/metrics/schema"
 )
 
-const chTable = "observability.metrics"
+const chTable = "optikk.metrics"
 
 var chColumns = []string{
 	"team_id", "metric_name", "metric_type", "temporality", "is_monotonic",

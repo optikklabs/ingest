@@ -1,11 +1,14 @@
-# Prometheus scrape config for the local ingest-pipeline monitoring stack.
+# Prometheus scrape config for the local monitoring stack.
 #
 # Used by the prometheus service in the root docker-compose.yml.
-# It scrapes the backend's /metrics endpoint directly — no otel-collector needed.
+# It scrapes both Optikk services' /metrics endpoints directly — no
+# otel-collector needed: ingest (OTLP write path) and query (read API).
+# Both export the same optikk_* metric names, so each job carries a distinct
+# `component` label; the auto-added `job` label is what the dashboards filter on.
 #
 # `host.docker.internal` resolves to the host machine from inside the
 # Prometheus container (see `extra_hosts` in the compose file). This keeps
-# the backend running on the host (`go run ./cmd/server`) while Prometheus
+# the services running on the host (`go run ./cmd/...`) while Prometheus
 # lives in Docker — the typical dev loop.
 
 global:
@@ -17,13 +20,21 @@ global:
     stack: local-monitoring
 
 scrape_configs:
-  - job_name: optikk-backend
+  - job_name: optikk-ingest
     metrics_path: /metrics
     static_configs:
       - targets:
-          - "host.docker.internal:19090"   # backend /metrics (config.yml: server.port)
+          - "host.docker.internal:18090"   # ingest /metrics (ingest/config.yml: server.port)
         labels:
-          component: backend
+          component: ingest
+
+  - job_name: optikk-query
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - "host.docker.internal:19090"   # query /metrics (query/config.yml: server.port)
+        labels:
+          component: query
 
   - job_name: prometheus-self
     static_configs:

@@ -9,7 +9,7 @@
 -- ts_bucket invariant preserved (5-min Go-side semantics; the MV derives it
 -- server-side at MV evaluation only).
 
-CREATE TABLE IF NOT EXISTS observability.spans_1m (
+CREATE TABLE IF NOT EXISTS optikk.spans_1m (
     team_id              UInt32 CODEC(T64, ZSTD(1)),
     ts_bucket            UInt32 CODEC(DoubleDelta, LZ4),
     timestamp            DateTime CODEC(DoubleDelta, LZ4),
@@ -52,7 +52,7 @@ CREATE TABLE IF NOT EXISTS observability.spans_1m (
     request_count        SimpleAggregateFunction(sum, UInt64)  CODEC(T64, ZSTD(1)),
     error_count          SimpleAggregateFunction(sum, UInt64)  CODEC(T64, ZSTD(1)),
     duration_ms_sum      SimpleAggregateFunction(sum, Float64) CODEC(Gorilla, ZSTD(1))
-) ENGINE = ReplicatedAggregatingMergeTree('/clickhouse/tables/{shard}/observability/spans_1m', '{replica}')
+) ENGINE = ReplicatedAggregatingMergeTree('/clickhouse/tables/{shard}/optikk/spans_1m', '{replica}')
 PARTITION BY toYYYYMMDD(timestamp)
 ORDER BY (team_id, ts_bucket, fingerprint, service, name, kind_string, timestamp)
 TTL timestamp + INTERVAL 30 DAY DELETE
@@ -61,8 +61,8 @@ SETTINGS
     enable_mixed_granularity_parts = 1,
     ttl_only_drop_parts = 1;
 
-CREATE MATERIALIZED VIEW IF NOT EXISTS observability.spans_1m_mv
-TO observability.spans_1m AS
+CREATE MATERIALIZED VIEW IF NOT EXISTS optikk.spans_1m_mv
+TO optikk.spans_1m AS
 SELECT
     team_id,
     toUInt32(intDiv(toUnixTimestamp(timestamp), 300) * 300) AS ts_bucket,
@@ -99,7 +99,7 @@ SELECT
     count()                                                                           AS request_count,
     countIf(has_error OR toUInt16OrZero(response_status_code) >= 400)                 AS error_count,
     sum(duration_nano / 1000000.0)                                                    AS duration_ms_sum
-FROM observability.spans
+FROM optikk.spans
 GROUP BY
     team_id, ts_bucket, timestamp, fingerprint,
     service, name, kind_string, peer_service, host, pod, environment, is_root,

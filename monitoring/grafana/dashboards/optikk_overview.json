@@ -1,13 +1,13 @@
 {
   "annotations": {"list": []},
-  "description": "Service-wide health overview — HTTP + gRPC traffic, error ratios, DB/Redis/Kafka subsystem summary, Go runtime basics. Start here; drill into subsystem dashboards for root cause.",
+  "description": "Service-wide health overview — HTTP + gRPC traffic, error ratios, DB/Kafka subsystem summary, Go runtime basics. Start here; drill into subsystem dashboards for root cause.",
   "editable": false,
   "graphTooltip": 1,
   "liveNow": false,
   "refresh": "10s",
   "schemaVersion": 39,
   "tags": ["optikk", "overview"],
-  "templating": {"list": []},
+  "templating": {"list": [{"name": "service", "label": "Service", "type": "query", "datasource": {"type": "prometheus", "uid": "prometheus"}, "definition": "label_values(go_goroutines, job)", "query": "label_values(go_goroutines, job)", "regex": "/optikk-.*/", "includeAll": true, "allValue": ".*", "multi": true, "refresh": 2, "current": {"selected": true, "text": ["All"], "value": ["$__all"]}}]},
   "time": {"from": "now-1h", "to": "now"},
   "timepicker": {},
   "title": "Optikk Overview",
@@ -20,7 +20,7 @@
       "datasource": {"type": "prometheus", "uid": "prometheus"},
       "gridPos": {"h": 4, "w": 4, "x": 0, "y": 0},
       "targets": [
-        {"expr": "sum(rate(optikk_http_requests_total[1m]))", "refId": "A"}
+        {"expr": "sum(rate(optikk_http_requests_total{job=~\"$service\"}[1m]))", "refId": "A"}
       ],
       "fieldConfig": {"defaults": {"unit": "reqps"}}
     },
@@ -31,7 +31,7 @@
       "gridPos": {"h": 4, "w": 4, "x": 4, "y": 0},
       "targets": [
         {
-          "expr": "100 * sum(rate(optikk_http_requests_total{status_class=\"5xx\"}[5m])) / clamp_min(sum(rate(optikk_http_requests_total[5m])), 1)",
+          "expr": "100 * sum(rate(optikk_http_requests_total{job=~\"$service\",status_class=\"5xx\"}[5m])) / clamp_min(sum(rate(optikk_http_requests_total{job=~\"$service\"}[5m])), 1)",
           "refId": "A"
         }
       ],
@@ -43,7 +43,7 @@
       "datasource": {"type": "prometheus", "uid": "prometheus"},
       "gridPos": {"h": 4, "w": 4, "x": 8, "y": 0},
       "targets": [
-        {"expr": "sum(rate(optikk_grpc_started_total[1m]))", "refId": "A"}
+        {"expr": "sum(rate(optikk_grpc_started_total{job=~\"$service\"}[1m]))", "refId": "A"}
       ],
       "fieldConfig": {"defaults": {"unit": "ops"}}
     },
@@ -54,7 +54,7 @@
       "gridPos": {"h": 4, "w": 4, "x": 12, "y": 0},
       "targets": [
         {
-          "expr": "100 * sum(rate(optikk_grpc_handled_total{code!=\"OK\"}[5m])) / clamp_min(sum(rate(optikk_grpc_handled_total[5m])), 1)",
+          "expr": "100 * sum(rate(optikk_grpc_handled_total{job=~\"$service\",code!=\"OK\"}[5m])) / clamp_min(sum(rate(optikk_grpc_handled_total{job=~\"$service\"}[5m])), 1)",
           "refId": "A"
         }
       ],
@@ -66,7 +66,7 @@
       "datasource": {"type": "prometheus", "uid": "prometheus"},
       "gridPos": {"h": 4, "w": 4, "x": 16, "y": 0},
       "targets": [
-        {"expr": "sum(rate(optikk_ingest_records_total{result=\"ok\"}[1m]))", "refId": "A"}
+        {"expr": "sum(rate(optikk_ingest_records_total{job=~\"$service\",result=\"ok\"}[1m]))", "refId": "A"}
       ],
       "fieldConfig": {"defaults": {"unit": "ops"}}
     },
@@ -76,7 +76,7 @@
       "datasource": {"type": "prometheus", "uid": "prometheus"},
       "gridPos": {"h": 4, "w": 4, "x": 20, "y": 0},
       "targets": [
-        {"expr": "sum(optikk_kafka_consumer_lag_records)", "refId": "A"}
+        {"expr": "sum(optikk_kafka_consumer_lag_records{job=~\"$service\"})", "refId": "A"}
       ],
       "fieldConfig": {"defaults": {"unit": "short", "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 10000}, {"color": "red", "value": 100000}]}}}
     },
@@ -87,8 +87,8 @@
       "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4},
       "targets": [
         {
-          "expr": "sum by (status_class) (rate(optikk_http_requests_total[1m]))",
-          "legendFormat": "{{status_class}}",
+          "expr": "sum by (status_class, job) (rate(optikk_http_requests_total{job=~\"$service\"}[1m]))",
+          "legendFormat": "{{job}} {{status_class}}",
           "refId": "A"
         }
       ],
@@ -101,8 +101,8 @@
       "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4},
       "targets": [
         {
-          "expr": "topk(5, histogram_quantile(0.95, sum by (route, le) (rate(optikk_http_request_duration_seconds_bucket[5m]))))",
-          "legendFormat": "{{route}}",
+          "expr": "topk(5, histogram_quantile(0.95, sum by (route, le, job) (rate(optikk_http_request_duration_seconds_bucket{job=~\"$service\"}[5m]))))",
+          "legendFormat": "{{job}} {{route}}",
           "refId": "A"
         }
       ],
@@ -115,8 +115,8 @@
       "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12},
       "targets": [
         {
-          "expr": "histogram_quantile(0.99, sum by (method, le) (rate(optikk_grpc_handling_duration_seconds_bucket[5m])))",
-          "legendFormat": "{{method}}",
+          "expr": "histogram_quantile(0.99, sum by (method, le, job) (rate(optikk_grpc_handling_duration_seconds_bucket{job=~\"$service\"}[5m])))",
+          "legendFormat": "{{job}} {{method}}",
           "refId": "A"
         }
       ],
@@ -129,8 +129,8 @@
       "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12},
       "targets": [
         {
-          "expr": "sum by (signal, result) (rate(optikk_ingest_records_total[1m]))",
-          "legendFormat": "{{signal}} {{result}}",
+          "expr": "sum by (signal, result, job) (rate(optikk_ingest_records_total{job=~\"$service\"}[1m]))",
+          "legendFormat": "{{job}} {{signal}} {{result}}",
           "refId": "A"
         }
       ],
@@ -140,25 +140,11 @@
       "title": "DB query rate by system",
       "type": "timeseries",
       "datasource": {"type": "prometheus", "uid": "prometheus"},
-      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 20},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 20},
       "targets": [
         {
-          "expr": "sum by (system) (rate(optikk_db_queries_total[1m]))",
-          "legendFormat": "{{system}}",
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {"defaults": {"unit": "ops"}}
-    },
-    {
-      "title": "Redis commands/s",
-      "type": "timeseries",
-      "datasource": {"type": "prometheus", "uid": "prometheus"},
-      "gridPos": {"h": 8, "w": 8, "x": 8, "y": 20},
-      "targets": [
-        {
-          "expr": "sum by (result) (rate(optikk_redis_commands_total[1m]))",
-          "legendFormat": "{{result}}",
+          "expr": "sum by (system, job) (rate(optikk_db_queries_total{job=~\"$service\"}[1m]))",
+          "legendFormat": "{{job}} {{system}}",
           "refId": "A"
         }
       ],
@@ -168,11 +154,11 @@
       "title": "Auth denials (5m rate)",
       "type": "timeseries",
       "datasource": {"type": "prometheus", "uid": "prometheus"},
-      "gridPos": {"h": 8, "w": 8, "x": 16, "y": 20},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 20},
       "targets": [
         {
-          "expr": "sum by (reason) (rate(optikk_auth_denied_total[5m]))",
-          "legendFormat": "{{reason}}",
+          "expr": "sum by (reason, job) (rate(optikk_auth_denied_total{job=~\"$service\"}[5m]))",
+          "legendFormat": "{{job}} {{reason}}",
           "refId": "A"
         }
       ],
@@ -184,7 +170,7 @@
       "datasource": {"type": "prometheus", "uid": "prometheus"},
       "gridPos": {"h": 8, "w": 12, "x": 0, "y": 28},
       "targets": [
-        {"expr": "go_goroutines", "refId": "A"}
+        {"expr": "go_goroutines{job=~\"$service\"}", "legendFormat": "{{job}}", "refId": "A"}
       ],
       "fieldConfig": {"defaults": {"unit": "short"}}
     },
@@ -194,7 +180,7 @@
       "datasource": {"type": "prometheus", "uid": "prometheus"},
       "gridPos": {"h": 8, "w": 12, "x": 12, "y": 28},
       "targets": [
-        {"expr": "go_memstats_heap_inuse_bytes", "refId": "A"}
+        {"expr": "go_memstats_heap_inuse_bytes{job=~\"$service\"}", "legendFormat": "{{job}}", "refId": "A"}
       ],
       "fieldConfig": {"defaults": {"unit": "bytes"}}
     }

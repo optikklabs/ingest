@@ -8,7 +8,7 @@
   "schemaVersion": 39,
   "tags": ["optikk", "grpc", "otlp-ingest"],
   "templating": {
-    "list": [
+    "list": [{"name": "service", "label": "Service", "type": "query", "datasource": {"type": "prometheus", "uid": "prometheus"}, "definition": "label_values(go_goroutines, job)", "query": "label_values(go_goroutines, job)", "regex": "/optikk-.*/", "includeAll": true, "allValue": ".*", "multi": true, "refresh": 2, "current": {"selected": true, "text": ["All"], "value": ["$__all"]}},
       {
         "name": "method",
         "label": "Method",
@@ -36,8 +36,8 @@
       "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
       "targets": [
         {
-          "expr": "sum by (method) (rate(optikk_grpc_started_total{method=~\"$method\"}[1m]))",
-          "legendFormat": "{{method}}",
+          "expr": "sum by (method, job) (rate(optikk_grpc_started_total{job=~\"$service\",method=~\"$method\"}[1m]))",
+          "legendFormat": "{{job}} {{method}}",
           "refId": "A"
         }
       ],
@@ -50,8 +50,8 @@
       "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
       "targets": [
         {
-          "expr": "sum by (method, code) (rate(optikk_grpc_handled_total{method=~\"$method\",code!=\"OK\"}[1m]))",
-          "legendFormat": "{{code}} — {{method}}",
+          "expr": "sum by (method, code, job) (rate(optikk_grpc_handled_total{job=~\"$service\",method=~\"$method\",code!=\"OK\"}[1m]))",
+          "legendFormat": "{{job}} {{code}} — {{method}}",
           "refId": "A"
         }
       ],
@@ -64,8 +64,8 @@
       "gridPos": {"h": 8, "w": 8, "x": 0, "y": 8},
       "targets": [
         {
-          "expr": "histogram_quantile(0.5, sum by (method, le) (rate(optikk_grpc_handling_duration_seconds_bucket{method=~\"$method\"}[5m])))",
-          "legendFormat": "{{method}}",
+          "expr": "histogram_quantile(0.5, sum by (method, le, job) (rate(optikk_grpc_handling_duration_seconds_bucket{job=~\"$service\",method=~\"$method\"}[5m])))",
+          "legendFormat": "{{job}} {{method}}",
           "refId": "A"
         }
       ],
@@ -78,8 +78,8 @@
       "gridPos": {"h": 8, "w": 8, "x": 8, "y": 8},
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum by (method, le) (rate(optikk_grpc_handling_duration_seconds_bucket{method=~\"$method\"}[5m])))",
-          "legendFormat": "{{method}}",
+          "expr": "histogram_quantile(0.95, sum by (method, le, job) (rate(optikk_grpc_handling_duration_seconds_bucket{job=~\"$service\",method=~\"$method\"}[5m])))",
+          "legendFormat": "{{job}} {{method}}",
           "refId": "A"
         }
       ],
@@ -92,8 +92,8 @@
       "gridPos": {"h": 8, "w": 8, "x": 16, "y": 8},
       "targets": [
         {
-          "expr": "histogram_quantile(0.99, sum by (method, le) (rate(optikk_grpc_handling_duration_seconds_bucket{method=~\"$method\"}[5m])))",
-          "legendFormat": "{{method}}",
+          "expr": "histogram_quantile(0.99, sum by (method, le, job) (rate(optikk_grpc_handling_duration_seconds_bucket{job=~\"$service\",method=~\"$method\"}[5m])))",
+          "legendFormat": "{{job}} {{method}}",
           "refId": "A"
         }
       ],
@@ -106,7 +106,7 @@
       "gridPos": {"h": 5, "w": 8, "x": 0, "y": 16},
       "targets": [
         {
-          "expr": "100 * sum(rate(optikk_grpc_handled_total{code!=\"OK\"}[5m])) / clamp_min(sum(rate(optikk_grpc_handled_total[5m])), 1)",
+          "expr": "100 * sum(rate(optikk_grpc_handled_total{job=~\"$service\",code!=\"OK\"}[5m])) / clamp_min(sum(rate(optikk_grpc_handled_total{job=~\"$service\"}[5m])), 1)",
           "refId": "A"
         }
       ],
@@ -119,7 +119,7 @@
       "gridPos": {"h": 5, "w": 8, "x": 8, "y": 16},
       "targets": [
         {
-          "expr": "sum(rate(optikk_grpc_handled_total{code=\"Unauthenticated\"}[5m]))",
+          "expr": "sum(rate(optikk_grpc_handled_total{job=~\"$service\",code=\"Unauthenticated\"}[5m]))",
           "refId": "A"
         }
       ],
@@ -131,7 +131,7 @@
       "datasource": {"type": "prometheus", "uid": "prometheus"},
       "gridPos": {"h": 5, "w": 8, "x": 16, "y": 16},
       "targets": [
-        {"expr": "sum(rate(optikk_grpc_started_total[1m]))", "refId": "A"}
+        {"expr": "sum(rate(optikk_grpc_started_total{job=~\"$service\"}[1m]))", "refId": "A"}
       ],
       "fieldConfig": {"defaults": {"unit": "ops"}}
     },
@@ -142,7 +142,7 @@
       "gridPos": {"h": 9, "w": 24, "x": 0, "y": 21},
       "targets": [
         {
-          "expr": "topk(10, histogram_quantile(0.99, sum by (method, le) (rate(optikk_grpc_handling_duration_seconds_bucket[5m]))))",
+          "expr": "topk(10, histogram_quantile(0.99, sum by (method, le, job) (rate(optikk_grpc_handling_duration_seconds_bucket{job=~\"$service\"}[5m]))))",
           "instant": true,
           "format": "table",
           "refId": "A"

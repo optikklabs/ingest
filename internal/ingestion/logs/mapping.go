@@ -8,7 +8,7 @@ import (
 	"github.com/optikklabs/ingest/internal/ingestion/logs/schema"
 )
 
-const chTable = "observability.logs"
+const chTable = "optikk.logs"
 
 var chColumns = []string{
 	"team_id", "ts_bucket", "timestamp", "observed_timestamp",

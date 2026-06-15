@@ -92,25 +92,25 @@ func SnapRangeForRollup(startMs, endMs int64) (int64, int64) {
 // SpansRollup returns the spans RED rollup table for the query window.
 func SpansRollup(windowMs int64) string {
 	if UseHourRollup(windowMs) {
-		return "observability.spans_1h"
+		return "optikk.spans_1h"
 	}
-	return "observability.spans_1m"
+	return "optikk.spans_1m"
 }
 
 // MetricsRollup returns the scalar metrics rollup table for the query window.
 func MetricsRollup(windowMs int64) string {
 	if UseHourRollup(windowMs) {
-		return "observability.metrics_1h"
+		return "optikk.metrics_1h"
 	}
-	return "observability.metrics_1m"
+	return "optikk.metrics_1m"
 }
 
 // MetricsHistRollup returns the histogram metrics rollup table for the query window.
 func MetricsHistRollup(windowMs int64) string {
 	if UseHourRollup(windowMs) {
-		return "observability.metrics_hist_1h"
+		return "optikk.metrics_hist_1h"
 	}
-	return "observability.metrics_hist_1m"
+	return "optikk.metrics_hist_1m"
 }
 
 // WithBucketGrainSec appends @bucketGrainSec in seconds matching DisplayGrain.

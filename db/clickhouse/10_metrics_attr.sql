@@ -12,13 +12,13 @@
 -- ts_bucket carries the 5-min Go-side value through from the raw table for
 -- time pruning.
 
-CREATE TABLE IF NOT EXISTS observability.metrics_attr (
+CREATE TABLE IF NOT EXISTS optikk.metrics_attr (
     team_id          UInt32 CODEC(T64, ZSTD(1)),
     ts_bucket        UInt32 CODEC(DoubleDelta, LZ4),
     metric_name      LowCardinality(String),
     attr_hash        UInt64 CODEC(ZSTD(1)),
     attributes       JSON(max_dynamic_paths=100) CODEC(ZSTD(1))
-) ENGINE = ReplicatedReplacingMergeTree('/clickhouse/tables/{shard}/observability/metrics_attr', '{replica}')
+) ENGINE = ReplicatedReplacingMergeTree('/clickhouse/tables/{shard}/optikk/metrics_attr', '{replica}')
 -- Weekly partitions: ORDER BY carries no ts_bucket, so ReplacingMergeTree only
 -- dedups within a partition — daily partitions would duplicate each label set
 -- up to ~30x over the TTL window; weekly caps it at ~5x with <=7d drop lag.
@@ -29,12 +29,12 @@ SETTINGS
     index_granularity = 8192,
     ttl_only_drop_parts = 1;
 
-CREATE MATERIALIZED VIEW IF NOT EXISTS observability.metrics_to_metrics_attr
-TO observability.metrics_attr AS
+CREATE MATERIALIZED VIEW IF NOT EXISTS optikk.metrics_to_metrics_attr
+TO optikk.metrics_attr AS
 SELECT DISTINCT
     team_id,
     ts_bucket,
     metric_name,
     cityHash64(toJSONString(attributes)) AS attr_hash,
     attributes
-FROM observability.metrics;
+FROM optikk.metrics;
