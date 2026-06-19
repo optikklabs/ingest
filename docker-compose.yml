@@ -47,6 +47,21 @@ services:
     volumes:
       - mq_data:/var/lib/mq
 
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.110.0
+    container_name: optikk-otel-collector
+    restart: unless-stopped
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    volumes:
+      - ./otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml:ro
+    ports:
+      - "4317:4317" # OTLP gRPC receiver
+      - "4319:4318" # OTLP HTTP receiver (4318 is mapped to 4319 to avoid collision if ingest binds 4318 on host)
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - kafka
+
   # Local Prometheus + Grafana for the Optikk dashboards.
   # Both services run on the host (`go run ./cmd/...`); Prometheus scrapes
   # ingest (:18090) and query (:19090) /metrics via host.docker.internal.

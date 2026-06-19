@@ -34,7 +34,7 @@ func (w *ClickHouseWriter[T]) Insert(ctx context.Context, rows []T) error {
 	}
 	ctx = clickhouse.Context(ctx, clickhouse.WithSettings(clickhouse.Settings{
 		"async_insert":          uint8(1),
-		"wait_for_async_insert": uint8(1),
+		"wait_for_async_insert": uint8(0),
 	}))
 	batch, err := w.ch.PrepareBatch(ctx, w.query)
 	if err != nil {

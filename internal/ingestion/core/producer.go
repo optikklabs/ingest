@@ -12,7 +12,7 @@ import (
 )
 
 // Producer publishes mapped Rows to Kafka using the shared base producer.
-// The key is teamID for sticky per-team partitioning.
+// The key is fingerprint for balanced per-series partitioning.
 type Producer[T Row] struct {
 	topic string
 	base  *kafkainfra.Producer
@@ -37,7 +37,7 @@ func (p *Producer[T]) Publish(ctx context.Context, rows []T) error {
 		}
 		records = append(records, &kgo.Record{
 			Topic:     p.topic,
-			Key:       []byte(strconv.FormatUint(uint64(r.GetTeamId()), 10)),
+			Key:       []byte(strconv.FormatUint(r.GetFingerprint(), 10)),
 			Value:     value,
 			Timestamp: now,
 		})

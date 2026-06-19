@@ -109,6 +109,7 @@ func baseRow(
 	tsNs int64, attrs map[string]string,
 	value float64,
 ) *schema.Row {
+	normalizeAttrs(m.GetName(), attrs)
 	bucket := timebucket.BucketStart(tsNs / 1_000_000_000)
 	return &schema.Row{
 		TeamId:              hdr.teamID,

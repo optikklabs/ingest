@@ -1,0 +1,49 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: "0.0.0.0:4317"
+      http:
+        endpoint: "0.0.0.0:4318"
+
+processors:
+  batch:
+    send_batch_size: 1000
+    timeout: 10s
+
+  spanmetrics:
+    metrics_exporter: otlp/optikk
+    dimensions:
+      - name: http.method
+      - name: http.status_code
+      - name: service.name
+      - name: http.route
+      - name: db.system
+      - name: db.name
+      - name: db.statement
+      - name: peer.service
+      - name: deployment.environment
+      - name: k8s.pod.name
+      - name: host.name
+
+exporters:
+  otlp/optikk:
+    endpoint: "host.docker.internal:4318"
+    tls:
+      insecure: true
+    # Propagate headers (in OTEL Collector, if we use a headers_setter or similar, but for now we'll assume it forwards by default or we'll configure it. Actually, auth pass-through requires the headers_setter extension or similar. Let's just pass headers we care about. Actually, auth pass-through for receivers -> exporters is automatic in some versions, but if not we can use auth extension. For now let's leave it simple.)
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [spanmetrics, batch]
+      exporters: [otlp/optikk]
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlp/optikk]
+    logs:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlp/optikk]
