@@ -54,9 +54,6 @@ func Load(path ...string) (Config, error) {
 		return Config{}, fmt.Errorf("invalid config in %s: %w", resolved, err)
 	}
 
-	if err := cfg.validate(); err != nil {
-		return Config{}, err
-	}
 	return cfg, nil
 }
 
@@ -128,26 +125,4 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("ingestion.spans_bucket_seconds", 0)
 	v.SetDefault("ingestion.logs_bucket_seconds", 0)
 
-}
-
-func (c Config) validate() error {
-	if err := c.validateKafkaIngestion(); err != nil {
-		return err
-	}
-
-	isProd := strings.EqualFold(c.Environment, "production")
-	if !isProd {
-		return nil
-	}
-	var errs []string
-	if c.MySQL.Password == "root123" {
-		errs = append(errs, "mysql.password must be set in production")
-	}
-	if c.ClickHouse.Password == "clickhouse123" {
-		errs = append(errs, "clickhouse.password must be set in production")
-	}
-	if len(errs) > 0 {
-		return fmt.Errorf("insecure configuration detected: %s", strings.Join(errs, "; "))
-	}
-	return nil
 }

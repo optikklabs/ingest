@@ -8,4 +8,5 @@ import "google.golang.org/protobuf/proto"
 type Row interface {
 	proto.Message
 	GetTeamId() uint32
+	GetFingerprint() uint64
 }

@@ -1,7 +1,6 @@
 package config
 
 import (
-	"fmt"
 	"strings"
 )
 
@@ -27,50 +26,34 @@ type KafkaConfig struct {
 	BatchMaxBytes int `yaml:"batch_max_bytes"`
 }
 
-func (c Config) validateKafkaIngestion() error {
-	if len(c.KafkaBrokers()) == 0 {
-		return fmt.Errorf("kafka: at least one broker required for OTLP ingest (set kafka.broker_list or kafka.brokers, or OPTIKK_KAFKA_BROKER_LIST)")
-	}
-	return nil
-}
-
 // KafkaBrokers returns broker addresses from BrokerList when set,
 // otherwise from Brokers.
 func (c Config) KafkaBrokers() []string {
-	if s := strings.TrimSpace(c.Kafka.BrokerList); s != "" {
-		var out []string
-		for _, p := range strings.Split(s, ",") {
-			p = strings.TrimSpace(p)
-			if p != "" {
-				out = append(out, p)
-			}
-		}
-		if len(out) > 0 {
-			return out
-		}
+	if c.Kafka.BrokerList != "" {
+		return strings.Split(c.Kafka.BrokerList, ",")
 	}
 	return c.Kafka.Brokers
 }
 
 // KafkaTopicPrefix returns the ingest topic prefix (default "optikk.ingest").
 func (c Config) KafkaTopicPrefix() string {
-	if s := strings.TrimSpace(c.Kafka.TopicPrefix); s != "" {
-		return s
+	if c.Kafka.TopicPrefix != "" {
+		return c.Kafka.TopicPrefix
 	}
 	return "optikk.ingest"
 }
 
 // KafkaDLQPrefix returns the DLQ topic prefix (default "optikk.dlq").
 func (c Config) KafkaDLQPrefix() string {
-	if s := strings.TrimSpace(c.Kafka.DLQPrefix); s != "" {
-		return s
+	if c.Kafka.DLQPrefix != "" {
+		return c.Kafka.DLQPrefix
 	}
 	return "optikk.dlq"
 }
 
 // KafkaCompression returns the batch compression codec (default zstd).
 func (c Config) KafkaCompression() string {
-	if s := strings.TrimSpace(strings.ToLower(c.Kafka.Compression)); s != "" {
+	if s := strings.ToLower(c.Kafka.Compression); s != "" {
 		return s
 	}
 	return "zstd"

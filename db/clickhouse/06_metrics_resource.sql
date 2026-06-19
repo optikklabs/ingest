@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS optikk.metrics_resource (
 -- dedups within a partition — daily partitions would duplicate each fingerprint
 -- up to ~30x over the TTL window; weekly caps it at ~5x with <=7d drop lag.
 PARTITION BY toMonday(toDateTime(ts_bucket))
-ORDER BY (team_id, fingerprint)
+ORDER BY (team_id, service, host, environment, fingerprint)
 TTL toDateTime(ts_bucket) + INTERVAL 30 DAY DELETE
 SETTINGS
     index_granularity = 8192,

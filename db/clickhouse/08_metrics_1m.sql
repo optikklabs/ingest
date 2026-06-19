@@ -38,12 +38,15 @@ SELECT
     metric_name,
     fingerprint,
 
-    -- Extract fixed columns
-    attributes.'db.system'::String                     AS db_system,
-    attributes.'db.client.connection.state'::String    AS db_connection_state,
-    attributes.'messaging.destination.name'::String    AS messaging_destination,
-    attributes.'messaging.consumer.group.name'::String AS messaging_consumer_group,
-    attributes.'messaging.system'::String              AS messaging_system,
+    -- Read canonical dimension keys. Source-key aliasing (topic/group,
+    -- db.system.name) and messaging.system synthesis are normalized once at
+    -- ingest (see ingest/internal/ingestion/metrics/normalize.go), so the MV
+    -- reads a single key per dimension with no per-source branching.
+    attributes.'db.system'::String                         AS db_system,
+    attributes.'db.client.connection.state'::String        AS db_connection_state,
+    attributes.'messaging.destination.name'::String        AS messaging_destination,
+    attributes.'messaging.consumer.group.name'::String     AS messaging_consumer_group,
+    attributes.'messaging.system'::String                  AS messaging_system,
 
     min(value)   AS val_min,
     max(value)   AS val_max,
