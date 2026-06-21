@@ -23,7 +23,8 @@ func FormatDisplayBucket(t time.Time) string {
 }
 
 // DisplayBucket buckets a row timestamp into a display-time bucket.
-// Grain is based on query window: <=3h: 1m, <=24h: 5m, <=7d: 1h, else 1d.
+// Grain is based on query window: <=24h: 5m, <=7d: 1h, else 1d. 5m is the
+// finest tier (raw -> 5m -> 1h), so there is no sub-5m display grain.
 func DisplayBucket(rowUnixSeconds int64, windowMs int64) time.Time {
 	return bucketAt(rowUnixSeconds, displayGrain(windowMs))
 }
@@ -35,8 +36,6 @@ func DisplayGrain(windowMs int64) time.Duration {
 func displayGrain(windowMs int64) time.Duration {
 	w := time.Duration(windowMs) * time.Millisecond
 	switch {
-	case w <= 3*time.Hour:
-		return time.Minute
 	case w <= 24*time.Hour:
 		return 5 * time.Minute
 	case w <= 7*24*time.Hour:
@@ -54,8 +53,6 @@ func bucketAt(unixSeconds int64, grain time.Duration) time.Time {
 // The returned fragment expects a `timestamp` column in scope.
 func DisplayGrainSQL(windowMs int64) string {
 	switch displayGrain(windowMs) {
-	case time.Minute:
-		return "toStartOfMinute(timestamp)"
 	case 5 * time.Minute:
 		return "toStartOfFiveMinutes(timestamp)"
 	case time.Hour:
@@ -66,7 +63,7 @@ func DisplayGrainSQL(windowMs int64) string {
 }
 
 // UseHourRollup reports whether a query window should read the 1h rollup
-// tier instead of the 1m tier. True exactly when the display grain is >= 1h
+// tier instead of the 5m tier. True exactly when the display grain is >= 1h
 // (window > 24h), so hourly rows always satisfy the display grain losslessly.
 func UseHourRollup(windowMs int64) bool {
 	return displayGrain(windowMs) >= time.Hour
@@ -89,20 +86,12 @@ func SnapRangeForRollup(startMs, endMs int64) (int64, int64) {
 	return startMs, endMs
 }
 
-// SpansRollup returns the spans RED rollup table for the query window.
-func SpansRollup(windowMs int64) string {
-	if UseHourRollup(windowMs) {
-		return "optikk.spans_1h"
-	}
-	return "optikk.spans_1m"
-}
-
 // MetricsRollup returns the scalar metrics rollup table for the query window.
 func MetricsRollup(windowMs int64) string {
 	if UseHourRollup(windowMs) {
 		return "optikk.metrics_1h"
 	}
-	return "optikk.metrics_1m"
+	return "optikk.metrics_5m"
 }
 
 // MetricsHistRollup returns the histogram metrics rollup table for the query window.
@@ -110,7 +99,7 @@ func MetricsHistRollup(windowMs int64) string {
 	if UseHourRollup(windowMs) {
 		return "optikk.metrics_hist_1h"
 	}
-	return "optikk.metrics_hist_1m"
+	return "optikk.metrics_hist_5m"
 }
 
 // WithBucketGrainSec appends @bucketGrainSec in seconds matching DisplayGrain.

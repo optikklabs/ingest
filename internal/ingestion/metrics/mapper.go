@@ -1,8 +1,6 @@
 package metrics
 
 import (
-	"math"
-
 	"github.com/optikklabs/ingest/internal/infra/fingerprint"
 	"github.com/optikklabs/ingest/internal/infra/otlp"
 	"github.com/optikklabs/ingest/internal/infra/timebucket"
@@ -13,9 +11,8 @@ import (
 )
 
 type rowHeader struct {
-	teamID      uint32
-	fingerprint uint64
-	resMap      map[string]string
+	teamID uint32
+	resMap map[string]string
 }
 
 func mapRequest(teamID int64, req *metricspb.ExportMetricsServiceRequest) []*schema.Row {
@@ -27,9 +24,8 @@ func mapRequest(teamID int64, req *metricspb.ExportMetricsServiceRequest) []*sch
 		}
 		resMap := otlp.AttrsToMap(resAttrs)
 		hdr := rowHeader{
-			teamID:      uint32(teamID),
-			fingerprint: fingerprint.CalculateHash(resMap),
-			resMap:      resMap,
+			teamID: uint32(teamID),
+			resMap: resMap,
 		}
 		for _, sm := range rm.GetScopeMetrics() {
 			for _, m := range sm.GetMetrics() {
@@ -63,63 +59,52 @@ func appendMetric(rows []*schema.Row, hdr rowHeader, m *metricsdatapb.Metric) []
 func gaugeRow(hdr rowHeader, m *metricsdatapb.Metric, dp *metricsdatapb.NumberDataPoint) *schema.Row {
 	tsNs := int64(dp.GetTimeUnixNano())
 	attrs := otlp.AttrsToMap(dp.GetAttributes())
-	return scalarRow(hdr, m, "Gauge", "Unspecified", false, tsNs, attrs, numberValue(dp))
+	return scalarRow(hdr, m, m.GetName(), "Gauge", "Unspecified", false, tsNs, attrs, numberValue(dp))
 }
 
 func sumRow(hdr rowHeader, m *metricsdatapb.Metric, temporality string, isMono bool, dp *metricsdatapb.NumberDataPoint) *schema.Row {
 	tsNs := int64(dp.GetTimeUnixNano())
 	attrs := otlp.AttrsToMap(dp.GetAttributes())
-	return scalarRow(hdr, m, "Sum", temporality, isMono, tsNs, attrs, numberValue(dp))
+	return scalarRow(hdr, m, m.GetName(), "Sum", temporality, isMono, tsNs, attrs, numberValue(dp))
 }
 
-// histogramRow maps an OTel histogram data point to a Schema Row,
-// converting bounds to hist_buckets and keeping counts in hist_counts.
+// histogramRow maps an OTel histogram data point to a single row carrying the
+// raw bounds/counts arrays plus sum/count. Percentiles are computed at read time
+// (or pre-aggregated into the metrics_hist_* rollup's latency_state).
 func histogramRow(hdr rowHeader, m *metricsdatapb.Metric, temporality string, dp *metricsdatapb.HistogramDataPoint) *schema.Row {
 	tsNs := int64(dp.GetTimeUnixNano())
 	attrs := otlp.AttrsToMap(dp.GetAttributes())
-	sum := 0.0
+	row := scalarRow(hdr, m, m.GetName(), "Histogram", temporality, false, tsNs, attrs, 0)
 	if dp.Sum != nil {
-		sum = *dp.Sum
+		row.HistSum = *dp.Sum
 	}
-	bounds := dp.GetExplicitBounds()
-	counts := dp.GetBucketCounts()
-	histBuckets := make([]float64, len(counts))
-	for i := range counts {
-		if i < len(bounds) {
-			histBuckets[i] = bounds[i]
-		} else {
-			histBuckets[i] = math.Inf(1)
-		}
-	}
-	row := baseRow(hdr, m, "Histogram", temporality, false, tsNs, attrs, 0)
-	row.HistSum = sum
 	row.HistCount = dp.GetCount()
-	row.HistBuckets = histBuckets
-	row.HistCounts = append([]uint64(nil), counts...)
+	row.HistBuckets = dp.GetExplicitBounds()
+	row.HistCounts = dp.GetBucketCounts()
 	return row
 }
 
-func scalarRow(hdr rowHeader, m *metricsdatapb.Metric, metricType, temporality string, isMonotonic bool, tsNs int64, attrs map[string]string, value float64) *schema.Row {
-	return baseRow(hdr, m, metricType, temporality, isMonotonic, tsNs, attrs, value)
+func scalarRow(hdr rowHeader, m *metricsdatapb.Metric, name, metricType, temporality string, isMonotonic bool, tsNs int64, attrs map[string]string, value float64) *schema.Row {
+	return baseRow(hdr, m, name, metricType, temporality, isMonotonic, tsNs, attrs, value)
 }
 
 func baseRow(
-	hdr rowHeader, m *metricsdatapb.Metric,
+	hdr rowHeader, m *metricsdatapb.Metric, name string,
 	metricType, temporality string, isMonotonic bool,
 	tsNs int64, attrs map[string]string,
 	value float64,
 ) *schema.Row {
-	normalizeAttrs(m.GetName(), attrs)
+	normalizeAttrs(name, attrs)
 	bucket := timebucket.BucketStart(tsNs / 1_000_000_000)
 	return &schema.Row{
 		TeamId:              hdr.teamID,
-		MetricName:          m.GetName(),
+		MetricName:          name,
 		MetricType:          metricType,
 		Temporality:         temporality,
 		IsMonotonic:         isMonotonic,
 		Unit:                m.GetUnit(),
 		Description:         m.GetDescription(),
-		Fingerprint:         hdr.fingerprint,
+		Fingerprint:         fingerprint.SeriesHash(name, temporality, hdr.resMap, attrs),
 		TimestampNs:         tsNs,
 		TsBucketHourSeconds: int64(bucket),
 		Value:               value,

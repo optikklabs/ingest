@@ -51,6 +51,8 @@ services:
     image: otel/opentelemetry-collector-contrib:0.110.0
     container_name: optikk-otel-collector
     restart: unless-stopped
+    environment:
+      - OPTIKK_API_KEY=9b7610fa
     command: ["--config=/etc/otelcol-contrib/config.yaml"]
     volumes:
       - ./otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml:ro

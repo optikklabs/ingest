@@ -30,15 +30,14 @@ func TestBucketStartMatchesMVDerivation(t *testing.T) {
 	}
 }
 
-// Display grain windows: <=3h: 1m, <=24h: 5m, <=7d: 1h, else 1d.
+// Display grain windows: <=24h: 5m, <=7d: 1h, else 1d.
 func TestDisplayGrainWindows(t *testing.T) {
 	cases := []struct {
 		windowMs int64
 		want     time.Duration
 	}{
-		{int64(time.Hour / time.Millisecond), time.Minute},
-		{3 * int64(time.Hour/time.Millisecond), time.Minute},
-		{3*int64(time.Hour/time.Millisecond) + 1, 5 * time.Minute},
+		{int64(time.Hour / time.Millisecond), 5 * time.Minute},
+		{3 * int64(time.Hour/time.Millisecond), 5 * time.Minute},
 		{24 * int64(time.Hour/time.Millisecond), 5 * time.Minute},
 		{25 * int64(time.Hour/time.Millisecond), time.Hour},
 		{7 * 24 * int64(time.Hour/time.Millisecond), time.Hour},
@@ -57,7 +56,7 @@ func TestDisplayGrainSQLDispatch(t *testing.T) {
 		windowMs int64
 		want     string
 	}{
-		{int64(time.Hour / time.Millisecond), "toStartOfMinute(timestamp)"},
+		{int64(time.Hour / time.Millisecond), "toStartOfFiveMinutes(timestamp)"},
 		{12 * int64(time.Hour/time.Millisecond), "toStartOfFiveMinutes(timestamp)"},
 		{3 * 24 * int64(time.Hour/time.Millisecond), "toStartOfHour(timestamp)"},
 		{30 * 24 * int64(time.Hour/time.Millisecond), "toStartOfDay(timestamp)"},
@@ -76,7 +75,7 @@ func TestDisplayBucketTruncation(t *testing.T) {
 		windowMs int64
 		want     string
 	}{
-		{int64(time.Hour / time.Millisecond), "2025-01-01 01:01:00"},
+		{int64(time.Hour / time.Millisecond), "2025-01-01 01:00:00"},
 		{12 * int64(time.Hour/time.Millisecond), "2025-01-01 01:00:00"},
 		{3 * 24 * int64(time.Hour/time.Millisecond), "2025-01-01 01:00:00"},
 		{30 * 24 * int64(time.Hour/time.Millisecond), "2025-01-01 00:00:00"},
