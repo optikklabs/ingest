@@ -17,6 +17,8 @@ import (
 	logsschema "github.com/optikklabs/ingest/internal/ingestion/logs/schema"
 	metricsignal "github.com/optikklabs/ingest/internal/ingestion/metrics"
 	metricsschema "github.com/optikklabs/ingest/internal/ingestion/metrics/schema"
+	metricseries "github.com/optikklabs/ingest/internal/ingestion/metricseries"
+	metricseriesschema "github.com/optikklabs/ingest/internal/ingestion/metricseries/schema"
 	spansignal "github.com/optikklabs/ingest/internal/ingestion/spans"
 	spansschema "github.com/optikklabs/ingest/internal/ingestion/spans/schema"
 )
@@ -39,6 +41,7 @@ type signalWiring struct {
 
 // signalWireInput carries the shared dependencies each wire func needs.
 type signalWireInput struct {
+	topicPrefix                  string
 	ingestTopic, dlqTopic, group string
 	sc                           config.SignalConfig
 	producerBase                 *kafkainfra.Producer
@@ -46,12 +49,17 @@ type signalWireInput struct {
 	ch                           clickhouse.Conn
 }
 
+// wireConsumer creates a standardized Consumer with its DLQ for the given signal.
+func wireConsumer[T core.Row](in signalWireInput, writer core.Writer[T], signal string, newRow func() T) ConsumerRunner {
+	dlq := core.NewDLQ(in.producerBase, in.dlqTopic, signal)
+	return core.NewConsumer[T](in.consumer, writer, dlq, signal, newRow)
+}
+
 // wireSpans builds the spans module and consumer from shared deps.
 func wireSpans(in signalWireInput) (registry.Module, ConsumerRunner) {
 	producer := core.NewProducer[*spansschema.Row](in.ingestTopic, in.producerBase)
 	writer := spansignal.NewClickHouseWriter(in.ch)
-	dlq := core.NewDLQ(in.producerBase, in.dlqTopic, kafkainfra.SignalSpans)
-	consumer := core.NewConsumer[*spansschema.Row](in.consumer, writer, dlq, kafkainfra.SignalSpans, func() *spansschema.Row { return &spansschema.Row{} })
+	consumer := wireConsumer(in, writer, kafkainfra.SignalSpans, func() *spansschema.Row { return &spansschema.Row{} })
 	mod := spansignal.NewModule(spansignal.Deps{Handler: spansignal.NewHandler(producer)})
 	return mod, consumer
 }
@@ -60,20 +68,30 @@ func wireSpans(in signalWireInput) (registry.Module, ConsumerRunner) {
 func wireLogs(in signalWireInput) (registry.Module, ConsumerRunner) {
 	producer := core.NewProducer[*logsschema.Row](in.ingestTopic, in.producerBase)
 	writer := logsignal.NewClickHouseWriter(in.ch)
-	dlq := core.NewDLQ(in.producerBase, in.dlqTopic, kafkainfra.SignalLogs)
-	consumer := core.NewConsumer[*logsschema.Row](in.consumer, writer, dlq, kafkainfra.SignalLogs, func() *logsschema.Row { return &logsschema.Row{} })
+	consumer := wireConsumer(in, writer, kafkainfra.SignalLogs, func() *logsschema.Row { return &logsschema.Row{} })
 	mod := logsignal.NewModule(logsignal.Deps{Handler: logsignal.NewHandler(producer)})
 	return mod, consumer
 }
 
 // wireMetrics builds the metrics module and consumer from shared deps.
 func wireMetrics(in signalWireInput) (registry.Module, ConsumerRunner) {
-	producer := core.NewProducer[*metricsschema.Row](in.ingestTopic, in.producerBase)
-	writer := metricsignal.NewClickHouseWriter(in.ch)
-	dlq := core.NewDLQ(in.producerBase, in.dlqTopic, kafkainfra.SignalMetrics)
-	consumer := core.NewConsumer[*metricsschema.Row](in.consumer, writer, dlq, kafkainfra.SignalMetrics, func() *metricsschema.Row { return &metricsschema.Row{} })
-	mod := metricsignal.NewModule(metricsignal.Deps{Handler: metricsignal.NewHandler(producer)})
+	metricsProducer := core.NewProducer[*metricsschema.Row](in.ingestTopic, in.producerBase)
+	seriesTopic := kafkainfra.IngestTopic(in.topicPrefix, kafkainfra.SignalMetricSeries)
+	seriesProducer := core.NewProducer[*metricseriesschema.SeriesRow](seriesTopic, in.producerBase)
+
+	writer := metricsignal.NewMetricsClickHouseWriter(in.ch)
+	consumer := wireConsumer(in, writer, kafkainfra.SignalMetrics, func() *metricsschema.Row { return &metricsschema.Row{} })
+	mod := metricsignal.NewModule(metricsignal.Deps{
+		Handler: metricsignal.NewHandler(metricsProducer, seriesProducer),
+	})
 	return mod, consumer
+}
+
+// wireMetricSeries builds the metric series consumer from shared deps.
+func wireMetricSeries(in signalWireInput) (registry.Module, ConsumerRunner) {
+	writer := metricseries.NewClickHouseWriter(in.ch)
+	consumer := wireConsumer(in, writer, kafkainfra.SignalMetricSeries, func() *metricseriesschema.SeriesRow { return &metricseriesschema.SeriesRow{} })
+	return nil, consumer
 }
 
 // ingestTopicSpecs derives the ingest + DLQ topic spec for each signal.
@@ -98,6 +116,7 @@ func buildIngest(cfg config.Config, ch clickhouse.Conn) (ingestBundle, error) {
 		{signal: kafkainfra.SignalSpans, cfg: cfg.IngestSignal("spans"), wire: wireSpans},
 		{signal: kafkainfra.SignalLogs, cfg: cfg.IngestSignal("logs"), wire: wireLogs},
 		{signal: kafkainfra.SignalMetrics, cfg: cfg.IngestSignal("metrics"), wire: wireMetrics},
+		{signal: kafkainfra.SignalMetricSeries, cfg: cfg.IngestSignal("metric_series"), wire: wireMetricSeries},
 	}
 
 	ensureCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -145,6 +164,7 @@ func buildIngest(cfg config.Config, ch clickhouse.Conn) (ingestBundle, error) {
 		b.lagPollers = append(b.lagPollers, kafkainfra.NewLagPoller(client, w.cfg.ConsumerGroup, ingestTopic))
 
 		mod, consumer := w.wire(signalWireInput{
+			topicPrefix:  topicPrefix,
 			ingestTopic:  ingestTopic,
 			dlqTopic:     kafkainfra.DLQTopic(dlqPrefix, w.signal),
 			group:        w.cfg.ConsumerGroup,
@@ -153,7 +173,9 @@ func buildIngest(cfg config.Config, ch clickhouse.Conn) (ingestBundle, error) {
 			consumer:     kafkainfra.NewConsumer(client),
 			ch:           ch,
 		})
-		b.modules = append(b.modules, mod)
+		if mod != nil {
+			b.modules = append(b.modules, mod)
+		}
 		b.consumers = append(b.consumers, consumer)
 	}
 

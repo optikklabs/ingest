@@ -39,6 +39,10 @@ ingestion:
     partitions: 8
     replicas: 1
     retention_hours: 24
+  metric_series:
+    partitions: 8
+    replicas: 1
+    retention_hours: 24
 
 kafka:
   broker_list: "127.0.0.1:9092"

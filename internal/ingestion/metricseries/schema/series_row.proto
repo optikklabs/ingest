@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package optikk.ingest.metricseries.v1;
+
+option go_package = "github.com/Optikk-Org/optikk-backend/internal/ingestion/metricseries/schema;schema";
+
+// SeriesRow is the wire format on Kafka for metric series metadata. One record
+// == one unique fingerprint bound for observability.metrics_series. It carries
+// only series identity/labels, never per-sample value or histogram payload.
+message SeriesRow {
+  uint32 team_id = 1;
+  uint64 fingerprint = 2;
+  int64  timestamp_ns = 3;
+  string metric_name = 4;
+  string metric_type = 5;
+  string temporality = 6;
+  bool   is_monotonic = 7;
+  string unit = 8;
+  string description = 9;
+  string service = 10;
+  string host = 11;
+  string environment = 12;
+  string k8s_namespace = 13;
+  string pod = 14;
+  string container = 15;
+  map<string, string> attributes = 16;
+}

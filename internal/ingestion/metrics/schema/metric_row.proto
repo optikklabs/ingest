@@ -4,15 +4,13 @@ package optikk.ingest.metrics.v1;
 
 option go_package = "github.com/Optikk-Org/optikk-backend/internal/ingestion/metrics/schema;schema";
 
-// Row is the wire format on Kafka. One record == one metric data point bound for observability.metrics.
+// Row is the wire format on Kafka. One record == one metric data point bound for
+// observability.metrics. Carries only fields the metrics consumer writes; series
+// identity/labels live in the decoupled metric_series topic (SeriesRow).
 message Row {
   uint32 team_id = 1;
   string metric_name = 2;
-  string metric_type = 3;
   string temporality = 4;
-  bool   is_monotonic = 5;
-  string unit = 6;
-  string description = 7;
   uint64 fingerprint = 8;
   int64  timestamp_ns = 9;
   double value = 10;
@@ -20,17 +18,11 @@ message Row {
   uint64 hist_count = 12;
   repeated double hist_buckets = 13;
   repeated uint64 hist_counts  = 14;
-  map<string, string> resource = 15;
-  map<string, string> attributes = 16;
-  // ts_bucket_hour_seconds carries the 5-minute-aligned bucket value from internal/infra/timebucket.BucketStart (Unix seconds). Field name kept for proto wire-compat.
-  int64 ts_bucket_hour_seconds = 17;
-  // Top-level resource/attribute labels written by the mapper; tier MVs pass these through.
-  string service = 20;
-  string host = 21;
-  string environment = 22;
-  string k8s_namespace = 23;
-  reserved 24, 25;            // retired: http_method, http_status_code (never read)
-  reserved "http_method", "http_status_code";
-  string pod = 26;
-  string container = 27;
+  // Retired: series identity/labels moved to metric_series topic; 24,25 were
+  // http_method/http_status_code.
+  reserved 3, 5, 6, 7, 15, 16, 17, 20, 21, 22, 23, 24, 25, 26, 27;
+  reserved "metric_type", "is_monotonic", "unit", "description", "resource",
+           "attributes", "ts_bucket_hour_seconds", "service", "host",
+           "environment", "k8s_namespace", "http_method", "http_status_code",
+           "pod", "container";
 }
