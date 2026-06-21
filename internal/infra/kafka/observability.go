@@ -79,6 +79,8 @@ func signalFromTopic(topic string) string {
 		return SignalLogs
 	case strings.HasSuffix(topic, "."+SignalMetrics):
 		return SignalMetrics
+	case strings.HasSuffix(topic, "."+SignalMetricSeries):
+		return SignalMetricSeries
 	default:
 		return "unknown"
 	}

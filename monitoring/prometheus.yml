@@ -45,3 +45,9 @@ scrape_configs:
       - targets: ["kafka:7080"]
         labels:
           component: mq
+
+  - job_name: clickhouse
+    static_configs:
+      - targets: ["clickhouse:9363"]
+        labels:
+          component: db

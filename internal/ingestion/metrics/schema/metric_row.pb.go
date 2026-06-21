@@ -22,34 +22,21 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// Row is the wire format on Kafka. One record == one metric data point bound for observability.metrics.
+// Row is the wire format on Kafka. One record == one metric data point bound for
+// observability.metrics. Carries only fields the metrics consumer writes; series
+// identity/labels live in the decoupled metric_series topic (SeriesRow).
 type Row struct {
-	state       protoimpl.MessageState `protogen:"open.v1"`
-	TeamId      uint32                 `protobuf:"varint,1,opt,name=team_id,json=teamId,proto3" json:"team_id,omitempty"`
-	MetricName  string                 `protobuf:"bytes,2,opt,name=metric_name,json=metricName,proto3" json:"metric_name,omitempty"`
-	MetricType  string                 `protobuf:"bytes,3,opt,name=metric_type,json=metricType,proto3" json:"metric_type,omitempty"`
-	Temporality string                 `protobuf:"bytes,4,opt,name=temporality,proto3" json:"temporality,omitempty"`
-	IsMonotonic bool                   `protobuf:"varint,5,opt,name=is_monotonic,json=isMonotonic,proto3" json:"is_monotonic,omitempty"`
-	Unit        string                 `protobuf:"bytes,6,opt,name=unit,proto3" json:"unit,omitempty"`
-	Description string                 `protobuf:"bytes,7,opt,name=description,proto3" json:"description,omitempty"`
-	Fingerprint uint64                 `protobuf:"varint,8,opt,name=fingerprint,proto3" json:"fingerprint,omitempty"`
-	TimestampNs int64                  `protobuf:"varint,9,opt,name=timestamp_ns,json=timestampNs,proto3" json:"timestamp_ns,omitempty"`
-	Value       float64                `protobuf:"fixed64,10,opt,name=value,proto3" json:"value,omitempty"`
-	HistSum     float64                `protobuf:"fixed64,11,opt,name=hist_sum,json=histSum,proto3" json:"hist_sum,omitempty"`
-	HistCount   uint64                 `protobuf:"varint,12,opt,name=hist_count,json=histCount,proto3" json:"hist_count,omitempty"`
-	HistBuckets []float64              `protobuf:"fixed64,13,rep,packed,name=hist_buckets,json=histBuckets,proto3" json:"hist_buckets,omitempty"`
-	HistCounts  []uint64               `protobuf:"varint,14,rep,packed,name=hist_counts,json=histCounts,proto3" json:"hist_counts,omitempty"`
-	Resource    map[string]string      `protobuf:"bytes,15,rep,name=resource,proto3" json:"resource,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	Attributes  map[string]string      `protobuf:"bytes,16,rep,name=attributes,proto3" json:"attributes,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	// ts_bucket_hour_seconds carries the 5-minute-aligned bucket value from internal/infra/timebucket.BucketStart (Unix seconds). Field name kept for proto wire-compat.
-	TsBucketHourSeconds int64 `protobuf:"varint,17,opt,name=ts_bucket_hour_seconds,json=tsBucketHourSeconds,proto3" json:"ts_bucket_hour_seconds,omitempty"`
-	// Top-level resource/attribute labels written by the mapper; tier MVs pass these through.
-	Service       string `protobuf:"bytes,20,opt,name=service,proto3" json:"service,omitempty"`
-	Host          string `protobuf:"bytes,21,opt,name=host,proto3" json:"host,omitempty"`
-	Environment   string `protobuf:"bytes,22,opt,name=environment,proto3" json:"environment,omitempty"`
-	K8SNamespace  string `protobuf:"bytes,23,opt,name=k8s_namespace,json=k8sNamespace,proto3" json:"k8s_namespace,omitempty"`
-	Pod           string `protobuf:"bytes,26,opt,name=pod,proto3" json:"pod,omitempty"`
-	Container     string `protobuf:"bytes,27,opt,name=container,proto3" json:"container,omitempty"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	TeamId        uint32                 `protobuf:"varint,1,opt,name=team_id,json=teamId,proto3" json:"team_id,omitempty"`
+	MetricName    string                 `protobuf:"bytes,2,opt,name=metric_name,json=metricName,proto3" json:"metric_name,omitempty"`
+	Temporality   string                 `protobuf:"bytes,4,opt,name=temporality,proto3" json:"temporality,omitempty"`
+	Fingerprint   uint64                 `protobuf:"varint,8,opt,name=fingerprint,proto3" json:"fingerprint,omitempty"`
+	TimestampNs   int64                  `protobuf:"varint,9,opt,name=timestamp_ns,json=timestampNs,proto3" json:"timestamp_ns,omitempty"`
+	Value         float64                `protobuf:"fixed64,10,opt,name=value,proto3" json:"value,omitempty"`
+	HistSum       float64                `protobuf:"fixed64,11,opt,name=hist_sum,json=histSum,proto3" json:"hist_sum,omitempty"`
+	HistCount     uint64                 `protobuf:"varint,12,opt,name=hist_count,json=histCount,proto3" json:"hist_count,omitempty"`
+	HistBuckets   []float64              `protobuf:"fixed64,13,rep,packed,name=hist_buckets,json=histBuckets,proto3" json:"hist_buckets,omitempty"`
+	HistCounts    []uint64               `protobuf:"varint,14,rep,packed,name=hist_counts,json=histCounts,proto3" json:"hist_counts,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -98,37 +85,9 @@ func (x *Row) GetMetricName() string {
 	return ""
 }
 
-func (x *Row) GetMetricType() string {
-	if x != nil {
-		return x.MetricType
-	}
-	return ""
-}
-
 func (x *Row) GetTemporality() string {
 	if x != nil {
 		return x.Temporality
-	}
-	return ""
-}
-
-func (x *Row) GetIsMonotonic() bool {
-	if x != nil {
-		return x.IsMonotonic
-	}
-	return false
-}
-
-func (x *Row) GetUnit() string {
-	if x != nil {
-		return x.Unit
-	}
-	return ""
-}
-
-func (x *Row) GetDescription() string {
-	if x != nil {
-		return x.Description
 	}
 	return ""
 }
@@ -182,84 +141,16 @@ func (x *Row) GetHistCounts() []uint64 {
 	return nil
 }
 
-func (x *Row) GetResource() map[string]string {
-	if x != nil {
-		return x.Resource
-	}
-	return nil
-}
-
-func (x *Row) GetAttributes() map[string]string {
-	if x != nil {
-		return x.Attributes
-	}
-	return nil
-}
-
-func (x *Row) GetTsBucketHourSeconds() int64 {
-	if x != nil {
-		return x.TsBucketHourSeconds
-	}
-	return 0
-}
-
-func (x *Row) GetService() string {
-	if x != nil {
-		return x.Service
-	}
-	return ""
-}
-
-func (x *Row) GetHost() string {
-	if x != nil {
-		return x.Host
-	}
-	return ""
-}
-
-func (x *Row) GetEnvironment() string {
-	if x != nil {
-		return x.Environment
-	}
-	return ""
-}
-
-func (x *Row) GetK8SNamespace() string {
-	if x != nil {
-		return x.K8SNamespace
-	}
-	return ""
-}
-
-func (x *Row) GetPod() string {
-	if x != nil {
-		return x.Pod
-	}
-	return ""
-}
-
-func (x *Row) GetContainer() string {
-	if x != nil {
-		return x.Container
-	}
-	return ""
-}
-
 var File_metric_row_proto protoreflect.FileDescriptor
 
 const file_metric_row_proto_rawDesc = "" +
 	"\n" +
-	"\x10metric_row.proto\x12\x18optikk.ingest.metrics.v1\"\xcd\a\n" +
+	"\x10metric_row.proto\x12\x18optikk.ingest.metrics.v1\"\xca\x04\n" +
 	"\x03Row\x12\x17\n" +
 	"\ateam_id\x18\x01 \x01(\rR\x06teamId\x12\x1f\n" +
 	"\vmetric_name\x18\x02 \x01(\tR\n" +
-	"metricName\x12\x1f\n" +
-	"\vmetric_type\x18\x03 \x01(\tR\n" +
-	"metricType\x12 \n" +
-	"\vtemporality\x18\x04 \x01(\tR\vtemporality\x12!\n" +
-	"\fis_monotonic\x18\x05 \x01(\bR\visMonotonic\x12\x12\n" +
-	"\x04unit\x18\x06 \x01(\tR\x04unit\x12 \n" +
-	"\vdescription\x18\a \x01(\tR\vdescription\x12 \n" +
+	"metricName\x12 \n" +
+	"\vtemporality\x18\x04 \x01(\tR\vtemporality\x12 \n" +
 	"\vfingerprint\x18\b \x01(\x04R\vfingerprint\x12!\n" +
 	"\ftimestamp_ns\x18\t \x01(\x03R\vtimestampNs\x12\x14\n" +
 	"\x05value\x18\n" +
@@ -269,24 +160,8 @@ const file_metric_row_proto_rawDesc = "" +
 	"hist_count\x18\f \x01(\x04R\thistCount\x12!\n" +
 	"\fhist_buckets\x18\r \x03(\x01R\vhistBuckets\x12\x1f\n" +
 	"\vhist_counts\x18\x0e \x03(\x04R\n" +
-	"histCounts\x12G\n" +
-	"\bresource\x18\x0f \x03(\v2+.optikk.ingest.metrics.v1.Row.ResourceEntryR\bresource\x12M\n" +
-	"\n" +
-	"attributes\x18\x10 \x03(\v2-.optikk.ingest.metrics.v1.Row.AttributesEntryR\n" +
-	"attributes\x123\n" +
-	"\x16ts_bucket_hour_seconds\x18\x11 \x01(\x03R\x13tsBucketHourSeconds\x12\x18\n" +
-	"\aservice\x18\x14 \x01(\tR\aservice\x12\x12\n" +
-	"\x04host\x18\x15 \x01(\tR\x04host\x12 \n" +
-	"\venvironment\x18\x16 \x01(\tR\venvironment\x12#\n" +
-	"\rk8s_namespace\x18\x17 \x01(\tR\fk8sNamespace\x12\x10\n" +
-	"\x03pod\x18\x1a \x01(\tR\x03pod\x12\x1c\n" +
-	"\tcontainer\x18\x1b \x01(\tR\tcontainer\x1a;\n" +
-	"\rResourceEntry\x12\x10\n" +
-	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\x1a=\n" +
-	"\x0fAttributesEntry\x12\x10\n" +
-	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01J\x04\b\x18\x10\x19J\x04\b\x19\x10\x1aR\vhttp_methodR\x10http_status_codeBOZMgithub.com/optikklabs/ingest/internal/ingestion/metrics/schema;schemab\x06proto3"
+	"histCountsJ\x04\b\x03\x10\x04J\x04\b\x05\x10\x06J\x04\b\x06\x10\aJ\x04\b\a\x10\bJ\x04\b\x0f\x10\x10J\x04\b\x10\x10\x11J\x04\b\x11\x10\x12J\x04\b\x14\x10\x15J\x04\b\x15\x10\x16J\x04\b\x16\x10\x17J\x04\b\x17\x10\x18J\x04\b\x18\x10\x19J\x04\b\x19\x10\x1aJ\x04\b\x1a\x10\x1bJ\x04\b\x1b\x10\x1cR\vmetric_typeR\fis_monotonicR\x04unitR\vdescriptionR\bresourceR\n" +
+	"attributesR\x16ts_bucket_hour_secondsR\aserviceR\x04hostR\venvironmentR\rk8s_namespaceR\vhttp_methodR\x10http_status_codeR\x03podR\tcontainerBOZMgithub.com/Optikk-Org/optikk-backend/internal/ingestion/metrics/schema;schemab\x06proto3"
 
 var (
 	file_metric_row_proto_rawDescOnce sync.Once
@@ -300,20 +175,16 @@ func file_metric_row_proto_rawDescGZIP() []byte {
 	return file_metric_row_proto_rawDescData
 }
 
-var file_metric_row_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
+var file_metric_row_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
 var file_metric_row_proto_goTypes = []any{
 	(*Row)(nil), // 0: optikk.ingest.metrics.v1.Row
-	nil,         // 1: optikk.ingest.metrics.v1.Row.ResourceEntry
-	nil,         // 2: optikk.ingest.metrics.v1.Row.AttributesEntry
 }
 var file_metric_row_proto_depIdxs = []int32{
-	1, // 0: optikk.ingest.metrics.v1.Row.resource:type_name -> optikk.ingest.metrics.v1.Row.ResourceEntry
-	2, // 1: optikk.ingest.metrics.v1.Row.attributes:type_name -> optikk.ingest.metrics.v1.Row.AttributesEntry
-	2, // [2:2] is the sub-list for method output_type
-	2, // [2:2] is the sub-list for method input_type
-	2, // [2:2] is the sub-list for extension type_name
-	2, // [2:2] is the sub-list for extension extendee
-	0, // [0:2] is the sub-list for field type_name
+	0, // [0:0] is the sub-list for method output_type
+	0, // [0:0] is the sub-list for method input_type
+	0, // [0:0] is the sub-list for extension type_name
+	0, // [0:0] is the sub-list for extension extendee
+	0, // [0:0] is the sub-list for field type_name
 }
 
 func init() { file_metric_row_proto_init() }
@@ -327,7 +198,7 @@ func file_metric_row_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_metric_row_proto_rawDesc), len(file_metric_row_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   3,
+			NumMessages:   1,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

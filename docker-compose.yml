@@ -12,6 +12,7 @@ services:
       - clickhouse_data:/var/lib/clickhouse
       - ./db/clickhouse/config.d/keeper.xml:/etc/clickhouse-server/config.d/keeper.xml:ro
       - ./db/clickhouse/config.d/macros.xml:/etc/clickhouse-server/config.d/macros.xml:ro
+      - ./db/clickhouse/config.d/prometheus.xml:/etc/clickhouse-server/config.d/prometheus.xml:ro
     healthcheck:
       test: ["CMD", "clickhouse-client", "--query", "SELECT 1"]
       interval: 5s

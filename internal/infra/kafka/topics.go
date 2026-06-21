@@ -14,9 +14,10 @@ import (
 
 // Signal name constants used by topic naming and the observability hooks.
 const (
-	SignalSpans   = "spans"
-	SignalLogs    = "logs"
-	SignalMetrics = "metrics"
+	SignalSpans        = "spans"
+	SignalLogs         = "logs"
+	SignalMetrics      = "metrics"
+	SignalMetricSeries = "metric_series"
 )
 
 // TopicSpec describes a Kafka topic to be created at boot if missing.
