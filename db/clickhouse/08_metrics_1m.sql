@@ -1,67 +1,45 @@
--- 1-minute scalar (Gauge/Sum) rollup from optikk.metrics via
--- metrics_1m_mv. Carries series identity + scalar aggregates + fixed attributes.
+-- 1-minute scalar rollup. Rollup structure (last/min/max/sum/
+-- count SimpleAggregateFunction) with Optikk val_* names. Labels stay off the hot
+-- rows: resolve any dim via metrics_series on fingerprint. timestamp is the
+-- 1m-aligned bucket, derived server-side in the MV to match the display ladder.
 
 CREATE TABLE IF NOT EXISTS optikk.metrics_1m (
-    team_id              UInt32 CODEC(T64, ZSTD(1)),
-    ts_bucket            UInt32 CODEC(DoubleDelta, LZ4),
-    timestamp            DateTime CODEC(DoubleDelta, LZ4),
-    metric_name          LowCardinality(String),
-    fingerprint          UInt64 CODEC(ZSTD(1)),
-
-    -- Fixed columns replace attr_hash
-    db_system                     LowCardinality(String) DEFAULT '' CODEC(ZSTD(1)),
-    db_connection_state           LowCardinality(String) DEFAULT '' CODEC(ZSTD(1)),
-    messaging_destination         LowCardinality(String) DEFAULT '' CODEC(ZSTD(1)),
-    messaging_consumer_group      LowCardinality(String) DEFAULT '' CODEC(ZSTD(1)),
-    messaging_system              LowCardinality(String) DEFAULT '' CODEC(ZSTD(1)),
-
-    -- Scalar (Gauge / Sum) — four aggregations per row.
-    val_min              SimpleAggregateFunction(min, Float64) CODEC(Gorilla, ZSTD(1)),
-    val_max              SimpleAggregateFunction(max, Float64) CODEC(Gorilla, ZSTD(1)),
-    val_sum              SimpleAggregateFunction(sum, Float64) CODEC(Gorilla, ZSTD(1)),
-    val_count            SimpleAggregateFunction(sum, UInt64)  CODEC(T64, ZSTD(1))
+    team_id     UInt32 CODEC(T64, ZSTD(1)),
+    metric_name LowCardinality(String),
+    fingerprint UInt64 CODEC(ZSTD(1)),
+    timestamp   DateTime CODEC(DoubleDelta, LZ4),
+    val_last    SimpleAggregateFunction(anyLast, Float64) CODEC(Gorilla, ZSTD(1)),
+    val_min     SimpleAggregateFunction(min, Float64) CODEC(Gorilla, ZSTD(1)),
+    val_max     SimpleAggregateFunction(max, Float64) CODEC(Gorilla, ZSTD(1)),
+    val_sum     SimpleAggregateFunction(sum, Float64) CODEC(Gorilla, ZSTD(1)),
+    val_count   SimpleAggregateFunction(sum, UInt64)  CODEC(T64, ZSTD(1)),
+    hist_sum    SimpleAggregateFunction(sum, Float64) CODEC(Gorilla, ZSTD(1)),
+    hist_count  SimpleAggregateFunction(sum, UInt64)  CODEC(T64, ZSTD(1)),
+    latency_state AggregateFunction(quantilesPrometheusHistogram(0.5, 0.95, 0.99), Float64, UInt64) CODEC(ZSTD(1))
 ) ENGINE = ReplicatedAggregatingMergeTree('/clickhouse/tables/{shard}/optikk/metrics_1m', '{replica}')
 PARTITION BY toYYYYMMDD(timestamp)
-ORDER BY (team_id, metric_name, ts_bucket, fingerprint, db_system, db_connection_state, messaging_destination, messaging_consumer_group, messaging_system, timestamp)
-TTL timestamp + INTERVAL 30 DAY DELETE
+ORDER BY (team_id, metric_name, fingerprint, timestamp)
+TTL timestamp + INTERVAL 7 DAY DELETE
 SETTINGS
     index_granularity = 8192,
-    enable_mixed_granularity_parts = 1,
     ttl_only_drop_parts = 1;
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS optikk.metrics_1m_mv
 TO optikk.metrics_1m AS
 SELECT
     team_id,
-    toUInt32(intDiv(toUnixTimestamp(timestamp), 300) * 300) AS ts_bucket,
-    toStartOfMinute(timestamp)                              AS timestamp,
     metric_name,
     fingerprint,
-
-    -- Read canonical dimension keys. Source-key aliasing (topic/group,
-    -- db.system.name) and messaging.system synthesis are normalized once at
-    -- ingest (see ingest/internal/ingestion/metrics/normalize.go), so the MV
-    -- reads a single key per dimension with no per-source branching.
-    attributes.'db.system'::String                         AS db_system,
-    attributes.'db.client.connection.state'::String        AS db_connection_state,
-    attributes.'messaging.destination.name'::String        AS messaging_destination,
-    attributes.'messaging.consumer.group.name'::String     AS messaging_consumer_group,
-    attributes.'messaging.system'::String                  AS messaging_system,
-
-    min(value)   AS val_min,
-    max(value)   AS val_max,
-    sum(value)   AS val_sum,
-    count()      AS val_count
+    toStartOfMinute(timestamp) AS timestamp,
+    anyLast(value) AS val_last,
+    min(value)     AS val_min,
+    max(value)     AS val_max,
+    sum(value)     AS val_sum,
+    count()        AS val_count,
+    sum(hist_sum)   AS hist_sum,
+    sum(hist_count) AS hist_count,
+    -- counts carry the trailing +Inf overflow bucket, so append +Inf to the
+    -- bounds for histogram rows to align lengths; scalars keep empty arrays.
+    quantilesPrometheusHistogramArrayState(0.5, 0.95, 0.99)(if(empty(hist_buckets), hist_buckets, arrayPushBack(hist_buckets, toFloat64(inf))), arrayCumSum(hist_counts)) AS latency_state
 FROM optikk.metrics
-WHERE metric_type IN ('Gauge', 'Sum')
-GROUP BY
-    team_id,
-    ts_bucket,
-    timestamp,
-    metric_name,
-    fingerprint,
-    db_system,
-    db_connection_state,
-    messaging_destination,
-    messaging_consumer_group,
-    messaging_system;
+GROUP BY team_id, metric_name, fingerprint, timestamp;

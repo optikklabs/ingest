@@ -11,39 +11,54 @@ processors:
     send_batch_size: 1000
     timeout: 10s
 
+connectors:
   spanmetrics:
-    metrics_exporter: otlp/optikk
+    histogram:
+      explicit:
+        buckets: [2ms, 4ms, 6ms, 8ms, 10ms, 50ms, 100ms, 200ms, 400ms, 800ms, 1s, 1400ms, 2s, 5s, 10s, 15s]
     dimensions:
       - name: http.method
       - name: http.status_code
-      - name: service.name
       - name: http.route
+      # Kafka topology: per-service produce/consume rate, latency, errors.
+      # service.name + span.kind are built-in; these add topic/group identity.
+      - name: messaging.system
+      - name: messaging.operation
+      - name: messaging.destination.name
+      - name: messaging.consumer.group.name
+      # Database saturation: per-system/server RED from spanmetrics.
       - name: db.system
-      - name: db.name
-      - name: db.statement
-      - name: peer.service
-      - name: deployment.environment
-      - name: k8s.pod.name
-      - name: host.name
+      - name: db.namespace
+      - name: db.collection.name
+      - name: server.address
+  servicegraph:
+    latency_histogram_buckets: [2ms, 4ms, 6ms, 8ms, 10ms, 50ms, 100ms, 200ms, 400ms, 800ms, 1s, 1400ms, 2s, 5s, 10s, 15s]
+    dimensions:
+      - status.code
+    store:
+      ttl: 2s
+      max_items: 1000
+  exceptions:
 
 exporters:
   otlp/optikk:
     endpoint: "host.docker.internal:4318"
     tls:
       insecure: true
-    # Propagate headers (in OTEL Collector, if we use a headers_setter or similar, but for now we'll assume it forwards by default or we'll configure it. Actually, auth pass-through requires the headers_setter extension or similar. Let's just pass headers we care about. Actually, auth pass-through for receivers -> exporters is automatic in some versions, but if not we can use auth extension. For now let's leave it simple.)
+    headers:
+      x-api-key: "${env:OPTIKK_API_KEY}"
 
 service:
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [spanmetrics, batch]
-      exporters: [otlp/optikk]
+      processors: [batch]
+      exporters: [otlp/optikk, spanmetrics, servicegraph, exceptions]
     metrics:
-      receivers: [otlp]
+      receivers: [otlp, spanmetrics, servicegraph, exceptions]
       processors: [batch]
       exporters: [otlp/optikk]
     logs:
-      receivers: [otlp]
+      receivers: [otlp, exceptions]
       processors: [batch]
       exporters: [otlp/optikk]
