@@ -5,14 +5,45 @@ receivers:
         endpoint: "0.0.0.0:4317"
       http:
         endpoint: "0.0.0.0:4318"
+  # Host CPU/memory/disk so the Fleet card has real saturation. root_path points
+  # at the mounted host fs (see docker-compose); on Docker Desktop this reflects
+  # the Linux VM, not literal macOS.
+  hostmetrics:
+    collection_interval: 10s
+    root_path: /hostfs
+    scrapers:
+      # utilization metrics are off by default; Fleet reads the *.utilization
+      # names, so enable them explicitly.
+      cpu:
+        metrics:
+          system.cpu.utilization:
+            enabled: true
+      memory:
+        metrics:
+          system.memory.utilization:
+            enabled: true
+      disk:
+      load:
 
 processors:
   batch:
     send_batch_size: 1000
     timeout: 10s
+  # Catch-all: convert any residual cumulative sums (e.g. servicegraph, SDK
+  # metrics that ignore the delta preference) to delta before export.
+  cumulativetodelta:
+  # Force host.name to match the Java agent's span host so the Fleet host-join
+  # lands. Local-dev bridge for the containerized collector.
+  resource/host:
+    attributes:
+      - key: host.name
+        value: "Ramans-MacBook-Air.local"
+        action: upsert
 
 connectors:
   spanmetrics:
+    # Delta so sum-based rollups/queries can add data points across buckets.
+    aggregation_temporality: "AGGREGATION_TEMPORALITY_DELTA"
     histogram:
       explicit:
         buckets: [2ms, 4ms, 6ms, 8ms, 10ms, 50ms, 100ms, 200ms, 400ms, 800ms, 1s, 1400ms, 2s, 5s, 10s, 15s]
@@ -56,7 +87,14 @@ service:
       exporters: [otlp/optikk, spanmetrics, servicegraph, exceptions]
     metrics:
       receivers: [otlp, spanmetrics, servicegraph, exceptions]
-      processors: [batch]
+      processors: [cumulativetodelta, batch]
+      exporters: [otlp/optikk]
+    # Host metrics kept separate so the host.name override stays scoped to them.
+    # Per-state utilization is reduced at read time (Fleet query), not here, so
+    # the raw per-state/per-CPU datapoints stay intact for other consumers.
+    metrics/host:
+      receivers: [hostmetrics]
+      processors: [resource/host, cumulativetodelta, batch]
       exporters: [otlp/optikk]
     logs:
       receivers: [otlp, exceptions]
