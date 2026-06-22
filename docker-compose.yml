@@ -34,6 +34,18 @@ services:
       timeout: 3s
       retries: 10
 
+  mongodb:
+    image: mongo:7
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   kafka:
     image: ghcr.io/ramantayal12/mq:latest
     user: "root"
@@ -53,10 +65,13 @@ services:
     container_name: optikk-otel-collector
     restart: unless-stopped
     environment:
-      - OPTIKK_API_KEY=9b7610fa
+      - OPTIKK_API_KEY=c3448fae
     command: ["--config=/etc/otelcol-contrib/config.yaml"]
     volumes:
       - ./otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml:ro
+      # Host fs for the hostmetrics receiver (root_path: /hostfs).
+      - /proc:/hostfs/proc:ro
+      - /:/hostfs:ro
     ports:
       - "4317:4317" # OTLP gRPC receiver
       - "4319:4318" # OTLP HTTP receiver (4318 is mapped to 4319 to avoid collision if ingest binds 4318 on host)
@@ -110,6 +125,7 @@ services:
 volumes:
   clickhouse_data:
   mariadb_data:
+  mongo_data:
   mq_data:
   prometheus-data:
   grafana-data:
