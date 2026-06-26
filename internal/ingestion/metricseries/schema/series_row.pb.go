@@ -16,15 +16,11 @@ import (
 )
 
 const (
-	// Verify that this generated code is sufficiently up-to-date.
 	_ = protoimpl.EnforceVersion(20 - protoimpl.MinVersion)
-	// Verify that runtime/protoimpl is sufficiently up-to-date.
+
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// SeriesRow is the wire format on Kafka for metric series metadata. One record
-// == one unique fingerprint bound for observability.metrics_series. It carries
-// only series identity/labels, never per-sample value or histogram payload.
 type SeriesRow struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	TeamId        uint32                 `protobuf:"varint,1,opt,name=team_id,json=teamId,proto3" json:"team_id,omitempty"`
@@ -72,7 +68,6 @@ func (x *SeriesRow) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SeriesRow.ProtoReflect.Descriptor instead.
 func (*SeriesRow) Descriptor() ([]byte, []int) {
 	return file_series_row_proto_rawDescGZIP(), []int{0}
 }
@@ -234,16 +229,16 @@ func file_series_row_proto_rawDescGZIP() []byte {
 
 var file_series_row_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
 var file_series_row_proto_goTypes = []any{
-	(*SeriesRow)(nil), // 0: optikk.ingest.metricseries.v1.SeriesRow
-	nil,               // 1: optikk.ingest.metricseries.v1.SeriesRow.AttributesEntry
+	(*SeriesRow)(nil),
+	nil,
 }
 var file_series_row_proto_depIdxs = []int32{
-	1, // 0: optikk.ingest.metricseries.v1.SeriesRow.attributes:type_name -> optikk.ingest.metricseries.v1.SeriesRow.AttributesEntry
-	1, // [1:1] is the sub-list for method output_type
-	1, // [1:1] is the sub-list for method input_type
-	1, // [1:1] is the sub-list for extension type_name
-	1, // [1:1] is the sub-list for extension extendee
-	0, // [0:1] is the sub-list for field type_name
+	1,
+	1,
+	1,
+	1,
+	1,
+	0,
 }
 
 func init() { file_series_row_proto_init() }

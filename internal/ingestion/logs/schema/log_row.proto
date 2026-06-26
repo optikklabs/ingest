@@ -23,15 +23,15 @@ message Row {
   uint64 fingerprint = 15;
   string scope_name = 16;
   string scope_version = 17;
-  // field 18 (scope_string) intentionally retired.
+  
   string service = 19;
   string host = 20;
   string pod = 21;
   string container = 22;
   string environment = 23;
-  // log_id is the FNV-64a hash of (trace_id, timestamp_ns, body, fingerprint),
-  // formatted as a 16-char lowercase hex string. Computed in the mapper so the
-  // writer + reader stay in lockstep without round-tripping through CH hash
-  // semantics. Used by logdetail for single-PREWHERE row lookup.
+  
+  
+  
+  
   string log_id = 24;
 }

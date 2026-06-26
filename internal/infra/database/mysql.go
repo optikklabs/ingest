@@ -30,7 +30,6 @@ func injectMySQLTimeouts(dsn string) string {
 	return dsn
 }
 
-// Open opens a MySQL connection pool, configures limits, and pings the DB.
 func Open(dsn string, maxOpen, maxIdle int) (*sql.DB, error) {
 	dsn = injectMySQLTimeouts(dsn)
 	db, err := sql.Open("mysql", dsn)

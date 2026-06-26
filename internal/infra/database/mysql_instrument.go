@@ -22,7 +22,6 @@ func GetSQL(ctx context.Context, db *sqlx.DB, op string, dest any, query string,
 	return err
 }
 
-// SelectSQL scans a multi-row result into dest.
 func SelectSQL(ctx context.Context, db *sqlx.DB, op string, dest any, query string, args ...any) error {
 	done := startSQLOp(ctx)
 	start := time.Now()
@@ -31,7 +30,6 @@ func SelectSQL(ctx context.Context, db *sqlx.DB, op string, dest any, query stri
 	return err
 }
 
-// ExecSQL runs an INSERT/UPDATE/DELETE/DDL statement.
 func ExecSQL(ctx context.Context, db *sqlx.DB, op, query string, args ...any) (sql.Result, error) {
 	done := startSQLOp(ctx)
 	start := time.Now()

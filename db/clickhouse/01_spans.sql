@@ -44,11 +44,11 @@ CREATE TABLE IF NOT EXISTS optikk.spans (
     exception_stacktrace                  String          CODEC(ZSTD(1)),
     exception_escaped                     Bool            CODEC(T64, ZSTD(1)),
 
-    -- Group key = (service, name, exception_type, http_status_bucket) — all bounded
-    -- dims. status_message is deliberately excluded: messages embed request IDs /
-    -- user values, so hashing them explodes one logical error into thousands of
-    -- groups. The representative message is fetched per group at read time
-    -- (argMax(status_message) over raw spans in services/errors).
+    
+    
+    
+    
+    
     error_group_id                        String          MATERIALIZED lower(hex(halfMD5(concat(service, '|', name, '|', exception_type, '|', http_status_bucket)))) CODEC(ZSTD(1)),
 
     operation_name           LowCardinality(String) ALIAS name,
@@ -59,7 +59,7 @@ CREATE TABLE IF NOT EXISTS optikk.spans (
     is_error                 UInt8                  ALIAS if(has_error OR toUInt16OrZero(response_status_code) >= 400, 1, 0),
     is_root                  UInt8                  ALIAS if((parent_span_id = '') OR (parent_span_id = '0000000000000000'), 1, 0),
 
-    -- Bloom filter for per-group error drill-ins (replaces spans_errors_1m).
+    
     INDEX idx_error_group_id error_group_id TYPE bloom_filter GRANULARITY 1
 ) ENGINE = ReplicatedMergeTree('/clickhouse/tables/{shard}/optikk/spans', '{replica}')
 PARTITION BY toYYYYMMDD(timestamp)

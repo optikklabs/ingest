@@ -31,25 +31,21 @@ type TeamResolver interface {
 	ResolveTeamID(ctx context.Context, apiKey string) (int64, error)
 }
 
-// TeamFinder defines the database lookup interface for resolving API keys.
 type TeamFinder interface {
 	FindTeamIDByAPIKey(ctx context.Context, apiKey string) (int64, error)
 }
 
-// Authenticator resolves API keys and caches results in memory.
 type Authenticator struct {
 	finder TeamFinder
 	cache  sync.Map
 }
 
-// NewAuthenticator creates a new Authenticator.
 func NewAuthenticator(finder TeamFinder) *Authenticator {
 	a := &Authenticator{finder: finder}
 	go a.startCleanup(5 * time.Minute)
 	return a
 }
 
-// ResolveTeamID resolves an API key to its corresponding team ID.
 func (a *Authenticator) ResolveTeamID(ctx context.Context, apiKey string) (int64, error) {
 	if apiKey == "" {
 		return 0, ErrMissingAPIKey

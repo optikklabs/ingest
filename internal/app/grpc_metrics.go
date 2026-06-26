@@ -23,8 +23,6 @@ func grpcMetricsUnary() grpc.UnaryServerInterceptor {
 	}
 }
 
-// grpcMetricsStream is the streaming counterpart. Duration covers the
-// entire stream lifetime; `started_total` still increments at open.
 func grpcMetricsStream() grpc.StreamServerInterceptor {
 	return func(srv any, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 		metrics.GRPCStarted.WithLabelValues(info.FullMethod).Inc()

@@ -25,7 +25,6 @@ func UnaryInterceptor(resolver TeamResolver) grpc.UnaryServerInterceptor {
 	}
 }
 
-// StreamInterceptor provides authentication for streaming ingest RPCs.
 func StreamInterceptor(resolver TeamResolver) grpc.StreamServerInterceptor {
 	return func(srv any, ss grpc.ServerStream, _ *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 		teamID, err := resolveFromContext(ss.Context(), resolver)

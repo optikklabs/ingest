@@ -34,18 +34,9 @@ services:
       timeout: 3s
       retries: 10
 
-  mongodb:
-    image: mongo:7
-    ports:
-      - "27017:27017"
-    volumes:
-      - mongo_data:/data/db
-    healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
-
+  # Pre-configured Kafka-compatible MQ image. Single listener advertising
+  # localhost:9092 for host clients (ingest, verification-service); no
+  # in-network client connects to the broker.
   kafka:
     image: ghcr.io/ramantayal12/mq:latest
     user: "root"
@@ -61,30 +52,41 @@ services:
       - mq_data:/var/lib/mq
 
   otel-collector:
-    image: otel/opentelemetry-collector-contrib:0.110.0
+    image: otel/opentelemetry-collector-contrib:0.155.0
     container_name: optikk-otel-collector
     restart: unless-stopped
     environment:
       - OPTIKK_API_KEY=c3448fae
+      
+      - GOMEMLIMIT=400MiB
     command: ["--config=/etc/otelcol-contrib/config.yaml"]
     volumes:
       - ./otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml:ro
-      # Host fs for the hostmetrics receiver (root_path: /hostfs).
+      
       - /proc:/hostfs/proc:ro
       - /:/hostfs:ro
+      
+      - otel-queue:/var/lib/otelcol/storage
+      
+      
+      
+      
     ports:
-      - "4317:4317" # OTLP gRPC receiver
-      - "4319:4318" # OTLP HTTP receiver (4318 is mapped to 4319 to avoid collision if ingest binds 4318 on host)
+      - "4317:4317" 
+      - "4319:4318" 
+      - "13133:13133" 
+      - "55679:55679" 
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
       - kafka
+      - mariadb
 
-  # Local Prometheus + Grafana for the Optikk dashboards.
-  # Both services run on the host (`go run ./cmd/...`); Prometheus scrapes
-  # ingest (:18090) and query (:19090) /metrics via host.docker.internal.
-  # Dashboards carry a $service variable to scope per-service or view both.
-  # Grafana → http://localhost:13001   Prometheus → http://localhost:19091
+  
+  
+  
+  
+  
   prometheus:
     image: prom/prometheus:v2.54.1
     container_name: optikk-prometheus
@@ -125,7 +127,7 @@ services:
 volumes:
   clickhouse_data:
   mariadb_data:
-  mongo_data:
   mq_data:
   prometheus-data:
   grafana-data:
+  otel-queue:

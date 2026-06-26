@@ -26,7 +26,6 @@ var chErrorMessages = map[int32]string{
 	161: "Too many columns in result",
 }
 
-// networkErrorPatterns maps Go network error substrings to friendly messages.
 var networkErrorPatterns = []struct {
 	substr  string
 	message string
@@ -43,17 +42,13 @@ var networkErrorPatterns = []struct {
 	{"context canceled", "Request was canceled"},
 }
 
-// sqlStripPattern matches SQL keywords and everything after them.
 var sqlStripPattern = regexp.MustCompile(`(?i)\s+(SELECT|INSERT|UPDATE|DELETE|FROM|WHERE|IN SCOPE)\s+.*`)
 
-// SanitizeError converts a raw error into a clean, human-readable message.
-// It strips SQL queries, stack traces, and internal identifiers.
 func SanitizeError(err error) string {
 	if err == nil {
 		return ""
 	}
 
-	// ClickHouse structured exception — use code mapping or Name field.
 	var chErr *clickhouse.Exception
 	if errors.As(err, &chErr) {
 		if friendly, ok := chErrorMessages[chErr.Code]; ok {
@@ -67,7 +62,6 @@ func SanitizeError(err error) string {
 
 	msg := err.Error()
 
-	// Check for known network error patterns.
 	lower := strings.ToLower(msg)
 	for _, p := range networkErrorPatterns {
 		if strings.Contains(lower, p.substr) {
@@ -75,11 +69,9 @@ func SanitizeError(err error) string {
 		}
 	}
 
-	// Fallback: strip SQL from the message and truncate.
 	return sanitizeRawMessage(msg)
 }
 
-// sanitizeRawMessage strips SQL queries and truncates to a safe length.
 func sanitizeRawMessage(msg string) string {
 	msg = sqlStripPattern.ReplaceAllString(msg, "")
 	msg = strings.TrimSpace(msg)

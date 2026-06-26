@@ -16,7 +16,6 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// Handler implements the gRPC TraceServiceServer.
 type Handler struct {
 	tracepb.UnimplementedTraceServiceServer
 	producer *core.Producer[*schema.Row]

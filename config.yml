@@ -4,8 +4,6 @@ environment: development
 server:
   port: "18090"
 
-# Read-only access for OTLP API-key authentication. Schema owned by the query
-# service; ingest never migrates MySQL.
 mysql:
   host: "127.0.0.1"
   port: "13306"

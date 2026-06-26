@@ -9,18 +9,16 @@ import (
 	"github.com/twmb/franz-go/pkg/kgo"
 )
 
-// Config holds Kafka broker and producer-tuning configuration inputs.
 type Config struct {
 	Brokers []string
-	// LingerMs is the producer linger duration (default 20ms).
+
 	LingerMs int
-	// BatchMaxBytes is the producer batch cap (default 1 MiB).
+
 	BatchMaxBytes int
-	// Compression: "zstd" (default), "lz4", "snappy", "gzip", "none".
+
 	Compression string
 }
 
-// NewProducerClient returns a Kafka client tuned for producing records.
 func NewProducerClient(cfg Config) (*kgo.Client, error) {
 	if len(cfg.Brokers) == 0 {
 		return nil, fmt.Errorf("kafka: brokers required")
@@ -37,8 +35,6 @@ func NewProducerClient(cfg Config) (*kgo.Client, error) {
 	)
 }
 
-// NewConsumerClient returns a Kafka client configured for the given topic.
-// Offsets are committed manually after each batch is flushed.
 func NewConsumerClient(cfg Config, groupID, topic string) (*kgo.Client, error) {
 	if len(cfg.Brokers) == 0 {
 		return nil, fmt.Errorf("kafka: brokers required")

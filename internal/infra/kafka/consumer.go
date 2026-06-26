@@ -18,10 +18,8 @@ func NewConsumer(client *kgo.Client) *Consumer { return &Consumer{client: client
 func (c *Consumer) Client() *kgo.Client { return c.client }
 func (c *Consumer) Close()              { c.client.Close() }
 
-// RecordHandler processes a batch of records. Returning error skips commit.
 type RecordHandler func(ctx context.Context, recs []*kgo.Record) error
 
-// Run blocks until ctx is cancelled or the client is closed.
 func (c *Consumer) Run(ctx context.Context, handle RecordHandler) {
 	for {
 		if ctx.Err() != nil {

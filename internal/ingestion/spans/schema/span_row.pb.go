@@ -16,13 +16,11 @@ import (
 )
 
 const (
-	// Verify that this generated code is sufficiently up-to-date.
 	_ = protoimpl.EnforceVersion(20 - protoimpl.MinVersion)
-	// Verify that runtime/protoimpl is sufficiently up-to-date.
+
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// Row is the wire format on Kafka. One record == one span row bound for observability.spans.
 type Row struct {
 	state               protoimpl.MessageState `protogen:"open.v1"`
 	TsBucket            uint64                 `protobuf:"varint,1,opt,name=ts_bucket,json=tsBucket,proto3" json:"ts_bucket,omitempty"`
@@ -34,11 +32,11 @@ type Row struct {
 	TraceState          string                 `protobuf:"bytes,7,opt,name=trace_state,json=traceState,proto3" json:"trace_state,omitempty"`
 	Flags               uint32                 `protobuf:"varint,8,opt,name=flags,proto3" json:"flags,omitempty"`
 	Name                string                 `protobuf:"bytes,9,opt,name=name,proto3" json:"name,omitempty"`
-	Kind                int32                  `protobuf:"varint,10,opt,name=kind,proto3" json:"kind,omitempty"` // int8 at CH
+	Kind                int32                  `protobuf:"varint,10,opt,name=kind,proto3" json:"kind,omitempty"`
 	KindString          string                 `protobuf:"bytes,11,opt,name=kind_string,json=kindString,proto3" json:"kind_string,omitempty"`
 	DurationNano        uint64                 `protobuf:"varint,12,opt,name=duration_nano,json=durationNano,proto3" json:"duration_nano,omitempty"`
 	HasError            bool                   `protobuf:"varint,13,opt,name=has_error,json=hasError,proto3" json:"has_error,omitempty"`
-	StatusCode          int32                  `protobuf:"varint,15,opt,name=status_code,json=statusCode,proto3" json:"status_code,omitempty"` // int16 at CH
+	StatusCode          int32                  `protobuf:"varint,15,opt,name=status_code,json=statusCode,proto3" json:"status_code,omitempty"`
 	StatusCodeString    string                 `protobuf:"bytes,16,opt,name=status_code_string,json=statusCodeString,proto3" json:"status_code_string,omitempty"`
 	StatusMessage       string                 `protobuf:"bytes,17,opt,name=status_message,json=statusMessage,proto3" json:"status_message,omitempty"`
 	HttpUrl             string                 `protobuf:"bytes,18,opt,name=http_url,json=httpUrl,proto3" json:"http_url,omitempty"`
@@ -53,7 +51,7 @@ type Row struct {
 	ExceptionStacktrace string                 `protobuf:"bytes,29,opt,name=exception_stacktrace,json=exceptionStacktrace,proto3" json:"exception_stacktrace,omitempty"`
 	ExceptionEscaped    bool                   `protobuf:"varint,30,opt,name=exception_escaped,json=exceptionEscaped,proto3" json:"exception_escaped,omitempty"`
 	Fingerprint         uint64                 `protobuf:"varint,31,opt,name=fingerprint,proto3" json:"fingerprint,omitempty"`
-	// Top-level resource + span-level labels promoted from attributes JSON; mapper-written, stripped from the attribute map post-extraction.
+
 	Service          string `protobuf:"bytes,32,opt,name=service,proto3" json:"service,omitempty"`
 	Host             string `protobuf:"bytes,33,opt,name=host,proto3" json:"host,omitempty"`
 	Pod              string `protobuf:"bytes,34,opt,name=pod,proto3" json:"pod,omitempty"`
@@ -94,7 +92,6 @@ func (x *Row) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use Row.ProtoReflect.Descriptor instead.
 func (*Row) Descriptor() ([]byte, []int) {
 	return file_span_row_proto_rawDescGZIP(), []int{0}
 }
@@ -443,16 +440,16 @@ func file_span_row_proto_rawDescGZIP() []byte {
 
 var file_span_row_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
 var file_span_row_proto_goTypes = []any{
-	(*Row)(nil), // 0: optikk.ingest.spans.v1.Row
-	nil,         // 1: optikk.ingest.spans.v1.Row.AttributesEntry
+	(*Row)(nil),
+	nil,
 }
 var file_span_row_proto_depIdxs = []int32{
-	1, // 0: optikk.ingest.spans.v1.Row.attributes:type_name -> optikk.ingest.spans.v1.Row.AttributesEntry
-	1, // [1:1] is the sub-list for method output_type
-	1, // [1:1] is the sub-list for method input_type
-	1, // [1:1] is the sub-list for extension type_name
-	1, // [1:1] is the sub-list for extension extendee
-	0, // [0:1] is the sub-list for field type_name
+	1,
+	1,
+	1,
+	1,
+	1,
+	0,
 }
 
 func init() { file_span_row_proto_init() }

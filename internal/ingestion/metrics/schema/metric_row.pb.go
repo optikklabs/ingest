@@ -16,15 +16,11 @@ import (
 )
 
 const (
-	// Verify that this generated code is sufficiently up-to-date.
 	_ = protoimpl.EnforceVersion(20 - protoimpl.MinVersion)
-	// Verify that runtime/protoimpl is sufficiently up-to-date.
+
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// Row is the wire format on Kafka. One record == one metric data point bound for
-// observability.metrics. Carries only fields the metrics consumer writes; series
-// identity/labels live in the decoupled metric_series topic (SeriesRow).
 type Row struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	TeamId        uint32                 `protobuf:"varint,1,opt,name=team_id,json=teamId,proto3" json:"team_id,omitempty"`
@@ -66,7 +62,6 @@ func (x *Row) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use Row.ProtoReflect.Descriptor instead.
 func (*Row) Descriptor() ([]byte, []int) {
 	return file_metric_row_proto_rawDescGZIP(), []int{0}
 }
@@ -177,14 +172,14 @@ func file_metric_row_proto_rawDescGZIP() []byte {
 
 var file_metric_row_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
 var file_metric_row_proto_goTypes = []any{
-	(*Row)(nil), // 0: optikk.ingest.metrics.v1.Row
+	(*Row)(nil),
 }
 var file_metric_row_proto_depIdxs = []int32{
-	0, // [0:0] is the sub-list for method output_type
-	0, // [0:0] is the sub-list for method input_type
-	0, // [0:0] is the sub-list for extension type_name
-	0, // [0:0] is the sub-list for extension extendee
-	0, // [0:0] is the sub-list for field type_name
+	0,
+	0,
+	0,
+	0,
+	0,
 }
 
 func init() { file_metric_row_proto_init() }

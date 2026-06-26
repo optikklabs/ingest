@@ -63,8 +63,14 @@ func (a *App) addGRPCServerActor(g *run.Group) error {
 	if maxStreams == 0 {
 		maxStreams = 10_000
 	}
+
+	maxRecvMsgSize := a.Config.OTLP.GRPCMaxRecvMsgSize
+	if maxRecvMsgSize == 0 {
+		maxRecvMsgSize = 16 * 1024 * 1024
+	}
 	grpcSrv := grpc.NewServer(
 		grpc.MaxConcurrentStreams(maxStreams),
+		grpc.MaxRecvMsgSize(maxRecvMsgSize),
 		grpc.ConnectionTimeout(30*time.Second),
 		grpc.KeepaliveParams(keepalive.ServerParameters{
 			Time:    20 * time.Second,
@@ -74,8 +80,7 @@ func (a *App) addGRPCServerActor(g *run.Group) error {
 			MinTime:             10 * time.Second,
 			PermitWithoutStream: true,
 		}),
-		// Observability interceptors run first to time auth and handlers together;
-		// unauthorized denials show up in metrics with Unauthenticated code.
+
 		grpc.ChainUnaryInterceptor(
 			grpcMetricsUnary(),
 			auth.UnaryInterceptor(a.Infra.Authenticator),
@@ -105,8 +110,6 @@ func (a *App) addGRPCServerActor(g *run.Group) error {
 	return nil
 }
 
-// addLagPollerActors adds a run.Group actor per Kafka consumer-lag poller to
-// publish lag records every 15s.
 func (a *App) addLagPollerActors(g *run.Group, parentCtx context.Context) {
 	for _, p := range a.Infra.LagPollers {
 		p := p
@@ -118,8 +121,6 @@ func (a *App) addLagPollerActors(g *run.Group, parentCtx context.Context) {
 	}
 }
 
-// addConsumerActors adds a run.Group actor per Kafka consumer so each polls and
-// writes to ClickHouse, stopping on ctx cancel.
 func (a *App) addConsumerActors(g *run.Group, parentCtx context.Context) {
 	for _, c := range a.Infra.Consumers {
 		c := c

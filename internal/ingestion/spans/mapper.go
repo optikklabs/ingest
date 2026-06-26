@@ -226,8 +226,6 @@ func firstNonEmpty(m map[string]string, keys ...string) string {
 	return ""
 }
 
-// promotedSpanKeys are OTLP attribute keys promoted to dedicated CH columns.
-// These are stripped post-extraction to prevent duplicate JSON data.
 var promotedSpanKeys = []string{
 	"http.method", "http.request.method",
 	"http.url", "url.full",

@@ -25,7 +25,6 @@ type ConsumerRunner interface {
 	Run(ctx context.Context)
 }
 
-// Infra holds process-wide infrastructure constructed at startup.
 type Infra struct {
 	DB            *sql.DB
 	CH            clickhouse.Conn
@@ -78,8 +77,6 @@ func newInfra(cfg config.Config) (_ *Infra, err error) {
 	}, nil
 }
 
-// openMySQL opens the pool read-only for API-key auth. Ingest does not own the
-// MySQL schema (query does), so it never migrates.
 func openMySQL(cfg config.Config) (*sql.DB, error) {
 	dbConn, err := dbutil.Open(cfg.MySQLDSN(), cfg.MySQL.MaxOpenConns, cfg.MySQL.MaxIdleConns)
 	if err != nil {
@@ -92,8 +89,6 @@ func openMySQL(cfg config.Config) (*sql.DB, error) {
 	return dbConn, nil
 }
 
-// openClickHouse opens the connection and runs migrations. Ingest owns the
-// ClickHouse write schema, so it migrates on startup.
 func openClickHouse(cfg config.Config) (clickhouse.Conn, error) {
 	chConn, err := dbutil.OpenClickHouseConn(cfg.ClickHouseDSN())
 	if err != nil {

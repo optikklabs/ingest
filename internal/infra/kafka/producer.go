@@ -16,8 +16,6 @@ type Producer struct {
 
 func NewProducer(client *kgo.Client) *Producer { return &Producer{client: client} }
 
-// PublishBatch produces every record asynchronously and waits for all acks.
-// The first error is returned, and callers retry the entire batch.
 func (p *Producer) PublishBatch(ctx context.Context, records []*kgo.Record) error {
 	if len(records) == 0 {
 		return nil
@@ -44,8 +42,6 @@ func (p *Producer) PublishBatch(ctx context.Context, records []*kgo.Record) erro
 	return nil
 }
 
-// PublishSync produces one record and waits for the ack. Used by low-rate
-// paths (DLQ) that publish individual records.
 func (p *Producer) PublishSync(ctx context.Context, rec *kgo.Record) error {
 	return p.client.ProduceSync(ctx, rec).FirstErr()
 }

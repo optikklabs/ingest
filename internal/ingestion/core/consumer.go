@@ -49,7 +49,7 @@ func (c *Consumer[T]) handle(ctx context.Context, recs []*kgo.Record) error {
 			slog.Any("error", err),
 		)
 		c.dlq.PublishAll(ctx, recs, err)
-		// Commit offsets to unblock the partition.
+
 		return nil
 	}
 	return nil

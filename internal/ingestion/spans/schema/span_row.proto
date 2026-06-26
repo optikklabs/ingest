@@ -15,19 +15,19 @@ message Row {
   string trace_state = 7;
   uint32 flags = 8;
   string name = 9;
-  int32  kind = 10;              // int8 at CH
+  int32  kind = 10;              
   string kind_string = 11;
   uint64 duration_nano = 12;
   bool   has_error = 13;
-  reserved 14;                   // retired: is_remote (never populated)
+  reserved 14;                   
   reserved "is_remote";
-  int32  status_code = 15;       // int16 at CH
+  int32  status_code = 15;       
   string status_code_string = 16;
   string status_message = 17;
   string http_url = 18;
   string http_method = 19;
   string http_host = 20;
-  reserved 21, 22;               // retired: external_http_url, external_http_method (never read)
+  reserved 21, 22;               
   reserved "external_http_url", "external_http_method";
   string response_status_code = 23;
   map<string, string> attributes = 24;
@@ -38,7 +38,7 @@ message Row {
   string exception_stacktrace = 29;
   bool   exception_escaped = 30;
   uint64 fingerprint = 31;
-  // Top-level resource + span-level labels promoted from attributes JSON; mapper-written, stripped from the attribute map post-extraction.
+  
   string service = 32;
   string host = 33;
   string pod = 34;
