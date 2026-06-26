@@ -22,8 +22,6 @@ func NewProducer[T Row](topic string, base *kafkainfra.Producer) *Producer[T] {
 	return &Producer[T]{topic: topic, base: base}
 }
 
-// Publish marshals each row into a kgo.Record and produces them in a batch.
-// The call blocks until the broker has acknowledged all records.
 func (p *Producer[T]) Publish(ctx context.Context, rows []T) error {
 	if len(rows) == 0 {
 		return nil

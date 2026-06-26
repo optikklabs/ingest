@@ -18,7 +18,6 @@ var seriesColumns = []string{
 	"attributes",
 }
 
-// NewClickHouseWriter returns a ClickHouse writer for the metric series metadata.
 func NewClickHouseWriter(ch clickhouse.Conn) core.Writer[*schema.SeriesRow] {
 	return core.NewClickHouseWriter(ch, "optikk.metrics_series", seriesColumns, seriesRowValues)
 }

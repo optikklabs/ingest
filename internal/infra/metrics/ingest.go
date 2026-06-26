@@ -22,8 +22,6 @@ var (
 		Help:      "OTLP record payload bytes ingested, by signal.",
 	}, []string{"signal"})
 
-	// HandlerPublishDuration measures latency from handler to Kafka.
-	// Buckets span 1ms to 10s and are shared across all signals.
 	HandlerPublishDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: "optikk",
 		Subsystem: "ingest",
@@ -34,7 +32,6 @@ var (
 		},
 	}, []string{"signal", "result"})
 
-	// MapperDuration measures OTLP to internal Row conversion latency.
 	MapperDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: "optikk",
 		Subsystem: "ingest",
@@ -45,7 +42,6 @@ var (
 		},
 	}, []string{"signal"})
 
-	// MapperRowsPerRequest tracks rows produced per OTLP request by signal.
 	MapperRowsPerRequest = promauto.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: "optikk",
 		Subsystem: "ingest",
@@ -54,7 +50,6 @@ var (
 		Buckets:   []float64{1, 10, 100, 500, 1000, 5000, 10_000, 50_000, 100_000},
 	}, []string{"signal"})
 
-	// MapperAttrsDropped counts attribute-map entries dropped by the limit.
 	MapperAttrsDropped = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "optikk",
 		Subsystem: "ingest",

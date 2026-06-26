@@ -11,8 +11,6 @@ type IngestionConfig struct {
 	MetricSeries SignalConfig `yaml:"metric_series"`
 }
 
-// SignalConfig describes one ingest signal's topology. Zero values inherit
-// the defaults in SignalDefaults.
 type SignalConfig struct {
 	Partitions     int    `yaml:"partitions"`
 	Replicas       int    `yaml:"replicas"`
@@ -20,8 +18,6 @@ type SignalConfig struct {
 	ConsumerGroup  string `yaml:"consumer_group"`
 }
 
-// SignalDefaults returns sensible defaults for any signal. Tuned for
-// ~150–300K rows/s/instance on a 3-broker Redpanda + single-node CH stack.
 func SignalDefaults(signal string) SignalConfig {
 	return SignalConfig{
 		Partitions:     8,
@@ -31,8 +27,6 @@ func SignalDefaults(signal string) SignalConfig {
 	}
 }
 
-// IngestSignal returns merged config for the named signal: explicit YAML
-// values win, zeroes are filled from defaults.
 func (c Config) IngestSignal(signal string) SignalConfig {
 	var raw SignalConfig
 	switch signal {

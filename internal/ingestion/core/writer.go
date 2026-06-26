@@ -13,7 +13,6 @@ type Writer[T Row] interface {
 	Insert(ctx context.Context, rows []T) error
 }
 
-// ClickHouseWriter batch-inserts generic Rows into ClickHouse using async inserts.
 type ClickHouseWriter[T Row] struct {
 	ch        clickhouse.Conn
 	query     string

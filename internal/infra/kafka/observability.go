@@ -25,7 +25,6 @@ var (
 	_ kgo.HookGroupManageError        = (*hooks)(nil)
 )
 
-// WithHooks returns the kgo option that installs the package-level hooks.
 func WithHooks() kgo.Opt { return kgo.WithHooks(hooks{}) }
 
 func (hooks) OnProduceRecordUnbuffered(r *kgo.Record, err error) {
@@ -86,8 +85,6 @@ func signalFromTopic(topic string) string {
 	}
 }
 
-// LagPoller emits optikk_kafka_consumer_lag_records every 15s. One per
-// (consumer client, group, topic) pair, started by app.Start.
 type LagPoller struct {
 	client   *kgo.Client
 	groupID  string

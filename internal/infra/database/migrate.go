@@ -15,13 +15,12 @@ import (
 type Migrator struct {
 	DB       clickhouse.Conn
 	FS       fs.FS
-	Database string // defaults to "optikk"
+	Database string
 	Logger   func(format string, args ...any)
 }
 
 const migrationTrackingTable = "schema_migrations"
 
-// Up applies every pending migration in lexical order, stopping on first error.
 func (m *Migrator) Up(ctx context.Context) (applied int, skipped int, err error) {
 	if err := m.ensureTrackingTable(ctx); err != nil {
 		return 0, 0, fmt.Errorf("chmigrate: ensure tracking table: %w", err)
@@ -62,8 +61,7 @@ func (m *Migrator) ensureTrackingTable(ctx context.Context) error {
 	if m.Database == "" {
 		m.Database = "optikk"
 	}
-	// Database and tracking table are created if not exist, making it safe
-	// to re-run on a fresh cluster.
+
 	if err := m.DB.Exec(ctx, "CREATE DATABASE IF NOT EXISTS "+m.Database); err != nil {
 		return err
 	}
@@ -128,8 +126,6 @@ func (m *Migrator) logf(format string, args ...any) {
 	m.Logger(format, args...)
 }
 
-// splitMigrationStatements splits SQL into individual statements by semicolon.
-// It strips line comments and ignores semicolons inside single quotes.
 func splitMigrationStatements(sql string) []string {
 	var out []string
 	var buf strings.Builder

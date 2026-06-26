@@ -11,8 +11,6 @@ func TestSeriesHashOrderIndependent(t *testing.T) {
 	}
 }
 
-// Two points identical except one data-point label must get distinct hashes —
-// the collision class the refactor removes (success criterion #1).
 func TestSeriesHashDistinctOnLabel(t *testing.T) {
 	res := map[string]string{"service.name": "api"}
 	a := SeriesHash("m", "Unspecified", res, map[string]string{"foo": "a"})
@@ -22,7 +20,6 @@ func TestSeriesHashDistinctOnLabel(t *testing.T) {
 	}
 }
 
-// Distinct resources with identical labels must not collide.
 func TestSeriesHashDistinctOnResource(t *testing.T) {
 	dp := map[string]string{"foo": "a"}
 	a := SeriesHash("m", "Unspecified", map[string]string{"host.name": "h1"}, dp)
@@ -31,5 +28,3 @@ func TestSeriesHashDistinctOnResource(t *testing.T) {
 		t.Fatal("distinct resources collided into one fingerprint")
 	}
 }
-
-

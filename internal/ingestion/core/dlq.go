@@ -19,8 +19,6 @@ func NewDLQ(base *kafkainfra.Producer, topic, signal string) *DLQ {
 	return &DLQ{base: base, topic: topic, signal: signal}
 }
 
-// PublishAll forwards all records to the DLQ topic. Errors are logged but
-// do not block the consumer.
 func (d *DLQ) PublishAll(ctx context.Context, recs []*kgo.Record, reason error) {
 	if d == nil || len(recs) == 0 {
 		return

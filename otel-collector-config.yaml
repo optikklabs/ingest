@@ -3,46 +3,59 @@ receivers:
     protocols:
       grpc:
         endpoint: "0.0.0.0:4317"
+        include_metadata: true
       http:
         endpoint: "0.0.0.0:4318"
-  # Host CPU/memory/disk so the Fleet card has real saturation. root_path points
-  # at the mounted host fs (see docker-compose); on Docker Desktop this reflects
-  # the Linux VM, not literal macOS.
-  hostmetrics:
-    collection_interval: 10s
-    root_path: /hostfs
-    scrapers:
-      # utilization metrics are off by default; Fleet reads the *.utilization
-      # names, so enable them explicitly.
-      cpu:
-        metrics:
-          system.cpu.utilization:
-            enabled: true
-      memory:
-        metrics:
-          system.memory.utilization:
-            enabled: true
-      disk:
-      load:
+        include_metadata: true
 
 processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_percentage: 80
+    spike_limit_percentage: 25
   batch:
     send_batch_size: 1000
     timeout: 10s
-  # Catch-all: convert any residual cumulative sums (e.g. servicegraph, SDK
-  # metrics that ignore the delta preference) to delta before export.
   cumulativetodelta:
-  # Force host.name to match the Java agent's span host so the Fleet host-join
-  # lands. Local-dev bridge for the containerized collector.
-  resource/host:
-    attributes:
-      - key: host.name
-        value: "Ramans-MacBook-Air.local"
-        action: upsert
+  transform/db:
+    error_mode: ignore
+    trace_statements:
+      - context: span
+        statements:
+          - set(attributes["db.statement.normalized"], attributes["db.statement"]) where attributes["db.statement"] != nil
+          - replace_pattern(attributes["db.statement.normalized"], "\\b\\d+\\b", "?") where attributes["db.statement.normalized"] != nil
+          - replace_pattern(attributes["db.statement.normalized"], "'[^']*'", "?") where attributes["db.statement.normalized"] != nil
+  filter/noise:
+    error_mode: ignore
+    traces:
+      span:
+        - 'IsMatch(attributes["http.route"], "^/(health|healthz|livez|readyz|metrics)$")'
+  redaction:
+    allow_all_keys: true
+    blocked_values:
+      - "\\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}\\b"
+      - "\\b(?:\\d[ -]*?){13,16}\\b"
+    summary: silent
+  tail_sampling:
+    decision_wait: 10s
+    num_traces: 50000
+    expected_new_traces_per_sec: 1000
+    policies:
+      - name: keep-errors
+        type: status_code
+        status_code:
+          status_codes: [ERROR]
+      - name: keep-slow
+        type: latency
+        latency:
+          threshold_ms: 1000
+      - name: sample-rest
+        type: probabilistic
+        probabilistic:
+          sampling_percentage: 50
 
 connectors:
   spanmetrics:
-    # Delta so sum-based rollups/queries can add data points across buckets.
     aggregation_temporality: "AGGREGATION_TEMPORALITY_DELTA"
     histogram:
       explicit:
@@ -51,13 +64,10 @@ connectors:
       - name: http.method
       - name: http.status_code
       - name: http.route
-      # Kafka topology: per-service produce/consume rate, latency, errors.
-      # service.name + span.kind are built-in; these add topic/group identity.
       - name: messaging.system
       - name: messaging.operation
       - name: messaging.destination.name
       - name: messaging.consumer.group.name
-      # Database saturation: per-system/server RED from spanmetrics.
       - name: db.system
       - name: db.namespace
       - name: db.collection.name
@@ -70,33 +80,70 @@ connectors:
       ttl: 2s
       max_items: 1000
   exceptions:
+  # Logs carry no derived metrics otherwise; emit total + error-log volume.
+  count:
+    logs:
+      log.record.count:
+        description: Total log records
+      log.records.errors:
+        description: Error-or-higher severity log records
+        conditions:
+          - 'severity_number >= SEVERITY_NUMBER_ERROR'
+
+extensions:
+  headers_setter:
+    headers:
+      - action: upsert
+        key: x-api-key
+        from_context: x-api-key
+  health_check:
+    endpoint: 0.0.0.0:13133
+  pprof:
+    endpoint: 0.0.0.0:1777
+  zpages:
+    endpoint: 0.0.0.0:55679
+  file_storage/queue:
+    directory: /var/lib/otelcol/storage
+    create_directory: true
 
 exporters:
   otlp/optikk:
     endpoint: "host.docker.internal:4318"
     tls:
       insecure: true
-    headers:
-      x-api-key: "${env:OPTIKK_API_KEY}"
+    auth:
+      authenticator: headers_setter
+    sending_queue:
+      enabled: true
+      storage: file_storage/queue
+    retry_on_failure:
+      enabled: true
 
 service:
+  extensions: [headers_setter, health_check, pprof, zpages, file_storage/queue]
+  telemetry:
+    metrics:
+      level: detailed
+      readers:
+        - pull:
+            exporter:
+              prometheus:
+                host: 0.0.0.0
+                port: 8888
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [batch]
-      exporters: [otlp/optikk, spanmetrics, servicegraph, exceptions]
-    metrics:
-      receivers: [otlp, spanmetrics, servicegraph, exceptions]
-      processors: [cumulativetodelta, batch]
+      processors: [memory_limiter]
+      exporters: [spanmetrics, servicegraph, exceptions]
+    traces/storage:
+      receivers: [otlp]
+      processors: [memory_limiter, transform/db, filter/noise, redaction, tail_sampling, batch]
       exporters: [otlp/optikk]
-    # Host metrics kept separate so the host.name override stays scoped to them.
-    # Per-state utilization is reduced at read time (Fleet query), not here, so
-    # the raw per-state/per-CPU datapoints stay intact for other consumers.
-    metrics/host:
-      receivers: [hostmetrics]
-      processors: [resource/host, cumulativetodelta, batch]
+    metrics:
+      receivers: [otlp, spanmetrics, servicegraph, exceptions, count]
+      processors: [memory_limiter, cumulativetodelta, batch]
       exporters: [otlp/optikk]
     logs:
       receivers: [otlp, exceptions]
-      processors: [batch]
-      exporters: [otlp/optikk]
+      processors: [memory_limiter, batch]
+      exporters: [otlp/optikk, count]

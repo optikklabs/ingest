@@ -28,7 +28,6 @@ func (n *DimensionHierarchyNode) Identifier(attrs map[string]string) []IdLabelVa
 	return result
 }
 
-// ResourceHierarchy returns the cached OpenTelemetry resource identity tree.
 func ResourceHierarchy() *DimensionHierarchyNode {
 	return defaultRoot
 }
@@ -74,7 +73,6 @@ func platformLevel() *DimensionHierarchyNode {
 	}
 }
 
-// clusterLevel branches into service-oriented or node-oriented levels.
 func clusterLevel() *DimensionHierarchyNode {
 	return &DimensionHierarchyNode{
 		labels: []string{
@@ -89,7 +87,6 @@ func clusterLevel() *DimensionHierarchyNode {
 	}
 }
 
-// serviceView matches service identity from namespace down to component.
 func serviceView() *DimensionHierarchyNode {
 	return &DimensionHierarchyNode{
 		labels:         namespaceLabels,
@@ -136,7 +133,6 @@ func containerLevel() *DimensionHierarchyNode {
 	}
 }
 
-// nodeView matches infrastructure fallback when service identity is missing.
 func nodeView() *DimensionHierarchyNode {
 	return &DimensionHierarchyNode{
 		labels:         []string{"cloud.availability_zone"},

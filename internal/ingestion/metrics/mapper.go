@@ -88,9 +88,6 @@ func sumRow(hdr rowHeader, m *metricsdatapb.Metric, temporality string, isMono b
 	return scalarRow(hdr, m, m.GetName(), "Sum", temporality, isMono, tsNs, attrs, numberValue(dp))
 }
 
-// histogramRow maps an OTel histogram data point to a single row carrying the
-// raw bounds/counts arrays plus sum/count. Percentiles are computed at read time
-// (or pre-aggregated into the metrics_1m/5m/1h rollup's latency_state).
 func histogramRow(hdr rowHeader, m *metricsdatapb.Metric, temporality string, dp *metricsdatapb.HistogramDataPoint) (*schema.Row, *seriesschema.SeriesRow) {
 	tsNs := int64(dp.GetTimeUnixNano())
 	attrs := otlp.AttrsToMap(dp.GetAttributes())
@@ -108,8 +105,6 @@ func scalarRow(hdr rowHeader, m *metricsdatapb.Metric, name, metricType, tempora
 	return baseRow(hdr, m, name, metricType, temporality, isMonotonic, tsNs, attrs, value)
 }
 
-// baseRow builds the slim metric row (consumer-read fields only) and the series
-// row carrying identity/labels, sharing the single computed fingerprint.
 func baseRow(
 	hdr rowHeader, m *metricsdatapb.Metric, name string,
 	metricType, temporality string, isMonotonic bool,

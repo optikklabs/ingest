@@ -18,8 +18,8 @@ message Row {
   uint64 hist_count = 12;
   repeated double hist_buckets = 13;
   repeated uint64 hist_counts  = 14;
-  // Retired: series identity/labels moved to metric_series topic; 24,25 were
-  // http_method/http_status_code.
+  
+  
   reserved 3, 5, 6, 7, 15, 16, 17, 20, 21, 22, 23, 24, 25, 26, 27;
   reserved "metric_type", "is_monotonic", "unit", "description", "resource",
            "attributes", "ts_bucket_hour_seconds", "service", "host",

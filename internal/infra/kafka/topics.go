@@ -20,8 +20,6 @@ const (
 	SignalMetricSeries = "metric_series"
 )
 
-// TopicSpec describes a Kafka topic to be created at boot if missing.
-// Existing topics are left untouched.
 type TopicSpec struct {
 	Name           string
 	Partitions     int32
@@ -29,8 +27,6 @@ type TopicSpec struct {
 	RetentionHours int
 }
 
-// EnsureTopics creates the specified topics on the broker if missing.
-// It is idempotent and called once at app boot.
 func EnsureTopics(ctx context.Context, brokers []string, specs []TopicSpec) error {
 	cli, err := NewProducerClient(Config{Brokers: brokers})
 	if err != nil {
@@ -73,12 +69,10 @@ func isTopicExists(err error) bool {
 	if errors.Is(err, kerr.TopicAlreadyExists) {
 		return true
 	}
-	// Some brokers wrap the error in a generic message; fall back to substring.
+
 	return strings.Contains(strings.ToLower(err.Error()), "topic already exists")
 }
 
-// IngestTopic returns "{prefix}.{signal}" (e.g. "optikk.ingest.spans").
 func IngestTopic(prefix, signal string) string { return prefix + "." + signal }
 
-// DLQTopic returns "{dlqPrefix}.{signal}" (e.g. "optikk.dlq.spans").
 func DLQTopic(dlqPrefix, signal string) string { return dlqPrefix + "." + signal }

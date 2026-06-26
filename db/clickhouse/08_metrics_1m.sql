@@ -38,8 +38,8 @@ SELECT
     count()        AS val_count,
     sum(hist_sum)   AS hist_sum,
     sum(hist_count) AS hist_count,
-    -- counts carry the trailing +Inf overflow bucket, so append +Inf to the
-    -- bounds for histogram rows to align lengths; scalars keep empty arrays.
+    
+    
     quantilesPrometheusHistogramArrayState(0.5, 0.95, 0.99)(if(empty(hist_buckets), hist_buckets, arrayPushBack(hist_buckets, toFloat64(inf))), arrayCumSum(hist_counts)) AS latency_state
 FROM optikk.metrics
 GROUP BY team_id, metric_name, fingerprint, timestamp;

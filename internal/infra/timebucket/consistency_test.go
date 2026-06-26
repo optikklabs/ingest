@@ -10,13 +10,11 @@ func TestBucketSecondsInvariant(t *testing.T) {
 	}
 }
 
-// BucketStart must match the MV-side derivation:
-// intDiv(toUnixTimestamp(timestamp), 300) * 300.
 func TestBucketStartMatchesMVDerivation(t *testing.T) {
 	cases := []int64{
 		0, 1, 299, 300, 301, 599, 600,
-		1735689600,     // 2025-01-01 00:00:00 (bucket-aligned)
-		1735689600 + 7, // mid-bucket
+		1735689600,
+		1735689600 + 7,
 		1735689600 + 299,
 	}
 	for _, s := range cases {

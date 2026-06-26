@@ -21,8 +21,6 @@ func TypedAttrs(kvs []*commonpb.KeyValue, maxStringKeys int) (
 	return
 }
 
-// TypedAttrsInto partitions attributes into existing maps and returns
-// the number of string-map entries dropped by the cap.
 func TypedAttrsInto(
 	kvs []*commonpb.KeyValue,
 	maxStringKeys int,
@@ -53,14 +51,10 @@ func TypedAttrsInto(
 	return 0
 }
 
-// capStringMapDeterministic trims strMap down to max entries by sorting keys
-// lexicographically. Returns the count of dropped entries.
 func capStringMapDeterministic(strMap map[string]string, max int) int {
 	return CapStringMap(strMap, max)
 }
 
-// CapStringMap trims strMap down to max entries, keeping lexicographically
-// smallest keys. Returns the count of entries dropped.
 func CapStringMap(strMap map[string]string, max int) int {
 	if max <= 0 || len(strMap) <= max {
 		return 0

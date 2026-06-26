@@ -27,12 +27,10 @@ var chColumns = []string{
 	"exception_type", "exception_message", "exception_stacktrace", "exception_escaped",
 }
 
-// NewClickHouseWriter returns a configured generic ClickHouseWriter.
 func NewClickHouseWriter(ch clickhouse.Conn) *core.ClickHouseWriter[*schema.Row] {
 	return core.NewClickHouseWriter(ch, chTable, chColumns, rowValues)
 }
 
-// rowValues returns the positional argument slice aligned with chColumns.
 func rowValues(r *schema.Row) []any {
 	return []any{
 		r.GetTsBucket(),

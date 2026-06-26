@@ -137,8 +137,6 @@ func resolveSeverity(lr *logv1.LogRecord) string {
 	return severityNumberToLevel(lr.GetSeverityNumber())
 }
 
-// severityBucketFor maps an OTel severity_number to the on-disk severity tier
-// (0=TRACE/UNSET, 1=DEBUG, 2=INFO, 3=WARN, 4=ERROR, 5=FATAL).
 func severityBucketFor(severityNumber uint32) uint8 {
 	switch {
 	case severityNumber >= 21:

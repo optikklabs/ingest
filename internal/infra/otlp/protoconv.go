@@ -41,7 +41,6 @@ func AttrsToMap(kvs []*commonpb.KeyValue) map[string]string {
 	return m
 }
 
-// BytesToHex converts a byte slice to a hex string.
 func BytesToHex(b []byte) string {
 	if len(b) > 0 {
 		return hex.EncodeToString(b)

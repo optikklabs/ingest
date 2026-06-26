@@ -16,13 +16,11 @@ import (
 )
 
 const (
-	// Verify that this generated code is sufficiently up-to-date.
 	_ = protoimpl.EnforceVersion(20 - protoimpl.MinVersion)
-	// Verify that runtime/protoimpl is sufficiently up-to-date.
+
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// Row is the wire format on Kafka. One record == one log row bound for observability.logs_v2.
 type Row struct {
 	state               protoimpl.MessageState `protogen:"open.v1"`
 	TeamId              uint32                 `protobuf:"varint,1,opt,name=team_id,json=teamId,proto3" json:"team_id,omitempty"`
@@ -42,16 +40,13 @@ type Row struct {
 	Fingerprint         uint64                 `protobuf:"varint,15,opt,name=fingerprint,proto3" json:"fingerprint,omitempty"`
 	ScopeName           string                 `protobuf:"bytes,16,opt,name=scope_name,json=scopeName,proto3" json:"scope_name,omitempty"`
 	ScopeVersion        string                 `protobuf:"bytes,17,opt,name=scope_version,json=scopeVersion,proto3" json:"scope_version,omitempty"`
-	// field 18 (scope_string) intentionally retired.
+
 	Service     string `protobuf:"bytes,19,opt,name=service,proto3" json:"service,omitempty"`
 	Host        string `protobuf:"bytes,20,opt,name=host,proto3" json:"host,omitempty"`
 	Pod         string `protobuf:"bytes,21,opt,name=pod,proto3" json:"pod,omitempty"`
 	Container   string `protobuf:"bytes,22,opt,name=container,proto3" json:"container,omitempty"`
 	Environment string `protobuf:"bytes,23,opt,name=environment,proto3" json:"environment,omitempty"`
-	// log_id is the FNV-64a hash of (trace_id, timestamp_ns, body, fingerprint),
-	// formatted as a 16-char lowercase hex string. Computed in the mapper so the
-	// writer + reader stay in lockstep without round-tripping through CH hash
-	// semantics. Used by logdetail for single-PREWHERE row lookup.
+
 	LogId         string `protobuf:"bytes,24,opt,name=log_id,json=logId,proto3" json:"log_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -82,7 +77,6 @@ func (x *Row) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use Row.ProtoReflect.Descriptor instead.
 func (*Row) Descriptor() ([]byte, []int) {
 	return file_log_row_proto_rawDescGZIP(), []int{0}
 }
@@ -307,22 +301,22 @@ func file_log_row_proto_rawDescGZIP() []byte {
 
 var file_log_row_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_log_row_proto_goTypes = []any{
-	(*Row)(nil), // 0: optikk.ingest.logs.v1.Row
-	nil,         // 1: optikk.ingest.logs.v1.Row.AttributesStringEntry
-	nil,         // 2: optikk.ingest.logs.v1.Row.AttributesNumberEntry
-	nil,         // 3: optikk.ingest.logs.v1.Row.AttributesBoolEntry
-	nil,         // 4: optikk.ingest.logs.v1.Row.ResourceEntry
+	(*Row)(nil),
+	nil,
+	nil,
+	nil,
+	nil,
 }
 var file_log_row_proto_depIdxs = []int32{
-	1, // 0: optikk.ingest.logs.v1.Row.attributes_string:type_name -> optikk.ingest.logs.v1.Row.AttributesStringEntry
-	2, // 1: optikk.ingest.logs.v1.Row.attributes_number:type_name -> optikk.ingest.logs.v1.Row.AttributesNumberEntry
-	3, // 2: optikk.ingest.logs.v1.Row.attributes_bool:type_name -> optikk.ingest.logs.v1.Row.AttributesBoolEntry
-	4, // 3: optikk.ingest.logs.v1.Row.resource:type_name -> optikk.ingest.logs.v1.Row.ResourceEntry
-	4, // [4:4] is the sub-list for method output_type
-	4, // [4:4] is the sub-list for method input_type
-	4, // [4:4] is the sub-list for extension type_name
-	4, // [4:4] is the sub-list for extension extendee
-	0, // [0:4] is the sub-list for field type_name
+	1,
+	2,
+	3,
+	4,
+	4,
+	4,
+	4,
+	4,
+	0,
 }
 
 func init() { file_log_row_proto_init() }

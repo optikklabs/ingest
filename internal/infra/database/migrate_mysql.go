@@ -17,8 +17,6 @@ type MySQLMigrator struct {
 	Logger func(format string, args ...any)
 }
 
-// Up applies all SQL migrations in lexical order.
-// It returns the statement count and any error.
 func (m *MySQLMigrator) Up(ctx context.Context) (stmts int, err error) {
 	files, err := m.listFiles()
 	if err != nil {
