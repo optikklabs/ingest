@@ -16,6 +16,8 @@ main
 # OS
 .DS_Store
 Thumbs.db
+ingest
+ingest-server
 
 # Build output
 bin/
