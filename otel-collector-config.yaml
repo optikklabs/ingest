@@ -95,7 +95,7 @@ extensions:
     headers:
       - action: upsert
         key: x-api-key
-        from_context: x-api-key
+        value: ${env:OPTIKK_API_KEY}
   health_check:
     endpoint: 0.0.0.0:13133
   pprof:
