@@ -20,7 +20,9 @@ import (
 	metricseries "github.com/optikklabs/ingest/internal/ingestion/metricseries"
 	metricseriesschema "github.com/optikklabs/ingest/internal/ingestion/metricseries/schema"
 	spansignal "github.com/optikklabs/ingest/internal/ingestion/spans"
+	spansresource "github.com/optikklabs/ingest/internal/ingestion/spansresource"
 	spansschema "github.com/optikklabs/ingest/internal/ingestion/spans/schema"
+	logsresource "github.com/optikklabs/ingest/internal/ingestion/logsresource"
 )
 
 // ingestBundle is everything buildIngest produces for the Infra.
@@ -52,20 +54,47 @@ func wireConsumer[T core.Row](in signalWireInput, writer core.Writer[T], signal 
 	return core.NewConsumer[T](in.consumer, writer, dlq, signal, newRow)
 }
 
+var (
+	spansResourceCache = core.NewResourceCache(100000)
+	logsResourceCache  = core.NewResourceCache(100000)
+)
+
 func wireSpans(in signalWireInput) (registry.Module, ConsumerRunner) {
 	producer := core.NewProducer[*spansschema.Row](in.ingestTopic, in.producerBase)
+	resourceTopic := kafkainfra.IngestTopic(in.topicPrefix, kafkainfra.SignalSpansResource)
+	resourceProducer := core.NewProducer[*spansschema.Row](resourceTopic, in.producerBase)
+
 	writer := spansignal.NewClickHouseWriter(in.ch)
 	consumer := wireConsumer(in, writer, kafkainfra.SignalSpans, func() *spansschema.Row { return &spansschema.Row{} })
-	mod := spansignal.NewModule(spansignal.Deps{Handler: spansignal.NewHandler(producer)})
+	
+	handler := spansignal.NewHandler(producer, resourceProducer, spansResourceCache)
+	mod := spansignal.NewModule(spansignal.Deps{Handler: handler})
 	return mod, consumer
+}
+
+func wireSpansResource(in signalWireInput) (registry.Module, ConsumerRunner) {
+	writer := spansresource.NewClickHouseWriter(in.ch)
+	consumer := wireConsumer(in, writer, kafkainfra.SignalSpansResource, func() *spansschema.Row { return &spansschema.Row{} })
+	return nil, consumer
 }
 
 func wireLogs(in signalWireInput) (registry.Module, ConsumerRunner) {
 	producer := core.NewProducer[*logsschema.Row](in.ingestTopic, in.producerBase)
+	resourceTopic := kafkainfra.IngestTopic(in.topicPrefix, kafkainfra.SignalLogsResource)
+	resourceProducer := core.NewProducer[*logsschema.Row](resourceTopic, in.producerBase)
+
 	writer := logsignal.NewClickHouseWriter(in.ch)
 	consumer := wireConsumer(in, writer, kafkainfra.SignalLogs, func() *logsschema.Row { return &logsschema.Row{} })
-	mod := logsignal.NewModule(logsignal.Deps{Handler: logsignal.NewHandler(producer)})
+	
+	handler := logsignal.NewHandler(producer, resourceProducer, logsResourceCache)
+	mod := logsignal.NewModule(logsignal.Deps{Handler: handler})
 	return mod, consumer
+}
+
+func wireLogsResource(in signalWireInput) (registry.Module, ConsumerRunner) {
+	writer := logsresource.NewClickHouseWriter(in.ch)
+	consumer := wireConsumer(in, writer, kafkainfra.SignalLogsResource, func() *logsschema.Row { return &logsschema.Row{} })
+	return nil, consumer
 }
 
 func wireMetrics(in signalWireInput) (registry.Module, ConsumerRunner) {
@@ -105,7 +134,9 @@ func buildIngest(cfg config.Config, ch clickhouse.Conn) (ingestBundle, error) {
 
 	wirings := []signalWiring{
 		{signal: kafkainfra.SignalSpans, cfg: cfg.IngestSignal("spans"), wire: wireSpans},
+		{signal: kafkainfra.SignalSpansResource, cfg: cfg.IngestSignal("spans_resource"), wire: wireSpansResource},
 		{signal: kafkainfra.SignalLogs, cfg: cfg.IngestSignal("logs"), wire: wireLogs},
+		{signal: kafkainfra.SignalLogsResource, cfg: cfg.IngestSignal("logs_resource"), wire: wireLogsResource},
 		{signal: kafkainfra.SignalMetrics, cfg: cfg.IngestSignal("metrics"), wire: wireMetrics},
 		{signal: kafkainfra.SignalMetricSeries, cfg: cfg.IngestSignal("metric_series"), wire: wireMetricSeries},
 	}

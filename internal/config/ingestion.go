@@ -5,10 +5,12 @@ import "fmt"
 // IngestionConfig owns per-signal Kafka topology (topic partitions, replicas,
 // retention) and the consumer-group identity.
 type IngestionConfig struct {
-	Spans        SignalConfig `yaml:"spans"`
-	Logs         SignalConfig `yaml:"logs"`
-	Metrics      SignalConfig `yaml:"metrics"`
-	MetricSeries SignalConfig `yaml:"metric_series"`
+	Spans         SignalConfig `yaml:"spans"`
+	SpansResource SignalConfig `yaml:"spans_resource"`
+	Logs          SignalConfig `yaml:"logs"`
+	LogsResource  SignalConfig `yaml:"logs_resource"`
+	Metrics       SignalConfig `yaml:"metrics"`
+	MetricSeries  SignalConfig `yaml:"metric_series"`
 }
 
 type SignalConfig struct {
@@ -32,8 +34,12 @@ func (c Config) IngestSignal(signal string) SignalConfig {
 	switch signal {
 	case "spans":
 		raw = c.Ingestion.Spans
+	case "spans_resource":
+		raw = c.Ingestion.SpansResource
 	case "logs":
 		raw = c.Ingestion.Logs
+	case "logs_resource":
+		raw = c.Ingestion.LogsResource
 	case "metrics":
 		raw = c.Ingestion.Metrics
 	case "metric_series":

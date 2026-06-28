@@ -1,6 +1,5 @@
 -- INVARIANT: bucket values are computed Go-side (internal/infra/timebucket); no CH bucket functions in this file.
 CREATE TABLE IF NOT EXISTS optikk.spans (
-    ts_bucket                             UInt32          CODEC(DoubleDelta, LZ4),
     team_id                               UInt32          CODEC(T64, ZSTD(1)),
     timestamp                             DateTime64(9)   CODEC(DoubleDelta, LZ4),
     trace_id                              String CODEC(ZSTD(1)),
@@ -63,7 +62,7 @@ CREATE TABLE IF NOT EXISTS optikk.spans (
     INDEX idx_error_group_id error_group_id TYPE bloom_filter GRANULARITY 1
 ) ENGINE = ReplicatedMergeTree('/clickhouse/tables/{shard}/optikk/spans', '{replica}')
 PARTITION BY toYYYYMMDD(timestamp)
-ORDER BY (team_id, ts_bucket, fingerprint, service, name, timestamp, trace_id, span_id)
+ORDER BY (team_id, service, fingerprint, timestamp, trace_id, span_id)
 TTL timestamp + INTERVAL 30 DAY DELETE
 SETTINGS
     index_granularity = 8192,
