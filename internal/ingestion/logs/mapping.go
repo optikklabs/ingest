@@ -11,7 +11,7 @@ import (
 const chTable = "optikk.logs"
 
 var chColumns = []string{
-	"team_id", "ts_bucket", "timestamp", "observed_timestamp",
+	"team_id", "timestamp", "observed_timestamp",
 	"trace_id", "span_id", "trace_flags", "severity_text", "severity_number", "severity_bucket", "body",
 	"attributes_string", "attributes_number", "attributes_bool",
 	"resource", "fingerprint", "log_id",
@@ -26,7 +26,6 @@ func NewClickHouseWriter(ch clickhouse.Conn) *core.ClickHouseWriter[*schema.Row]
 func rowValues(r *schema.Row) []any {
 	return []any{
 		r.GetTeamId(),
-		r.GetTsBucket(),
 		time.Unix(0, r.GetTimestampNs()),
 		r.GetObservedTimestampNs(),
 		r.GetTraceId(),
