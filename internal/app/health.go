@@ -53,14 +53,21 @@ func (h *healthCache) get(ctx context.Context, probe func(ctx context.Context) *
 	h.inFlight = true
 	h.mu.Unlock()
 
-	res := probe(ctx)
-	res.expiresAt = time.Now().Add(healthCacheTTL)
+	// Always clear inFlight and wake waiters, even if probe panics, so a
+	// single failed probe can never wedge readiness forever.
+	var res *healthResult
+	defer func() {
+		h.mu.Lock()
+		if res != nil {
+			res.expiresAt = time.Now().Add(healthCacheTTL)
+			h.current = res
+		}
+		h.inFlight = false
+		h.cond.Broadcast()
+		h.mu.Unlock()
+	}()
 
-	h.mu.Lock()
-	h.current = res
-	h.inFlight = false
-	h.cond.Broadcast()
-	h.mu.Unlock()
+	res = probe(ctx)
 	return res
 }
 
@@ -91,7 +98,7 @@ func (a *App) healthReady(w http.ResponseWriter, r *http.Request) {
 
 func (a *App) probeReady(ctx context.Context) *healthResult {
 	res := &healthResult{}
-	if err := a.Infra.DB.Ping(); err != nil {
+	if err := a.Infra.DB.PingContext(ctx); err != nil {
 		res.mysqlErr = err.Error()
 		return res
 	}

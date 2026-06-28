@@ -4,8 +4,14 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"time"
 
 	"github.com/twmb/franz-go/pkg/kgo"
+)
+
+const (
+	fetchBackoffMin = 100 * time.Millisecond
+	fetchBackoffMax = 2 * time.Second
 )
 
 // Consumer wraps a kgo.Client to poll and commit records in a loop.
@@ -21,6 +27,7 @@ func (c *Consumer) Close()              { c.client.Close() }
 type RecordHandler func(ctx context.Context, recs []*kgo.Record) error
 
 func (c *Consumer) Run(ctx context.Context, handle RecordHandler) {
+	backoff := fetchBackoffMin
 	for {
 		if ctx.Err() != nil {
 			return
@@ -30,14 +37,25 @@ func (c *Consumer) Run(ctx context.Context, handle RecordHandler) {
 			if errors.Is(err, context.Canceled) || errors.Is(err, kgo.ErrClientClosed) {
 				return
 			}
+			// Non-cancel fetch error: back off to avoid a hot-spin retry storm.
+			fetches.EachError(func(t string, p int32, err error) {
+				slog.WarnContext(ctx, "kafka fetch error",
+					slog.String("topic", t),
+					slog.Int("partition", int(p)),
+					slog.Any("error", err),
+				)
+			})
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(backoff):
+			}
+			if backoff *= 2; backoff > fetchBackoffMax {
+				backoff = fetchBackoffMax
+			}
+			continue
 		}
-		fetches.EachError(func(t string, p int32, err error) {
-			slog.WarnContext(ctx, "kafka fetch error",
-				slog.String("topic", t),
-				slog.Int("partition", int(p)),
-				slog.Any("error", err),
-			)
-		})
+		backoff = fetchBackoffMin
 		recs := make([]*kgo.Record, 0, fetches.NumRecords())
 		iter := fetches.RecordIter()
 		for !iter.Done() {

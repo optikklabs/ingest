@@ -12,6 +12,7 @@ var metricsColumns = []string{
 	"team_id", "metric_name", "temporality", "fingerprint", "timestamp",
 	"value", "hist_sum", "hist_count",
 	"hist_buckets", "hist_counts",
+	"summary_quantiles", "summary_values",
 }
 
 // NewMetricsClickHouseWriter returns a ClickHouse writer specifically for the raw metrics samples.
@@ -32,5 +33,7 @@ func metricsRowValues(r *schema.Row) []any {
 		r.GetHistCount(),
 		r.GetHistBuckets(),
 		r.GetHistCounts(),
+		r.GetSummaryQuantiles(),
+		r.GetSummaryValues(),
 	}
 }

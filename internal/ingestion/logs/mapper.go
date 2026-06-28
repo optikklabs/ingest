@@ -198,18 +198,20 @@ func normalizeSeverityText(text string, num uint32) string {
 }
 
 func fillResourceFallbacks(resource, attrs map[string]string) map[string]string {
-	if resource == nil {
-		resource = map[string]string{}
+	// Copy so the shared per-ResourceLogs resource map is never mutated.
+	out := make(map[string]string, len(resource))
+	for k, v := range resource {
+		out[k] = v
 	}
 	for _, k := range []string{"service.name", "host.name", "k8s.pod.name", "deployment.environment"} {
-		if resource[k] != "" {
+		if out[k] != "" {
 			continue
 		}
 		if v := attrs[k]; v != "" {
-			resource[k] = v
+			out[k] = v
 		}
 	}
-	return resource
+	return out
 }
 
 func zeroOut(id, zero string) string {

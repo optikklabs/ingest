@@ -7,34 +7,39 @@
 package schema
 
 import (
+	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
+	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
-
-	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
-	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 )
 
 const (
+	// Verify that this generated code is sufficiently up-to-date.
 	_ = protoimpl.EnforceVersion(20 - protoimpl.MinVersion)
-
+	// Verify that runtime/protoimpl is sufficiently up-to-date.
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// Row is the wire format on Kafka. One record == one metric data point bound for
+// observability.metrics. Carries only fields the metrics consumer writes; series
+// identity/labels live in the decoupled metric_series topic (SeriesRow).
 type Row struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	TeamId        uint32                 `protobuf:"varint,1,opt,name=team_id,json=teamId,proto3" json:"team_id,omitempty"`
-	MetricName    string                 `protobuf:"bytes,2,opt,name=metric_name,json=metricName,proto3" json:"metric_name,omitempty"`
-	Temporality   string                 `protobuf:"bytes,4,opt,name=temporality,proto3" json:"temporality,omitempty"`
-	Fingerprint   uint64                 `protobuf:"varint,8,opt,name=fingerprint,proto3" json:"fingerprint,omitempty"`
-	TimestampNs   int64                  `protobuf:"varint,9,opt,name=timestamp_ns,json=timestampNs,proto3" json:"timestamp_ns,omitempty"`
-	Value         float64                `protobuf:"fixed64,10,opt,name=value,proto3" json:"value,omitempty"`
-	HistSum       float64                `protobuf:"fixed64,11,opt,name=hist_sum,json=histSum,proto3" json:"hist_sum,omitempty"`
-	HistCount     uint64                 `protobuf:"varint,12,opt,name=hist_count,json=histCount,proto3" json:"hist_count,omitempty"`
-	HistBuckets   []float64              `protobuf:"fixed64,13,rep,packed,name=hist_buckets,json=histBuckets,proto3" json:"hist_buckets,omitempty"`
-	HistCounts    []uint64               `protobuf:"varint,14,rep,packed,name=hist_counts,json=histCounts,proto3" json:"hist_counts,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	TeamId           uint32                 `protobuf:"varint,1,opt,name=team_id,json=teamId,proto3" json:"team_id,omitempty"`
+	MetricName       string                 `protobuf:"bytes,2,opt,name=metric_name,json=metricName,proto3" json:"metric_name,omitempty"`
+	Temporality      string                 `protobuf:"bytes,4,opt,name=temporality,proto3" json:"temporality,omitempty"`
+	Fingerprint      uint64                 `protobuf:"varint,8,opt,name=fingerprint,proto3" json:"fingerprint,omitempty"`
+	TimestampNs      int64                  `protobuf:"varint,9,opt,name=timestamp_ns,json=timestampNs,proto3" json:"timestamp_ns,omitempty"`
+	Value            float64                `protobuf:"fixed64,10,opt,name=value,proto3" json:"value,omitempty"`
+	HistSum          float64                `protobuf:"fixed64,11,opt,name=hist_sum,json=histSum,proto3" json:"hist_sum,omitempty"`
+	HistCount        uint64                 `protobuf:"varint,12,opt,name=hist_count,json=histCount,proto3" json:"hist_count,omitempty"`
+	HistBuckets      []float64              `protobuf:"fixed64,13,rep,packed,name=hist_buckets,json=histBuckets,proto3" json:"hist_buckets,omitempty"`
+	HistCounts       []uint64               `protobuf:"varint,14,rep,packed,name=hist_counts,json=histCounts,proto3" json:"hist_counts,omitempty"`
+	SummaryQuantiles []float64              `protobuf:"fixed64,15,rep,packed,name=summary_quantiles,json=summaryQuantiles,proto3" json:"summary_quantiles,omitempty"`
+	SummaryValues    []float64              `protobuf:"fixed64,16,rep,packed,name=summary_values,json=summaryValues,proto3" json:"summary_values,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *Row) Reset() {
@@ -62,6 +67,7 @@ func (x *Row) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
+// Deprecated: Use Row.ProtoReflect.Descriptor instead.
 func (*Row) Descriptor() ([]byte, []int) {
 	return file_metric_row_proto_rawDescGZIP(), []int{0}
 }
@@ -136,11 +142,25 @@ func (x *Row) GetHistCounts() []uint64 {
 	return nil
 }
 
+func (x *Row) GetSummaryQuantiles() []float64 {
+	if x != nil {
+		return x.SummaryQuantiles
+	}
+	return nil
+}
+
+func (x *Row) GetSummaryValues() []float64 {
+	if x != nil {
+		return x.SummaryValues
+	}
+	return nil
+}
+
 var File_metric_row_proto protoreflect.FileDescriptor
 
 const file_metric_row_proto_rawDesc = "" +
 	"\n" +
-	"\x10metric_row.proto\x12\x18optikk.ingest.metrics.v1\"\xca\x04\n" +
+	"\x10metric_row.proto\x12\x18optikk.ingest.metrics.v1\"\x92\x05\n" +
 	"\x03Row\x12\x17\n" +
 	"\ateam_id\x18\x01 \x01(\rR\x06teamId\x12\x1f\n" +
 	"\vmetric_name\x18\x02 \x01(\tR\n" +
@@ -155,7 +175,9 @@ const file_metric_row_proto_rawDesc = "" +
 	"hist_count\x18\f \x01(\x04R\thistCount\x12!\n" +
 	"\fhist_buckets\x18\r \x03(\x01R\vhistBuckets\x12\x1f\n" +
 	"\vhist_counts\x18\x0e \x03(\x04R\n" +
-	"histCountsJ\x04\b\x03\x10\x04J\x04\b\x05\x10\x06J\x04\b\x06\x10\aJ\x04\b\a\x10\bJ\x04\b\x0f\x10\x10J\x04\b\x10\x10\x11J\x04\b\x11\x10\x12J\x04\b\x14\x10\x15J\x04\b\x15\x10\x16J\x04\b\x16\x10\x17J\x04\b\x17\x10\x18J\x04\b\x18\x10\x19J\x04\b\x19\x10\x1aJ\x04\b\x1a\x10\x1bJ\x04\b\x1b\x10\x1cR\vmetric_typeR\fis_monotonicR\x04unitR\vdescriptionR\bresourceR\n" +
+	"histCounts\x12+\n" +
+	"\x11summary_quantiles\x18\x0f \x03(\x01R\x10summaryQuantiles\x12%\n" +
+	"\x0esummary_values\x18\x10 \x03(\x01R\rsummaryValuesJ\x04\b\x03\x10\x04J\x04\b\x05\x10\x06J\x04\b\x06\x10\aJ\x04\b\a\x10\bJ\x04\b\x11\x10\x12J\x04\b\x14\x10\x15J\x04\b\x15\x10\x16J\x04\b\x16\x10\x17J\x04\b\x17\x10\x18J\x04\b\x18\x10\x19J\x04\b\x19\x10\x1aJ\x04\b\x1a\x10\x1bJ\x04\b\x1b\x10\x1cR\vmetric_typeR\fis_monotonicR\x04unitR\vdescriptionR\bresourceR\n" +
 	"attributesR\x16ts_bucket_hour_secondsR\aserviceR\x04hostR\venvironmentR\rk8s_namespaceR\vhttp_methodR\x10http_status_codeR\x03podR\tcontainerBOZMgithub.com/Optikk-Org/optikk-backend/internal/ingestion/metrics/schema;schemab\x06proto3"
 
 var (
@@ -172,14 +194,14 @@ func file_metric_row_proto_rawDescGZIP() []byte {
 
 var file_metric_row_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
 var file_metric_row_proto_goTypes = []any{
-	(*Row)(nil),
+	(*Row)(nil), // 0: optikk.ingest.metrics.v1.Row
 }
 var file_metric_row_proto_depIdxs = []int32{
-	0,
-	0,
-	0,
-	0,
-	0,
+	0, // [0:0] is the sub-list for method output_type
+	0, // [0:0] is the sub-list for method input_type
+	0, // [0:0] is the sub-list for extension type_name
+	0, // [0:0] is the sub-list for extension extendee
+	0, // [0:0] is the sub-list for field type_name
 }
 
 func init() { file_metric_row_proto_init() }
