@@ -5,9 +5,11 @@ package authrepo
 import (
 	"context"
 	"database/sql"
+	"errors"
 
 	"github.com/jmoiron/sqlx"
 
+	"github.com/optikklabs/ingest/internal/auth"
 	dbutil "github.com/optikklabs/ingest/internal/infra/database"
 )
 
@@ -24,5 +26,8 @@ func (r *Repository) FindTeamIDByAPIKey(ctx context.Context, apiKey string) (int
 	err := dbutil.GetSQL(ctx, r.db, "authrepo.FindTeamIDByAPIKey", &teamID, `
 		SELECT id FROM teams WHERE api_key = ? AND active = 1 LIMIT 1
 	`, apiKey)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, auth.ErrInvalidAPIKey
+	}
 	return teamID, err
 }

@@ -55,7 +55,11 @@ func (a *Authenticator) ResolveTeamID(ctx context.Context, apiKey string) (int64
 	}
 	id, err := a.finder.FindTeamIDByAPIKey(ctx, apiKey)
 	if err != nil {
-		a.cacheSet(apiKey, 0, err)
+		// Only negative-cache genuine not-found; never cache transient or
+		// context errors, which would lock out a tenant for the full TTL.
+		if errors.Is(err, ErrInvalidAPIKey) {
+			a.cacheSet(apiKey, 0, err)
+		}
 		return 0, err
 	}
 	a.cacheSet(apiKey, id, nil)

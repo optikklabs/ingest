@@ -1,7 +1,10 @@
 package metrics
 
 import (
+	"math"
+
 	"github.com/optikklabs/ingest/internal/infra/fingerprint"
+	obsmetrics "github.com/optikklabs/ingest/internal/infra/metrics"
 	"github.com/optikklabs/ingest/internal/infra/otlp"
 	"github.com/optikklabs/ingest/internal/ingestion/metrics/schema"
 	seriesschema "github.com/optikklabs/ingest/internal/ingestion/metricseries/schema"
@@ -73,6 +76,17 @@ func appendMetric(acc *rowAccumulator, hdr rowHeader, m *metricsdatapb.Metric) {
 		for _, dp := range data.Histogram.GetDataPoints() {
 			acc.add(histogramRow(hdr, m, temp, dp))
 		}
+	case *metricsdatapb.Metric_ExponentialHistogram:
+		temp := temporalityString(data.ExponentialHistogram.GetAggregationTemporality())
+		for _, dp := range data.ExponentialHistogram.GetDataPoints() {
+			acc.add(expHistogramRow(hdr, m, temp, dp))
+		}
+	case *metricsdatapb.Metric_Summary:
+		for _, dp := range data.Summary.GetDataPoints() {
+			acc.add(summaryRow(hdr, m, dp))
+		}
+	default:
+		obsmetrics.MapperUnsupportedType.WithLabelValues("metrics").Inc()
 	}
 }
 
@@ -98,6 +112,58 @@ func histogramRow(hdr rowHeader, m *metricsdatapb.Metric, temporality string, dp
 	row.HistCount = dp.GetCount()
 	row.HistBuckets = dp.GetExplicitBounds()
 	row.HistCounts = dp.GetBucketCounts()
+	return row, series
+}
+
+func expHistogramRow(hdr rowHeader, m *metricsdatapb.Metric, temporality string, dp *metricsdatapb.ExponentialHistogramDataPoint) (*schema.Row, *seriesschema.SeriesRow) {
+	tsNs := int64(dp.GetTimeUnixNano())
+	attrs := otlp.AttrsToMap(dp.GetAttributes())
+	row, series := scalarRow(hdr, m, m.GetName(), "ExponentialHistogram", temporality, false, tsNs, attrs, 0)
+	if dp.Sum != nil {
+		row.HistSum = *dp.Sum
+	}
+	row.HistCount = dp.GetCount()
+	row.HistBuckets, row.HistCounts = expBucketsToExplicit(dp)
+	return row, series
+}
+
+// expBucketsToExplicit converts OTLP exponential positive buckets to the
+// explicit-bounds form (upper bounds + per-bucket counts, counts one longer
+// than bounds) that the metrics rollup MV expects. Negative buckets are
+// dropped; latency metrics are non-negative.
+func expBucketsToExplicit(dp *metricsdatapb.ExponentialHistogramDataPoint) ([]float64, []uint64) {
+	counts := dp.GetPositive().GetBucketCounts()
+	if len(counts) == 0 {
+		return nil, nil
+	}
+	base := math.Pow(2, math.Pow(2, float64(-dp.GetScale())))
+	offset := int(dp.GetPositive().GetOffset())
+	bounds := make([]float64, 0, len(counts)+1)
+	out := make([]uint64, 0, len(counts)+2)
+	// First bound/count cover the zero region below the lowest positive bucket.
+	bounds = append(bounds, math.Pow(base, float64(offset)))
+	out = append(out, dp.GetZeroCount())
+	for i, c := range counts {
+		bounds = append(bounds, math.Pow(base, float64(offset+i+1)))
+		out = append(out, c)
+	}
+	out = append(out, 0) // no overflow above the top exponential bucket
+	return bounds, out
+}
+
+func summaryRow(hdr rowHeader, m *metricsdatapb.Metric, dp *metricsdatapb.SummaryDataPoint) (*schema.Row, *seriesschema.SeriesRow) {
+	tsNs := int64(dp.GetTimeUnixNano())
+	attrs := otlp.AttrsToMap(dp.GetAttributes())
+	row, series := scalarRow(hdr, m, m.GetName(), "Summary", "Cumulative", false, tsNs, attrs, 0)
+	row.HistSum = dp.GetSum()
+	row.HistCount = dp.GetCount()
+	qs := dp.GetQuantileValues()
+	row.SummaryQuantiles = make([]float64, 0, len(qs))
+	row.SummaryValues = make([]float64, 0, len(qs))
+	for _, q := range qs {
+		row.SummaryQuantiles = append(row.SummaryQuantiles, q.GetQuantile())
+		row.SummaryValues = append(row.SummaryValues, q.GetValue())
+	}
 	return row, series
 }
 

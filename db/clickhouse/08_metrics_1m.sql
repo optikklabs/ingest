@@ -1,5 +1,6 @@
--- 1-minute scalar rollup. Rollup structure (last/min/max/sum/
--- count SimpleAggregateFunction) with Optikk val_* names. Labels stay off the hot
+-- 1-minute scalar rollup. min/max/sum/count are SimpleAggregateFunction; val_last
+-- is AggregateFunction(argMax) for deterministic last-value. With Optikk val_*
+-- names. Labels stay off the hot
 -- rows: resolve any dim via metrics_series on fingerprint. timestamp is the
 -- 1m-aligned bucket, derived server-side in the MV to match the display ladder.
 
@@ -8,7 +9,7 @@ CREATE TABLE IF NOT EXISTS optikk.metrics_1m (
     metric_name LowCardinality(String),
     fingerprint UInt64 CODEC(ZSTD(1)),
     timestamp   DateTime CODEC(DoubleDelta, LZ4),
-    val_last    SimpleAggregateFunction(anyLast, Float64) CODEC(Gorilla, ZSTD(1)),
+    val_last    AggregateFunction(argMax, Float64, DateTime) CODEC(ZSTD(1)),
     val_min     SimpleAggregateFunction(min, Float64) CODEC(Gorilla, ZSTD(1)),
     val_max     SimpleAggregateFunction(max, Float64) CODEC(Gorilla, ZSTD(1)),
     val_sum     SimpleAggregateFunction(sum, Float64) CODEC(Gorilla, ZSTD(1)),
@@ -30,16 +31,14 @@ SELECT
     team_id,
     metric_name,
     fingerprint,
-    toStartOfMinute(timestamp) AS timestamp,
-    anyLast(value) AS val_last,
+    toStartOfMinute(ts_raw) AS timestamp,
+    argMaxState(value, ts_raw) AS val_last,
     min(value)     AS val_min,
     max(value)     AS val_max,
     sum(value)     AS val_sum,
     count()        AS val_count,
     sum(hist_sum)   AS hist_sum,
     sum(hist_count) AS hist_count,
-    
-    
     quantilesPrometheusHistogramArrayState(0.5, 0.95, 0.99)(if(empty(hist_buckets), hist_buckets, arrayPushBack(hist_buckets, toFloat64(inf))), arrayCumSum(hist_counts)) AS latency_state
-FROM optikk.metrics
+FROM (SELECT *, timestamp AS ts_raw FROM optikk.metrics)
 GROUP BY team_id, metric_name, fingerprint, timestamp;

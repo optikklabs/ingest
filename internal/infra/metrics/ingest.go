@@ -56,4 +56,11 @@ var (
 		Name:      "mapper_attrs_dropped_total",
 		Help:      "Attribute-map entries dropped by the per-record cap, by signal.",
 	}, []string{"signal"})
+
+	MapperUnsupportedType = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "optikk",
+		Subsystem: "ingest",
+		Name:      "mapper_unsupported_type_total",
+		Help:      "Metric data points dropped because their OTLP type is unsupported, by signal.",
+	}, []string{"signal"})
 )

@@ -42,14 +42,9 @@ func (h *Handler) Export(ctx context.Context, req *metricspb.ExportMetricsServic
 	if len(rows) == 0 {
 		return &metricspb.ExportMetricsServiceResponse{}, nil
 	}
-	pubStart := time.Now()
-	if err := h.metricsPublisher.Publish(ctx, rows); err != nil {
-		obsmetrics.HandlerPublishDuration.WithLabelValues("metrics", "err").Observe(time.Since(pubStart).Seconds())
-		slog.ErrorContext(ctx, "metrics handler: metrics publish failed", slog.Any("error", err))
-		return nil, status.Error(codes.Unavailable, err.Error())
-	}
-	obsmetrics.HandlerPublishDuration.WithLabelValues("metrics", "ok").Observe(time.Since(pubStart).Seconds())
-
+	// Publish series first: they are fingerprint-idempotent, so a retry that
+	// re-sends them is harmless. The non-idempotent raw-metric publish goes
+	// last, so a series failure never leaves metrics half-published.
 	if len(seriesRows) > 0 {
 		seriesPubStart := time.Now()
 		if err := h.seriesPublisher.Publish(ctx, seriesRows); err != nil {
@@ -59,6 +54,14 @@ func (h *Handler) Export(ctx context.Context, req *metricspb.ExportMetricsServic
 		}
 		obsmetrics.HandlerPublishDuration.WithLabelValues("metric_series", "ok").Observe(time.Since(seriesPubStart).Seconds())
 	}
+
+	pubStart := time.Now()
+	if err := h.metricsPublisher.Publish(ctx, rows); err != nil {
+		obsmetrics.HandlerPublishDuration.WithLabelValues("metrics", "err").Observe(time.Since(pubStart).Seconds())
+		slog.ErrorContext(ctx, "metrics handler: metrics publish failed", slog.Any("error", err))
+		return nil, status.Error(codes.Unavailable, err.Error())
+	}
+	obsmetrics.HandlerPublishDuration.WithLabelValues("metrics", "ok").Observe(time.Since(pubStart).Seconds())
 
 	return &metricspb.ExportMetricsServiceResponse{}, nil
 }

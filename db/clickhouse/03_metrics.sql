@@ -8,7 +8,10 @@ CREATE TABLE IF NOT EXISTS optikk.metrics (
     hist_sum             Float64 CODEC(Gorilla, ZSTD(1)),
     hist_count           UInt64 CODEC(T64, ZSTD(1)),
     hist_buckets         Array(Float64) CODEC(ZSTD(1)),
-    hist_counts          Array(UInt64)  CODEC(T64, ZSTD(1))
+    hist_counts          Array(UInt64)  CODEC(T64, ZSTD(1)),
+    -- OTLP Summary client-computed quantiles: non-aggregatable, stored raw.
+    summary_quantiles    Array(Float64) CODEC(ZSTD(1)),
+    summary_values       Array(Float64) CODEC(Gorilla, ZSTD(1))
 ) ENGINE = ReplicatedMergeTree('/clickhouse/tables/{shard}/optikk/metrics', '{replica}')
 PARTITION BY toYYYYMMDD(timestamp)
 ORDER BY (team_id, metric_name, fingerprint, timestamp)
