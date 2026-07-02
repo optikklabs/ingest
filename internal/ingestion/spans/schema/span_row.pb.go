@@ -7,20 +7,21 @@
 package schema
 
 import (
+	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
+	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
-
-	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
-	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 )
 
 const (
+	// Verify that this generated code is sufficiently up-to-date.
 	_ = protoimpl.EnforceVersion(20 - protoimpl.MinVersion)
-
+	// Verify that runtime/protoimpl is sufficiently up-to-date.
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// Row is the wire format on Kafka. One record == one span row bound for observability.spans.
 type Row struct {
 	state               protoimpl.MessageState `protogen:"open.v1"`
 	TsBucket            uint64                 `protobuf:"varint,1,opt,name=ts_bucket,json=tsBucket,proto3" json:"ts_bucket,omitempty"`
@@ -51,20 +52,26 @@ type Row struct {
 	ExceptionStacktrace string                 `protobuf:"bytes,29,opt,name=exception_stacktrace,json=exceptionStacktrace,proto3" json:"exception_stacktrace,omitempty"`
 	ExceptionEscaped    bool                   `protobuf:"varint,30,opt,name=exception_escaped,json=exceptionEscaped,proto3" json:"exception_escaped,omitempty"`
 	Fingerprint         uint64                 `protobuf:"varint,31,opt,name=fingerprint,proto3" json:"fingerprint,omitempty"`
-
-	Service          string `protobuf:"bytes,32,opt,name=service,proto3" json:"service,omitempty"`
-	Host             string `protobuf:"bytes,33,opt,name=host,proto3" json:"host,omitempty"`
-	Pod              string `protobuf:"bytes,34,opt,name=pod,proto3" json:"pod,omitempty"`
-	ServiceVersion   string `protobuf:"bytes,35,opt,name=service_version,json=serviceVersion,proto3" json:"service_version,omitempty"`
-	Environment      string `protobuf:"bytes,36,opt,name=environment,proto3" json:"environment,omitempty"`
-	PeerService      string `protobuf:"bytes,37,opt,name=peer_service,json=peerService,proto3" json:"peer_service,omitempty"`
-	DbSystem         string `protobuf:"bytes,38,opt,name=db_system,json=dbSystem,proto3" json:"db_system,omitempty"`
-	DbName           string `protobuf:"bytes,39,opt,name=db_name,json=dbName,proto3" json:"db_name,omitempty"`
-	DbStatement      string `protobuf:"bytes,40,opt,name=db_statement,json=dbStatement,proto3" json:"db_statement,omitempty"`
-	HttpRoute        string `protobuf:"bytes,41,opt,name=http_route,json=httpRoute,proto3" json:"http_route,omitempty"`
-	HttpStatusBucket string `protobuf:"bytes,42,opt,name=http_status_bucket,json=httpStatusBucket,proto3" json:"http_status_bucket,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	Service             string                 `protobuf:"bytes,32,opt,name=service,proto3" json:"service,omitempty"`
+	Host                string                 `protobuf:"bytes,33,opt,name=host,proto3" json:"host,omitempty"`
+	Pod                 string                 `protobuf:"bytes,34,opt,name=pod,proto3" json:"pod,omitempty"`
+	ServiceVersion      string                 `protobuf:"bytes,35,opt,name=service_version,json=serviceVersion,proto3" json:"service_version,omitempty"`
+	Environment         string                 `protobuf:"bytes,36,opt,name=environment,proto3" json:"environment,omitempty"`
+	PeerService         string                 `protobuf:"bytes,37,opt,name=peer_service,json=peerService,proto3" json:"peer_service,omitempty"`
+	DbSystem            string                 `protobuf:"bytes,38,opt,name=db_system,json=dbSystem,proto3" json:"db_system,omitempty"`
+	DbName              string                 `protobuf:"bytes,39,opt,name=db_name,json=dbName,proto3" json:"db_name,omitempty"`
+	DbStatement         string                 `protobuf:"bytes,40,opt,name=db_statement,json=dbStatement,proto3" json:"db_statement,omitempty"`
+	HttpRoute           string                 `protobuf:"bytes,41,opt,name=http_route,json=httpRoute,proto3" json:"http_route,omitempty"`
+	HttpStatusBucket    string                 `protobuf:"bytes,42,opt,name=http_status_bucket,json=httpStatusBucket,proto3" json:"http_status_bucket,omitempty"`
+	GenAiSystem         string                 `protobuf:"bytes,43,opt,name=gen_ai_system,json=genAiSystem,proto3" json:"gen_ai_system,omitempty"`
+	GenAiOperation      string                 `protobuf:"bytes,44,opt,name=gen_ai_operation,json=genAiOperation,proto3" json:"gen_ai_operation,omitempty"`
+	GenAiRequestModel   string                 `protobuf:"bytes,45,opt,name=gen_ai_request_model,json=genAiRequestModel,proto3" json:"gen_ai_request_model,omitempty"`
+	GenAiResponseModel  string                 `protobuf:"bytes,46,opt,name=gen_ai_response_model,json=genAiResponseModel,proto3" json:"gen_ai_response_model,omitempty"`
+	GenAiInputTokens    uint64                 `protobuf:"varint,47,opt,name=gen_ai_input_tokens,json=genAiInputTokens,proto3" json:"gen_ai_input_tokens,omitempty"`
+	GenAiOutputTokens   uint64                 `protobuf:"varint,48,opt,name=gen_ai_output_tokens,json=genAiOutputTokens,proto3" json:"gen_ai_output_tokens,omitempty"`
+	IsGenAi             bool                   `protobuf:"varint,49,opt,name=is_gen_ai,json=isGenAi,proto3" json:"is_gen_ai,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *Row) Reset() {
@@ -92,6 +99,7 @@ func (x *Row) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
+// Deprecated: Use Row.ProtoReflect.Descriptor instead.
 func (*Row) Descriptor() ([]byte, []int) {
 	return file_span_row_proto_rawDescGZIP(), []int{0}
 }
@@ -369,11 +377,60 @@ func (x *Row) GetHttpStatusBucket() string {
 	return ""
 }
 
+func (x *Row) GetGenAiSystem() string {
+	if x != nil {
+		return x.GenAiSystem
+	}
+	return ""
+}
+
+func (x *Row) GetGenAiOperation() string {
+	if x != nil {
+		return x.GenAiOperation
+	}
+	return ""
+}
+
+func (x *Row) GetGenAiRequestModel() string {
+	if x != nil {
+		return x.GenAiRequestModel
+	}
+	return ""
+}
+
+func (x *Row) GetGenAiResponseModel() string {
+	if x != nil {
+		return x.GenAiResponseModel
+	}
+	return ""
+}
+
+func (x *Row) GetGenAiInputTokens() uint64 {
+	if x != nil {
+		return x.GenAiInputTokens
+	}
+	return 0
+}
+
+func (x *Row) GetGenAiOutputTokens() uint64 {
+	if x != nil {
+		return x.GenAiOutputTokens
+	}
+	return 0
+}
+
+func (x *Row) GetIsGenAi() bool {
+	if x != nil {
+		return x.IsGenAi
+	}
+	return false
+}
+
 var File_span_row_proto protoreflect.FileDescriptor
 
 const file_span_row_proto_rawDesc = "" +
 	"\n" +
-	"\x0espan_row.proto\x12\x16optikk.ingest.spans.v1\"\xa5\v\n" +
+	"\x0espan_row.proto\x12\x16optikk.ingest.spans.v1\"\xd3\r\n" +
 	"\x03Row\x12\x1b\n" +
 	"\tts_bucket\x18\x01 \x01(\x04R\btsBucket\x12\x17\n" +
 	"\ateam_id\x18\x02 \x01(\rR\x06teamId\x12!\n" +
@@ -421,10 +478,17 @@ const file_span_row_proto_rawDesc = "" +
 	"\fdb_statement\x18( \x01(\tR\vdbStatement\x12\x1d\n" +
 	"\n" +
 	"http_route\x18) \x01(\tR\thttpRoute\x12,\n" +
-	"\x12http_status_bucket\x18* \x01(\tR\x10httpStatusBucket\x1a=\n" +
+	"\x12http_status_bucket\x18* \x01(\tR\x10httpStatusBucket\x12\"\n" +
+	"\rgen_ai_system\x18+ \x01(\tR\vgenAiSystem\x12(\n" +
+	"\x10gen_ai_operation\x18, \x01(\tR\x0egenAiOperation\x12/\n" +
+	"\x14gen_ai_request_model\x18- \x01(\tR\x11genAiRequestModel\x121\n" +
+	"\x15gen_ai_response_model\x18. \x01(\tR\x12genAiResponseModel\x12-\n" +
+	"\x13gen_ai_input_tokens\x18/ \x01(\x04R\x10genAiInputTokens\x12/\n" +
+	"\x14gen_ai_output_tokens\x180 \x01(\x04R\x11genAiOutputTokens\x12\x1a\n" +
+	"\tis_gen_ai\x181 \x01(\bR\aisGenAi\x1a=\n" +
 	"\x0fAttributesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01J\x04\b\x0e\x10\x0fJ\x04\b\x15\x10\x16J\x04\b\x16\x10\x17R\tis_remoteR\x11external_http_urlR\x14external_http_methodBMZKgithub.com/optikklabs/ingest/internal/ingestion/spans/schema;schemab\x06proto3"
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01J\x04\b\x0e\x10\x0fJ\x04\b\x15\x10\x16J\x04\b\x16\x10\x17R\tis_remoteR\x11external_http_urlR\x14external_http_methodBMZKgithub.com/Optikk-Org/optikk-backend/internal/ingestion/spans/schema;schemab\x06proto3"
 
 var (
 	file_span_row_proto_rawDescOnce sync.Once
@@ -440,16 +504,16 @@ func file_span_row_proto_rawDescGZIP() []byte {
 
 var file_span_row_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
 var file_span_row_proto_goTypes = []any{
-	(*Row)(nil),
-	nil,
+	(*Row)(nil), // 0: optikk.ingest.spans.v1.Row
+	nil,         // 1: optikk.ingest.spans.v1.Row.AttributesEntry
 }
 var file_span_row_proto_depIdxs = []int32{
-	1,
-	1,
-	1,
-	1,
-	1,
-	0,
+	1, // 0: optikk.ingest.spans.v1.Row.attributes:type_name -> optikk.ingest.spans.v1.Row.AttributesEntry
+	1, // [1:1] is the sub-list for method output_type
+	1, // [1:1] is the sub-list for method input_type
+	1, // [1:1] is the sub-list for extension type_name
+	1, // [1:1] is the sub-list for extension extendee
+	0, // [0:1] is the sub-list for field type_name
 }
 
 func init() { file_span_row_proto_init() }

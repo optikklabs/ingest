@@ -5,10 +5,11 @@ CREATE TABLE IF NOT EXISTS optikk.trace_index (
     trace_id    String         CODEC(ZSTD(1)),
     team_id     UInt32         CODEC(T64, ZSTD(1)),
     timestamp   DateTime64(9)  CODEC(DoubleDelta, LZ4),
-    span_id     String         CODEC(ZSTD(1))
+    span_id     String         CODEC(ZSTD(1)),
+    fingerprint UInt64         CODEC(ZSTD(1))
 ) ENGINE = ReplicatedMergeTree('/clickhouse/tables/{shard}/optikk/trace_index', '{replica}')
 PARTITION BY toYYYYMMDD(timestamp)
-ORDER BY (trace_id, team_id, timestamp)
+ORDER BY (team_id, trace_id, timestamp)
 TTL timestamp + INTERVAL 30 DAY DELETE
 SETTINGS
     index_granularity = 8192,
@@ -20,7 +21,8 @@ SELECT
     trace_id,
     team_id,
     timestamp,
-    span_id
+    span_id,
+    fingerprint
 FROM optikk.spans
 WHERE trace_id != ''
   AND (parent_span_id = '' OR parent_span_id = '0000000000000000');

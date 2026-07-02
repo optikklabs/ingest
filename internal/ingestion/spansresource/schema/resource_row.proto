@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package optikk.ingest.spansresource.v1;
+
+option go_package = "github.com/optikklabs/ingest/internal/ingestion/spansresource/schema;schema";
+
+// ResourceRow is the wire format on Kafka for spans resource metadata.
+// One record == one unique resource fingerprint bound for optikk.spans_resource.
+message ResourceRow {
+  uint32 team_id     = 1;
+  uint64 fingerprint = 2;
+  string service     = 3;
+  string host        = 4;
+  string pod         = 5;
+  string environment = 6;
+}

@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS optikk.metrics (
 ) ENGINE = ReplicatedMergeTree('/clickhouse/tables/{shard}/optikk/metrics', '{replica}')
 PARTITION BY toYYYYMMDD(timestamp)
 ORDER BY (team_id, metric_name, fingerprint, timestamp)
-TTL timestamp + INTERVAL 7 DAY DELETE
+TTL timestamp + INTERVAL 2 DAY DELETE
 SETTINGS
     index_granularity = 8192,
     enable_mixed_granularity_parts = 1,

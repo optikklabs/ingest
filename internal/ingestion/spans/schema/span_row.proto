@@ -50,4 +50,12 @@ message Row {
   string db_statement = 40;
   string http_route = 41;
   string http_status_bucket = 42;
+
+  string gen_ai_system = 43;
+  string gen_ai_operation = 44;
+  string gen_ai_request_model = 45;
+  string gen_ai_response_model = 46;
+  uint64 gen_ai_input_tokens = 47;
+  uint64 gen_ai_output_tokens = 48;
+  bool   is_gen_ai = 49;
 }

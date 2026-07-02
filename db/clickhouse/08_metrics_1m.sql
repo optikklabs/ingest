@@ -31,14 +31,15 @@ SELECT
     team_id,
     metric_name,
     fingerprint,
-    toStartOfMinute(ts_raw) AS timestamp,
-    argMaxState(value, ts_raw) AS val_last,
+    toStartOfMinute(timestamp) AS timestamp,
+    argMaxState(value, timestamp) AS val_last,
     min(value)     AS val_min,
     max(value)     AS val_max,
     sum(value)     AS val_sum,
     count()        AS val_count,
     sum(hist_sum)   AS hist_sum,
     sum(hist_count) AS hist_count,
-    quantilesPrometheusHistogramArrayState(0.5, 0.95, 0.99)(if(empty(hist_buckets), hist_buckets, arrayPushBack(hist_buckets, toFloat64(inf))), arrayCumSum(hist_counts)) AS latency_state
-FROM (SELECT *, timestamp AS ts_raw FROM optikk.metrics)
+    quantilesPrometheusHistogramArrayState(0.5, 0.95, 0.99)(empty(hist_buckets) ? hist_buckets : arrayPushBack(hist_buckets, inf), arrayCumSum(hist_counts)) AS latency_state
+FROM optikk.metrics
 GROUP BY team_id, metric_name, fingerprint, timestamp;
+
