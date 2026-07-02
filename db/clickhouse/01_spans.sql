@@ -1,4 +1,3 @@
--- INVARIANT: bucket values are computed Go-side (internal/infra/timebucket); no CH bucket functions in this file.
 CREATE TABLE IF NOT EXISTS optikk.spans (
     team_id                               UInt32          CODEC(T64, ZSTD(1)),
     timestamp                             DateTime64(9)   CODEC(DoubleDelta, LZ4),
@@ -42,11 +41,6 @@ CREATE TABLE IF NOT EXISTS optikk.spans (
     exception_message                     String          CODEC(ZSTD(1)),
     exception_stacktrace                  String          CODEC(ZSTD(1)),
     exception_escaped                     Bool            CODEC(T64, ZSTD(1)),
-
-    
-    
-    
-    
     
     error_group_id                        String          MATERIALIZED lower(hex(halfMD5(concat(service, '|', name, '|', exception_type, '|', http_status_bucket)))) CODEC(ZSTD(1)),
 
@@ -58,12 +52,11 @@ CREATE TABLE IF NOT EXISTS optikk.spans (
     is_error                 UInt8                  ALIAS if(has_error OR toUInt16OrZero(response_status_code) >= 400, 1, 0),
     is_root                  UInt8                  ALIAS if((parent_span_id = '') OR (parent_span_id = '0000000000000000'), 1, 0),
 
-    
     INDEX idx_error_group_id error_group_id TYPE bloom_filter GRANULARITY 1
 ) ENGINE = ReplicatedMergeTree('/clickhouse/tables/{shard}/optikk/spans', '{replica}')
 PARTITION BY toYYYYMMDD(timestamp)
-ORDER BY (team_id, service, fingerprint, timestamp, trace_id, span_id)
-TTL timestamp + INTERVAL 30 DAY DELETE
+ORDER BY (team_id, timestamp, fingerprint, trace_id, span_id)
+TTL timestamp + INTERVAL 15 DAY DELETE
 SETTINGS
     index_granularity = 8192,
     non_replicated_deduplication_window = 100000,

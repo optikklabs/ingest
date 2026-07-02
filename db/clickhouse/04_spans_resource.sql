@@ -10,6 +10,6 @@ CREATE TABLE IF NOT EXISTS optikk.spans_resource (
     environment LowCardinality(String) CODEC(ZSTD(1))
 ) ENGINE = ReplicatedReplacingMergeTree('/clickhouse/tables/{shard}/optikk/spans_resource', '{replica}')
 PARTITION BY tuple()
-ORDER BY (team_id, service, host, pod, fingerprint)
+ORDER BY (team_id, service, host, pod, environment, fingerprint)
 SETTINGS
     index_granularity = 8192;

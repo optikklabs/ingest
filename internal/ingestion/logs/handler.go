@@ -12,6 +12,7 @@ import (
 	"github.com/optikklabs/ingest/internal/infra/metrics"
 	"github.com/optikklabs/ingest/internal/ingestion/core"
 	"github.com/optikklabs/ingest/internal/ingestion/logs/schema"
+	logsresourceschema "github.com/optikklabs/ingest/internal/ingestion/logsresource/schema"
 	logspb "go.opentelemetry.io/proto/otlp/collector/logs/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -20,11 +21,11 @@ import (
 type Handler struct {
 	logspb.UnimplementedLogsServiceServer
 	producer         *core.Producer[*schema.Row]
-	resourceProducer *core.Producer[*schema.Row]
+	resourceProducer *core.Producer[*logsresourceschema.ResourceRow]
 	resourceCache    *core.ResourceCache
 }
 
-func NewHandler(p *core.Producer[*schema.Row], rp *core.Producer[*schema.Row], cache *core.ResourceCache) *Handler {
+func NewHandler(p *core.Producer[*schema.Row], rp *core.Producer[*logsresourceschema.ResourceRow], cache *core.ResourceCache) *Handler {
 	return &Handler{
 		producer:         p,
 		resourceProducer: rp,
@@ -45,17 +46,18 @@ func (h *Handler) Export(ctx context.Context, req *logspb.ExportLogsServiceReque
 		return &logspb.ExportLogsServiceResponse{}, nil
 	}
 
-	// Extract unique resources and filter using LRU cache
-	var resourceRows []*schema.Row
+	// Extract unique resources and filter using rolling cache
+	var resourceRows []*logsresourceschema.ResourceRow
 	for _, row := range rows {
 		if row.GetFingerprint() == 0 {
 			continue
 		}
 		key := fmt.Sprintf("%d:%d", row.GetTeamId(), row.GetFingerprint())
-		if h.resourceCache.Add(key) {
-			resourceRows = append(resourceRows, &schema.Row{
+		if h.resourceCache.CheckAndUpdateBucket(key, row.GetTsBucket()) {
+			resourceRows = append(resourceRows, &logsresourceschema.ResourceRow{
 				TeamId:      row.GetTeamId(),
 				Fingerprint: row.GetFingerprint(),
+				TsBucket:    row.GetTsBucket(),
 				Service:     row.GetService(),
 				Host:        row.GetHost(),
 				Pod:         row.GetPod(),
@@ -84,3 +86,4 @@ func (h *Handler) Export(ctx context.Context, req *logspb.ExportLogsServiceReque
 	metrics.HandlerPublishDuration.WithLabelValues("logs", "ok").Observe(time.Since(pubStart).Seconds())
 	return &logspb.ExportLogsServiceResponse{}, nil
 }
+

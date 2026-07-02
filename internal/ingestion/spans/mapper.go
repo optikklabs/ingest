@@ -59,6 +59,7 @@ func buildSpanRow(teamID int64, resMap map[string]string, fp uint64, s *trace.Sp
 	httpURL := firstNonEmpty(spanMap, "http.url", "url.full")
 	httpHost := firstNonEmpty(spanMap, "http.host", "net.host.name")
 	httpStatus := firstNonEmpty(spanMap, "http.status_code", "http.response.status_code")
+	gen := extractGenAI(spanMap)
 
 	stripPromotedKeys(merged)
 
@@ -102,6 +103,13 @@ func buildSpanRow(teamID int64, resMap map[string]string, fp uint64, s *trace.Sp
 		ExceptionMessage:    spanMap["exception.message"],
 		ExceptionStacktrace: spanMap["exception.stacktrace"],
 		ExceptionEscaped:    spanMap["exception.escaped"] == "true",
+		GenAiSystem:         gen.System,
+		GenAiOperation:      gen.Operation,
+		GenAiRequestModel:   gen.RequestModel,
+		GenAiResponseModel:  gen.ResponseModel,
+		GenAiInputTokens:    gen.InputTokens,
+		GenAiOutputTokens:   gen.OutputTokens,
+		IsGenAi:             gen.Present,
 	}
 }
 
@@ -234,6 +242,9 @@ var promotedSpanKeys = []string{
 	"exception.type", "exception.message", "exception.stacktrace", "exception.escaped",
 	"service.name", "host.name", "k8s.pod.name", "service.version", "deployment.environment",
 	"peer.service", "db.system", "db.name", "db.statement", "http.route",
+	"gen_ai.system", "gen_ai.operation.name", "gen_ai.request.model", "gen_ai.response.model",
+	"gen_ai.usage.input_tokens", "gen_ai.usage.output_tokens",
+	"gen_ai.usage.prompt_tokens", "gen_ai.usage.completion_tokens",
 }
 
 func stripPromotedKeys(m map[string]string) {

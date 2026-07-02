@@ -12,6 +12,7 @@ import (
 	"github.com/optikklabs/ingest/internal/infra/metrics"
 	"github.com/optikklabs/ingest/internal/ingestion/core"
 	"github.com/optikklabs/ingest/internal/ingestion/spans/schema"
+	spansresourceschema "github.com/optikklabs/ingest/internal/ingestion/spansresource/schema"
 	tracepb "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -20,11 +21,11 @@ import (
 type Handler struct {
 	tracepb.UnimplementedTraceServiceServer
 	producer         *core.Producer[*schema.Row]
-	resourceProducer *core.Producer[*schema.Row]
+	resourceProducer *core.Producer[*spansresourceschema.ResourceRow]
 	resourceCache    *core.ResourceCache
 }
 
-func NewHandler(p *core.Producer[*schema.Row], rp *core.Producer[*schema.Row], cache *core.ResourceCache) *Handler {
+func NewHandler(p *core.Producer[*schema.Row], rp *core.Producer[*spansresourceschema.ResourceRow], cache *core.ResourceCache) *Handler {
 	return &Handler{
 		producer:         p,
 		resourceProducer: rp,
@@ -46,14 +47,14 @@ func (h *Handler) Export(ctx context.Context, req *tracepb.ExportTraceServiceReq
 	}
 
 	// Extract unique resources and filter using LRU cache
-	var resourceRows []*schema.Row
+	var resourceRows []*spansresourceschema.ResourceRow
 	for _, row := range rows {
 		if row.GetFingerprint() == 0 {
 			continue
 		}
 		key := fmt.Sprintf("%d:%d", row.GetTeamId(), row.GetFingerprint())
 		if h.resourceCache.Add(key) {
-			resourceRows = append(resourceRows, &schema.Row{
+			resourceRows = append(resourceRows, &spansresourceschema.ResourceRow{
 				TeamId:      row.GetTeamId(),
 				Fingerprint: row.GetFingerprint(),
 				Service:     row.GetService(),
@@ -83,3 +84,4 @@ func (h *Handler) Export(ctx context.Context, req *tracepb.ExportTraceServiceReq
 	metrics.HandlerPublishDuration.WithLabelValues("spans", "ok").Observe(time.Since(pubStart).Seconds())
 	return &tracepb.ExportTraceServiceResponse{}, nil
 }
+

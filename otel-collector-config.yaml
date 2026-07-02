@@ -85,10 +85,16 @@ connectors:
     logs:
       log.record.count:
         description: Total log records
+        attributes:
+          - key: service.name
+          - key: severity_text
       log.records.errors:
         description: Error-or-higher severity log records
         conditions:
           - 'severity_number >= SEVERITY_NUMBER_ERROR'
+        attributes:
+          - key: service.name
+          - key: severity_text
 
 extensions:
   headers_setter:

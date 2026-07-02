@@ -1,4 +1,4 @@
--- 1-hour scalar rollup. Cascaded from metrics_1m (SimpleAggregateFunction columns
+-- 1-hour scalar rollup. Cascaded from metrics_5m (SimpleAggregateFunction columns
 -- re-apply losslessly, no *Merge). Readers route here for windows > 24h. Same
 -- columns/key as metrics_1m; hour boundaries are valid 1m boundaries.
 
@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS optikk.metrics_1h (
 ) ENGINE = ReplicatedAggregatingMergeTree('/clickhouse/tables/{shard}/optikk/metrics_1h', '{replica}')
 PARTITION BY toYYYYMMDD(timestamp)
 ORDER BY (team_id, metric_name, fingerprint, timestamp)
-TTL timestamp + INTERVAL 90 DAY DELETE
+TTL timestamp + INTERVAL 30 DAY DELETE
 SETTINGS
     index_granularity = 8192,
     ttl_only_drop_parts = 1;
@@ -29,7 +29,7 @@ SELECT
     team_id,
     metric_name,
     fingerprint,
-    toDateTime(intDiv(toUnixTimestamp(timestamp), 3600) * 3600) AS timestamp,
+    toStartOfHour(timestamp) AS timestamp,
     argMaxMergeState(val_last) AS val_last,
     min(val_min)      AS val_min,
     max(val_max)      AS val_max,
@@ -38,5 +38,5 @@ SELECT
     sum(hist_sum)     AS hist_sum,
     sum(hist_count)   AS hist_count,
     quantilesPrometheusHistogramMergeState(0.5, 0.95, 0.99)(latency_state) AS latency_state
-FROM optikk.metrics_1m
+FROM optikk.metrics_5m
 GROUP BY team_id, metric_name, fingerprint, timestamp;

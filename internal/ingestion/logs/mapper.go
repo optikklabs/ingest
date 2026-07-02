@@ -32,7 +32,6 @@ func mapRequest(teamID int64, req *logspb.ExportLogsServiceRequest) []*schema.Ro
 			resAttrs = rl.Resource.Attributes
 		}
 		resourceMap := otlp.AttrsToMap(resAttrs)
-		fp := fingerprint.CalculateHash(resourceMap)
 		for _, sl := range rl.GetScopeLogs() {
 			scopeName, scopeVersion := "", ""
 			if sl.GetScope() != nil {
@@ -40,14 +39,14 @@ func mapRequest(teamID int64, req *logspb.ExportLogsServiceRequest) []*schema.Ro
 				scopeVersion = sl.GetScope().GetVersion()
 			}
 			for _, lr := range sl.GetLogRecords() {
-				rows = append(rows, buildLogRow(teamID, resourceMap, fp, scopeName, scopeVersion, lr, nowNs))
+				rows = append(rows, buildLogRow(teamID, resourceMap, scopeName, scopeVersion, lr, nowNs))
 			}
 		}
 	}
 	return rows
 }
 
-func buildLogRow(teamID int64, resource map[string]string, fp uint64, scopeName, scopeVersion string, lr *logv1.LogRecord, nowNs uint64) *schema.Row {
+func buildLogRow(teamID int64, resource map[string]string, scopeName, scopeVersion string, lr *logv1.LogRecord, nowNs uint64) *schema.Row {
 	tsNs := lr.GetTimeUnixNano()
 	if tsNs == 0 {
 		tsNs = lr.GetObservedTimeUnixNano()
@@ -70,10 +69,11 @@ func buildLogRow(teamID int64, resource map[string]string, fp uint64, scopeName,
 
 	traceID := zeroOut(otlp.BytesToHex(lr.GetTraceId()), zeroTraceHex)
 	body := otlp.AnyValueString(lr.GetBody())
-	logID := computeLogID(traceID, tsNs, body, fp)
+	logID := computeLogID(traceID, tsNs, body)
 
 	return &schema.Row{
 		TeamId:              uint32(teamID),
+		Fingerprint:         fingerprint.CalculateHash(res),
 		TsBucket:            tsBucket,
 		TimestampNs:         int64(tsNs),
 		ObservedTimestampNs: observedNs,
@@ -87,7 +87,6 @@ func buildLogRow(teamID int64, resource map[string]string, fp uint64, scopeName,
 		AttributesNumber:    attrNum,
 		AttributesBool:      attrBool,
 		Resource:            res,
-		Fingerprint:         fp,
 		LogId:               logID,
 		ScopeName:           scopeName,
 		ScopeVersion:        scopeVersion,
@@ -101,7 +100,7 @@ func buildLogRow(teamID int64, resource map[string]string, fp uint64, scopeName,
 
 // computeLogID returns a stable FNV-64a hex hash of the log attributes.
 // This is used as the row's deep-link ID.
-func computeLogID(traceID string, tsNs uint64, body string, fp uint64) string {
+func computeLogID(traceID string, tsNs uint64, body string) string {
 	const (
 		offset64      uint64 = 14695981039346656037
 		prime64       uint64 = 1099511628211
@@ -125,8 +124,6 @@ func computeLogID(traceID string, tsNs uint64, body string, fp uint64) string {
 	h = addStr(h, strconv.FormatUint(tsNs, 10))
 	h = addByte(h, separatorByte)
 	h = addStr(h, body)
-	h = addByte(h, separatorByte)
-	h = addStr(h, strconv.FormatUint(fp, 10))
 	return fmt.Sprintf("%016x", h)
 }
 
