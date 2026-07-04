@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 )
 
 type fakeFinder struct {
@@ -29,6 +30,26 @@ func TestResolveCachesInvalidKey(t *testing.T) {
 	}
 	if f.calls != 1 {
 		t.Fatalf("invalid key not cached: %d finder calls, want 1", f.calls)
+	}
+}
+
+// Not-found uses the short TTL so a key tried before its team exists recovers
+// quickly; a valid key keeps the long TTL.
+func TestNegativeCacheUsesShortTTL(t *testing.T) {
+	a := &Authenticator{finder: &fakeFinder{err: ErrInvalidAPIKey}}
+	_, _ = a.ResolveTeamID(context.Background(), "bad")
+	a.finder = &fakeFinder{id: 42}
+	_, _ = a.ResolveTeamID(context.Background(), "good")
+
+	for key, wantTTL := range map[string]time.Duration{"bad": negativeCacheTTL, "good": cacheTTL} {
+		val, ok := a.cache.Load(apiKeyCacheKey(key))
+		if !ok {
+			t.Fatalf("%q not cached", key)
+		}
+		ttl := time.Until(val.(cacheEntry).expiresAt)
+		if ttl > wantTTL || ttl < wantTTL-time.Second {
+			t.Errorf("%q ttl = %v, want ~%v", key, ttl, wantTTL)
+		}
 	}
 }
 
