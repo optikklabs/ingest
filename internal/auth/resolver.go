@@ -16,8 +16,10 @@ var (
 )
 
 const (
-	cacheTTL       = 5 * time.Minute
-	redisKeyPrefix = "optikk:otlp:team_by_api_key:"
+	cacheTTL = 5 * time.Minute
+	// Short so a key tried before its team exists recovers quickly.
+	negativeCacheTTL = 15 * time.Second
+	redisKeyPrefix   = "optikk:otlp:team_by_api_key:"
 )
 
 type cacheEntry struct {
@@ -80,10 +82,14 @@ func (a *Authenticator) lookupCache(apiKey string) (cacheEntry, bool) {
 }
 
 func (a *Authenticator) cacheSet(apiKey string, teamID int64, err error) {
+	ttl := cacheTTL
+	if err != nil {
+		ttl = negativeCacheTTL
+	}
 	a.cache.Store(apiKeyCacheKey(apiKey), cacheEntry{
 		teamID:    teamID,
 		err:       err,
-		expiresAt: time.Now().Add(cacheTTL),
+		expiresAt: time.Now().Add(ttl),
 	})
 }
 
