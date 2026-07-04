@@ -9,7 +9,7 @@ import (
 const chResourceTable = "optikk.spans_resource"
 
 var chResourceColumns = []string{
-	"team_id", "fingerprint", "service", "host", "pod", "environment",
+	"tenant_id", "fingerprint", "service", "host", "pod", "environment",
 }
 
 func NewClickHouseWriter(ch clickhouse.Conn) core.Writer[*schema.ResourceRow] {
@@ -18,7 +18,7 @@ func NewClickHouseWriter(ch clickhouse.Conn) core.Writer[*schema.ResourceRow] {
 
 func resourceRowValues(r *schema.ResourceRow) []any {
 	return []any{
-		r.GetTeamId(),
+		r.GetTenantId(),
 		r.GetFingerprint(),
 		r.GetService(),
 		r.GetHost(),

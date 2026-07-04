@@ -23,7 +23,7 @@ const (
 
 // mapRequest converts an OTLP trace export request into wire rows; one OTLP
 // span yields one Row.
-func mapRequest(teamID int64, req *tracepb.ExportTraceServiceRequest) []*schema.Row {
+func mapRequest(tenantID int64, req *tracepb.ExportTraceServiceRequest) []*schema.Row {
 	rows := make([]*schema.Row, 0, 64)
 	for _, rs := range req.GetResourceSpans() {
 		var resAttrs []*commonpb.KeyValue
@@ -34,14 +34,14 @@ func mapRequest(teamID int64, req *tracepb.ExportTraceServiceRequest) []*schema.
 		fp := fingerprint.CalculateHash(resMap)
 		for _, ss := range rs.GetScopeSpans() {
 			for _, s := range ss.GetSpans() {
-				rows = append(rows, buildSpanRow(teamID, resMap, fp, s))
+				rows = append(rows, buildSpanRow(tenantID, resMap, fp, s))
 			}
 		}
 	}
 	return rows
 }
 
-func buildSpanRow(teamID int64, resMap map[string]string, fp uint64, s *trace.Span) *schema.Row {
+func buildSpanRow(tenantID int64, resMap map[string]string, fp uint64, s *trace.Span) *schema.Row {
 	timestampNs := s.GetStartTimeUnixNano()
 	tsBucket := timebucket.BucketStart(int64(timestampNs / nsPerSecond))
 
@@ -65,7 +65,7 @@ func buildSpanRow(teamID int64, resMap map[string]string, fp uint64, s *trace.Sp
 
 	return &schema.Row{
 		TsBucket:            uint64(tsBucket),
-		TeamId:              uint32(teamID),
+		TenantId:              uint32(tenantID),
 		TimestampNs:         int64(timestampNs),
 		TraceId:             zeroOut(otlp.BytesToHex(s.GetTraceId()), zeroTraceHex),
 		SpanId:              zeroOut(otlp.BytesToHex(s.GetSpanId()), zeroSpanHex),

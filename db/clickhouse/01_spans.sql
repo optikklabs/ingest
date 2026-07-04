@@ -1,5 +1,5 @@
 CREATE TABLE IF NOT EXISTS optikk.spans (
-    team_id                               UInt32          CODEC(T64, ZSTD(1)),
+    tenant_id                               UInt32          CODEC(T64, ZSTD(1)),
     timestamp                             DateTime64(9)   CODEC(DoubleDelta, LZ4),
     trace_id                              String CODEC(ZSTD(1)),
     span_id                               String CODEC(ZSTD(1)),
@@ -55,7 +55,7 @@ CREATE TABLE IF NOT EXISTS optikk.spans (
     INDEX idx_error_group_id error_group_id TYPE bloom_filter GRANULARITY 1
 ) ENGINE = ReplicatedMergeTree('/clickhouse/tables/{shard}/optikk/spans', '{replica}')
 PARTITION BY toYYYYMMDD(timestamp)
-ORDER BY (team_id, timestamp, fingerprint, trace_id, span_id)
+ORDER BY (tenant_id, timestamp, fingerprint, trace_id, span_id)
 TTL timestamp + INTERVAL 15 DAY DELETE
 SETTINGS
     index_granularity = 8192,

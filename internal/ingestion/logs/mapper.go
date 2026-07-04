@@ -23,7 +23,7 @@ const (
 	zeroSpanHex      = "0000000000000000"
 )
 
-func mapRequest(teamID int64, req *logspb.ExportLogsServiceRequest) []*schema.Row {
+func mapRequest(tenantID int64, req *logspb.ExportLogsServiceRequest) []*schema.Row {
 	nowNs := uint64(time.Now().UnixNano())
 	var rows []*schema.Row
 	for _, rl := range req.GetResourceLogs() {
@@ -39,14 +39,14 @@ func mapRequest(teamID int64, req *logspb.ExportLogsServiceRequest) []*schema.Ro
 				scopeVersion = sl.GetScope().GetVersion()
 			}
 			for _, lr := range sl.GetLogRecords() {
-				rows = append(rows, buildLogRow(teamID, resourceMap, scopeName, scopeVersion, lr, nowNs))
+				rows = append(rows, buildLogRow(tenantID, resourceMap, scopeName, scopeVersion, lr, nowNs))
 			}
 		}
 	}
 	return rows
 }
 
-func buildLogRow(teamID int64, resource map[string]string, scopeName, scopeVersion string, lr *logv1.LogRecord, nowNs uint64) *schema.Row {
+func buildLogRow(tenantID int64, resource map[string]string, scopeName, scopeVersion string, lr *logv1.LogRecord, nowNs uint64) *schema.Row {
 	tsNs := lr.GetTimeUnixNano()
 	if tsNs == 0 {
 		tsNs = lr.GetObservedTimeUnixNano()
@@ -72,7 +72,7 @@ func buildLogRow(teamID int64, resource map[string]string, scopeName, scopeVersi
 	logID := computeLogID(traceID, tsNs, body)
 
 	return &schema.Row{
-		TeamId:              uint32(teamID),
+		TenantId:              uint32(tenantID),
 		Fingerprint:         fingerprint.CalculateHash(res),
 		TsBucket:            tsBucket,
 		TimestampNs:         int64(tsNs),

@@ -14,11 +14,11 @@ import (
 )
 
 type rowHeader struct {
-	teamID uint32
+	tenantID uint32
 	resMap map[string]string
 }
 
-func mapRequest(teamID int64, req *metricspb.ExportMetricsServiceRequest) ([]*schema.Row, []*seriesschema.SeriesRow) {
+func mapRequest(tenantID int64, req *metricspb.ExportMetricsServiceRequest) ([]*schema.Row, []*seriesschema.SeriesRow) {
 	acc := &rowAccumulator{seen: make(map[uint64]struct{})}
 	for _, rm := range req.GetResourceMetrics() {
 		var resAttrs []*commonpb.KeyValue
@@ -27,7 +27,7 @@ func mapRequest(teamID int64, req *metricspb.ExportMetricsServiceRequest) ([]*sc
 		}
 		resMap := otlp.AttrsToMap(resAttrs)
 		hdr := rowHeader{
-			teamID: uint32(teamID),
+			tenantID: uint32(tenantID),
 			resMap: resMap,
 		}
 		for _, sm := range rm.GetScopeMetrics() {
@@ -180,7 +180,7 @@ func baseRow(
 	normalizeAttrs(name, attrs)
 	fp := fingerprint.SeriesHash(name, temporality, hdr.resMap, attrs)
 	row := &schema.Row{
-		TeamId:      hdr.teamID,
+		TenantId:      hdr.tenantID,
 		MetricName:  name,
 		Temporality: temporality,
 		Fingerprint: fp,
@@ -188,7 +188,7 @@ func baseRow(
 		Value:       value,
 	}
 	series := &seriesschema.SeriesRow{
-		TeamId:       hdr.teamID,
+		TenantId:       hdr.tenantID,
 		Fingerprint:  fp,
 		TimestampNs:  tsNs,
 		MetricName:   name,

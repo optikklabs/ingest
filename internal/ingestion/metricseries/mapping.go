@@ -12,7 +12,7 @@ import (
 )
 
 var seriesColumns = []string{
-	"team_id", "timestamp", "metric_name", "metric_type", "temporality", "is_monotonic",
+	"tenant_id", "timestamp", "metric_name", "metric_type", "temporality", "is_monotonic",
 	"unit", "description", "fingerprint",
 	"service", "host", "environment", "k8s_namespace", "pod", "container",
 	"attributes",
@@ -24,7 +24,7 @@ func NewClickHouseWriter(ch clickhouse.Conn) core.Writer[*schema.SeriesRow] {
 
 func seriesRowValues(r *schema.SeriesRow) []any {
 	return []any{
-		r.GetTeamId(),
+		r.GetTenantId(),
 		time.Unix(0, r.GetTimestampNs()).UTC(),
 		r.GetMetricName(),
 		r.GetMetricType(),

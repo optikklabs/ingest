@@ -5,7 +5,7 @@
 -- 1m-aligned bucket, derived server-side in the MV to match the display ladder.
 
 CREATE TABLE IF NOT EXISTS optikk.metrics_1m (
-    team_id     UInt32 CODEC(T64, ZSTD(1)),
+    tenant_id     UInt32 CODEC(T64, ZSTD(1)),
     metric_name LowCardinality(String),
     fingerprint UInt64 CODEC(ZSTD(1)),
     timestamp   DateTime CODEC(DoubleDelta, LZ4),
@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS optikk.metrics_1m (
     latency_state AggregateFunction(quantilesPrometheusHistogram(0.5, 0.95, 0.99), Float64, UInt64) CODEC(ZSTD(1))
 ) ENGINE = ReplicatedAggregatingMergeTree('/clickhouse/tables/{shard}/optikk/metrics_1m', '{replica}')
 PARTITION BY toYYYYMMDD(timestamp)
-ORDER BY (team_id, metric_name, fingerprint, timestamp)
+ORDER BY (tenant_id, metric_name, fingerprint, timestamp)
 TTL timestamp + INTERVAL 7 DAY DELETE
 SETTINGS
     index_granularity = 8192,
@@ -28,7 +28,7 @@ SETTINGS
 CREATE MATERIALIZED VIEW IF NOT EXISTS optikk.metrics_1m_mv
 TO optikk.metrics_1m AS
 SELECT
-    team_id,
+    tenant_id,
     metric_name,
     fingerprint,
     toStartOfMinute(timestamp) AS timestamp,
@@ -41,5 +41,5 @@ SELECT
     sum(hist_count) AS hist_count,
     quantilesPrometheusHistogramArrayState(0.5, 0.95, 0.99)(empty(hist_buckets) ? hist_buckets : arrayPushBack(hist_buckets, inf), arrayCumSum(hist_counts)) AS latency_state
 FROM optikk.metrics
-GROUP BY team_id, metric_name, fingerprint, timestamp;
+GROUP BY tenant_id, metric_name, fingerprint, timestamp;
 

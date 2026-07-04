@@ -2,7 +2,7 @@
 -- before the raw-table scan. Written directly from Go with LRU cache.
 
 CREATE TABLE IF NOT EXISTS optikk.logs_resource (
-    team_id     UInt32 CODEC(T64, ZSTD(1)),
+    tenant_id     UInt32 CODEC(T64, ZSTD(1)),
     fingerprint UInt64 CODEC(ZSTD(1)),
     service     LowCardinality(String) CODEC(ZSTD(1)),
     host        LowCardinality(String) CODEC(ZSTD(1)),
@@ -11,6 +11,6 @@ CREATE TABLE IF NOT EXISTS optikk.logs_resource (
     environment LowCardinality(String) CODEC(ZSTD(1))
 ) ENGINE = ReplicatedReplacingMergeTree('/clickhouse/tables/{shard}/optikk/logs_resource', '{replica}')
 PARTITION BY tuple()
-ORDER BY (team_id, service, host, pod, container, environment)
+ORDER BY (tenant_id, service, host, pod, container, environment)
 SETTINGS
     index_granularity = 8192;

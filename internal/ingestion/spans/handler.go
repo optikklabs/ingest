@@ -34,12 +34,12 @@ func NewHandler(p *core.Producer[*schema.Row], rp *core.Producer[*spansresources
 }
 
 func (h *Handler) Export(ctx context.Context, req *tracepb.ExportTraceServiceRequest) (*tracepb.ExportTraceServiceResponse, error) {
-	teamID, ok := auth.TeamIDFromContext(ctx)
+	tenantID, ok := auth.TenantIDFromContext(ctx)
 	if !ok {
 		return nil, status.Error(codes.Unauthenticated, "team id missing from context")
 	}
 	mapStart := time.Now()
-	rows := mapRequest(teamID, req)
+	rows := mapRequest(tenantID, req)
 	metrics.MapperDuration.WithLabelValues("spans").Observe(time.Since(mapStart).Seconds())
 	metrics.MapperRowsPerRequest.WithLabelValues("spans").Observe(float64(len(rows)))
 	if len(rows) == 0 {
@@ -52,10 +52,10 @@ func (h *Handler) Export(ctx context.Context, req *tracepb.ExportTraceServiceReq
 		if row.GetFingerprint() == 0 {
 			continue
 		}
-		key := fmt.Sprintf("%d:%d", row.GetTeamId(), row.GetFingerprint())
+		key := fmt.Sprintf("%d:%d", row.GetTenantId(), row.GetFingerprint())
 		if h.resourceCache.Add(key) {
 			resourceRows = append(resourceRows, &spansresourceschema.ResourceRow{
-				TeamId:      row.GetTeamId(),
+				TenantId:      row.GetTenantId(),
 				Fingerprint: row.GetFingerprint(),
 				Service:     row.GetService(),
 				Host:        row.GetHost(),

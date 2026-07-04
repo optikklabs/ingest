@@ -9,7 +9,7 @@ import (
 )
 
 var metricsColumns = []string{
-	"team_id", "metric_name", "temporality", "fingerprint", "timestamp",
+	"tenant_id", "metric_name", "temporality", "fingerprint", "timestamp",
 	"value", "hist_sum", "hist_count",
 	"hist_buckets", "hist_counts",
 	"summary_quantiles", "summary_values",
@@ -22,7 +22,7 @@ func NewMetricsClickHouseWriter(ch clickhouse.Conn) core.Writer[*schema.Row] {
 
 func metricsRowValues(r *schema.Row) []any {
 	return []any{
-		r.GetTeamId(),
+		r.GetTenantId(),
 		r.GetMetricName(),
 		r.GetTemporality(),
 		r.GetFingerprint(),

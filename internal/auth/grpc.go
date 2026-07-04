@@ -17,21 +17,21 @@ const apiKeyHeader = "x-api-key"
 // context, serving as the single team-resolution site for ingest.
 func UnaryInterceptor(resolver TeamResolver) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req any, _ *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
-		teamID, err := resolveFromContext(ctx, resolver)
+		tenantID, err := resolveFromContext(ctx, resolver)
 		if err != nil {
 			return nil, err
 		}
-		return handler(WithTeamID(ctx, teamID), req)
+		return handler(WithTenantID(ctx, tenantID), req)
 	}
 }
 
 func StreamInterceptor(resolver TeamResolver) grpc.StreamServerInterceptor {
 	return func(srv any, ss grpc.ServerStream, _ *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
-		teamID, err := resolveFromContext(ss.Context(), resolver)
+		tenantID, err := resolveFromContext(ss.Context(), resolver)
 		if err != nil {
 			return err
 		}
-		return handler(srv, &wrappedStream{ServerStream: ss, ctx: WithTeamID(ss.Context(), teamID)})
+		return handler(srv, &wrappedStream{ServerStream: ss, ctx: WithTenantID(ss.Context(), tenantID)})
 	}
 }
 
@@ -52,7 +52,7 @@ func resolveFromContext(ctx context.Context, resolver TeamResolver) (int64, erro
 		return 0, status.Error(codes.Unauthenticated, "missing x-api-key metadata header")
 	}
 	apiKey := keys[0]
-	teamID, err := resolver.ResolveTeamID(ctx, apiKey)
+	tenantID, err := resolver.ResolveTenantID(ctx, apiKey)
 	if err != nil {
 		slog.WarnContext(ctx, "ingest auth failed", slog.String("apiKey", maskKey(apiKey)), slog.Any("error", err))
 		if errors.Is(err, ErrMissingAPIKey) || errors.Is(err, ErrInvalidAPIKey) {
@@ -60,7 +60,7 @@ func resolveFromContext(ctx context.Context, resolver TeamResolver) (int64, erro
 		}
 		return 0, status.Error(codes.Internal, err.Error())
 	}
-	return teamID, nil
+	return tenantID, nil
 }
 
 func maskKey(apiKey string) string {

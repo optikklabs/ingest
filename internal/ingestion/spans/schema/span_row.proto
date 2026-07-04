@@ -2,12 +2,12 @@ syntax = "proto3";
 
 package optikk.ingest.spans.v1;
 
-option go_package = "github.com/Optikk-Org/optikk-backend/internal/ingestion/spans/schema;schema";
+option go_package = "github.com/optikklabs/ingest/internal/ingestion/spans/schema;schema";
 
 // Row is the wire format on Kafka. One record == one span row bound for observability.spans.
 message Row {
   uint64 ts_bucket = 1;
-  uint32 team_id = 2;
+  uint32 tenant_id = 2;
   int64  timestamp_ns = 3;
   string trace_id = 4;
   string span_id = 5;

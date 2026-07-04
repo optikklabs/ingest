@@ -2,13 +2,13 @@ syntax = "proto3";
 
 package optikk.ingest.metrics.v1;
 
-option go_package = "github.com/Optikk-Org/optikk-backend/internal/ingestion/metrics/schema;schema";
+option go_package = "github.com/optikklabs/ingest/internal/ingestion/metrics/schema;schema";
 
 // Row is the wire format on Kafka. One record == one metric data point bound for
 // observability.metrics. Carries only fields the metrics consumer writes; series
 // identity/labels live in the decoupled metric_series topic (SeriesRow).
 message Row {
-  uint32 team_id = 1;
+  uint32 tenant_id = 1;
   string metric_name = 2;
   string temporality = 4;
   uint64 fingerprint = 8;

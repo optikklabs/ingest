@@ -31,12 +31,12 @@ func NewHandler(mp core.Publisher[*schema.Row], sp core.Publisher[*seriesschema.
 }
 
 func (h *Handler) Export(ctx context.Context, req *metricspb.ExportMetricsServiceRequest) (*metricspb.ExportMetricsServiceResponse, error) {
-	teamID, ok := auth.TeamIDFromContext(ctx)
+	tenantID, ok := auth.TenantIDFromContext(ctx)
 	if !ok {
 		return nil, status.Error(codes.Unauthenticated, "team id missing from context")
 	}
 	mapStart := time.Now()
-	rows, seriesRows := mapRequest(teamID, req)
+	rows, seriesRows := mapRequest(tenantID, req)
 	obsmetrics.MapperDuration.WithLabelValues("metrics").Observe(time.Since(mapStart).Seconds())
 	obsmetrics.MapperRowsPerRequest.WithLabelValues("metrics").Observe(float64(len(rows)))
 	if len(rows) == 0 {

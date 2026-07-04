@@ -4,7 +4,7 @@
 -- Same columns/key as metrics_1m; 5m boundaries are valid 1m boundaries.
 
 CREATE TABLE IF NOT EXISTS optikk.metrics_5m (
-    team_id     UInt32 CODEC(T64, ZSTD(1)),
+    tenant_id     UInt32 CODEC(T64, ZSTD(1)),
     metric_name LowCardinality(String),
     fingerprint UInt64 CODEC(ZSTD(1)),
     timestamp   DateTime CODEC(DoubleDelta, LZ4),
@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS optikk.metrics_5m (
     latency_state AggregateFunction(quantilesPrometheusHistogram(0.5, 0.95, 0.99), Float64, UInt64) CODEC(ZSTD(1))
 ) ENGINE = ReplicatedAggregatingMergeTree('/clickhouse/tables/{shard}/optikk/metrics_5m', '{replica}')
 PARTITION BY toYYYYMMDD(timestamp)
-ORDER BY (team_id, metric_name, fingerprint, timestamp)
+ORDER BY (tenant_id, metric_name, fingerprint, timestamp)
 TTL timestamp + INTERVAL 14 DAY DELETE
 SETTINGS
     index_granularity = 8192,
@@ -27,7 +27,7 @@ SETTINGS
 CREATE MATERIALIZED VIEW IF NOT EXISTS optikk.metrics_5m_mv
 TO optikk.metrics_5m AS
 SELECT
-    team_id,
+    tenant_id,
     metric_name,
     fingerprint,
     toStartOfFiveMinutes(timestamp) AS timestamp,
@@ -40,4 +40,4 @@ SELECT
     sum(hist_count)   AS hist_count,
     quantilesPrometheusHistogramMergeState(0.5, 0.95, 0.99)(latency_state) AS latency_state
 FROM optikk.metrics_1m
-GROUP BY team_id, metric_name, fingerprint, timestamp;
+GROUP BY tenant_id, metric_name, fingerprint, timestamp;

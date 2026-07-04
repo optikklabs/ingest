@@ -13,7 +13,7 @@ type fakeFinder struct {
 	err   error
 }
 
-func (f *fakeFinder) FindTeamIDByAPIKey(_ context.Context, _ string) (int64, error) {
+func (f *fakeFinder) FindTenantIDByAPIKey(_ context.Context, _ string) (int64, error) {
 	f.calls++
 	return f.id, f.err
 }
@@ -24,7 +24,7 @@ func TestResolveCachesInvalidKey(t *testing.T) {
 	a := &Authenticator{finder: f}
 
 	for i := 0; i < 2; i++ {
-		if _, err := a.ResolveTeamID(context.Background(), "k"); !errors.Is(err, ErrInvalidAPIKey) {
+		if _, err := a.ResolveTenantID(context.Background(), "k"); !errors.Is(err, ErrInvalidAPIKey) {
 			t.Fatalf("want ErrInvalidAPIKey, got %v", err)
 		}
 	}
@@ -37,9 +37,9 @@ func TestResolveCachesInvalidKey(t *testing.T) {
 // quickly; a valid key keeps the long TTL.
 func TestNegativeCacheUsesShortTTL(t *testing.T) {
 	a := &Authenticator{finder: &fakeFinder{err: ErrInvalidAPIKey}}
-	_, _ = a.ResolveTeamID(context.Background(), "bad")
+	_, _ = a.ResolveTenantID(context.Background(), "bad")
 	a.finder = &fakeFinder{id: 42}
-	_, _ = a.ResolveTeamID(context.Background(), "good")
+	_, _ = a.ResolveTenantID(context.Background(), "good")
 
 	for key, wantTTL := range map[string]time.Duration{"bad": negativeCacheTTL, "good": cacheTTL} {
 		val, ok := a.cache.Load(apiKeyCacheKey(key))
@@ -59,7 +59,7 @@ func TestResolveDoesNotCacheTransientError(t *testing.T) {
 	a := &Authenticator{finder: f}
 
 	for i := 0; i < 2; i++ {
-		if _, err := a.ResolveTeamID(context.Background(), "k"); err == nil {
+		if _, err := a.ResolveTenantID(context.Background(), "k"); err == nil {
 			t.Fatal("expected error")
 		}
 	}
@@ -73,9 +73,9 @@ func TestResolveDoesNotCacheContextCanceled(t *testing.T) {
 	f := &fakeFinder{err: context.Canceled}
 	a := &Authenticator{finder: f}
 
-	_, _ = a.ResolveTeamID(context.Background(), "k")
+	_, _ = a.ResolveTenantID(context.Background(), "k")
 	f.err, f.id = nil, 42
-	id, err := a.ResolveTeamID(context.Background(), "k")
+	id, err := a.ResolveTenantID(context.Background(), "k")
 	if err != nil || id != 42 {
 		t.Fatalf("canceled result was cached: got id=%d err=%v", id, err)
 	}

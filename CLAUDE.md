@@ -70,10 +70,161 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 - ISP: Many small, focused interfaces over one general-purpose interface.
 - DIP: Depend on abstractions, not concretions.
 
+
 ## 6. Code Comments
 - Comments should be of single line and not more 80 characters, concise explainable
 
+---
+
+## 7. Architecture First
+
+Always optimize for long-term maintainability over short-term convenience.
+
+Before introducing new code, evaluate whether it:
+
+- fits the existing architecture
+- respects package boundaries
+- introduces unnecessary coupling
+- belongs in the correct layer
+- increases future maintenance cost
+
+Challenge existing designs instead of assuming they are correct.
+
+If a simpler architecture exists, recommend it.
 
 ---
+
+## 8. Package Ownership
+
+Every package should have a single responsibility.
+
+Business logic should never leak into:
+
+- HTTP handlers
+- database repositories
+- configuration
+- transport models
+
+Prefer the following flow:
+
+```
+HTTP Handler
+    ↓
+Service
+    ↓
+Repository
+    ↓
+Database
+```
+
+Repositories fetch data.
+
+Services implement business logic.
+
+Handlers translate HTTP requests and responses.
+
+---
+
+## 9. Database & Query Performance
+
+This service is query-heavy.
+
+Assume every endpoint may execute against billions of telemetry records.
+
+Always evaluate:
+
+- query complexity
+- ClickHouse execution cost
+- unnecessary allocations
+- repeated database calls
+- N+1 queries
+- missing LIMITs
+- unnecessary scans
+- excessive joins
+- unnecessary deserialization
+
+Never sacrifice query performance for cleaner-looking code.
+
+---
+
+## 10. API Design
+
+APIs should be:
+
+- consistent
+- predictable
+- versioned
+- backwards compatible
+
+Avoid:
+
+- inconsistent response shapes
+- hidden breaking changes
+- ambiguous field names
+- leaking database models directly to clients
+
+DTOs should represent the API contract, not database schemas.
+
+---
+
+## 11. Scalability & Production Readiness
+
+Assume this service will eventually support:
+
+- thousands of organizations
+- millions of API requests
+- billions of telemetry rows
+- concurrent dashboard queries
+- alert evaluations
+- background jobs
+- enterprise customers
+
+Prefer designs that minimize:
+
+- lock contention
+- memory allocations
+- unnecessary copies
+- synchronous bottlenecks
+- repeated parsing
+- repeated query planning
+
+Think about production behaviour, not just correctness.
+
+---
+
+## 12. Go Best Practices
+
+Write idiomatic Go.
+
+Prefer:
+
+- small packages
+- small interfaces
+- composition over inheritance
+- explicit dependencies
+- context propagation
+- error wrapping where useful
+- early returns
+- zero-value friendly types
+
+Avoid:
+
+- global mutable state
+- massive interfaces
+- utility packages containing unrelated code
+- reflection unless absolutely necessary
+- premature abstractions
+- unnecessary goroutines
+
+Review every implementation before considering it complete.
+
+Ask yourself:
+
+- Is this the simplest correct solution?
+- Is this idiomatic Go?
+- Will this still scale in two years?
+- Would another senior Go engineer approve this?
+- Is every abstraction justified?
+- Does this improve or degrade maintainability?
 
 **These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.

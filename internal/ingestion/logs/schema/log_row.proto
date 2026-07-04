@@ -2,11 +2,11 @@ syntax = "proto3";
 
 package optikk.ingest.logs.v1;
 
-option go_package = "github.com/Optikk-Org/optikk-backend/internal/ingestion/logs/schema;schema";
+option go_package = "github.com/optikklabs/ingest/internal/ingestion/logs/schema;schema";
 
 // Row is the wire format on Kafka. One record == one log row bound for observability.logs_v2.
 message Row {
-  uint32 team_id = 1;
+  uint32 tenant_id = 1;
   uint32 ts_bucket = 2;
   int64 timestamp_ns = 3;
   uint64 observed_timestamp_ns = 4;

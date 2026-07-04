@@ -2,14 +2,14 @@ package auth
 
 import "context"
 
-type teamIDKey struct{}
+type tenantIDKey struct{}
 
-// WithTeamID returns a derived ctx carrying the resolved ingest team id.
-func WithTeamID(ctx context.Context, teamID int64) context.Context {
-	return context.WithValue(ctx, teamIDKey{}, teamID)
+// WithTenantID returns a derived ctx carrying the resolved ingest team id.
+func WithTenantID(ctx context.Context, tenantID int64) context.Context {
+	return context.WithValue(ctx, tenantIDKey{}, tenantID)
 }
 
-func TeamIDFromContext(ctx context.Context) (int64, bool) {
-	v, ok := ctx.Value(teamIDKey{}).(int64)
+func TenantIDFromContext(ctx context.Context) (int64, bool) {
+	v, ok := ctx.Value(tenantIDKey{}).(int64)
 	return v, ok
 }

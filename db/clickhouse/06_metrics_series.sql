@@ -1,5 +1,5 @@
 CREATE TABLE IF NOT EXISTS optikk.metrics_series (
-    team_id          UInt32 CODEC(T64, ZSTD(1)),
+    tenant_id          UInt32 CODEC(T64, ZSTD(1)),
     timestamp        DateTime CODEC(DoubleDelta, LZ4),
     metric_name      LowCardinality(String),
     metric_type      LowCardinality(String) CODEC(ZSTD(1)),
@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS optikk.metrics_series (
     attributes       JSON(max_dynamic_paths=100) CODEC(ZSTD(1))
 ) ENGINE = ReplicatedReplacingMergeTree('/clickhouse/tables/{shard}/optikk/metrics_series_v2', '{replica}')
 PARTITION BY toYYYYMMDD(timestamp)
-ORDER BY (team_id, metric_name, toStartOfInterval(timestamp, INTERVAL 6 HOUR), service, fingerprint)
+ORDER BY (tenant_id, metric_name, toStartOfInterval(timestamp, INTERVAL 6 HOUR), service, fingerprint)
 TTL timestamp + INTERVAL 30 DAY DELETE
 SETTINGS
     index_granularity = 8192,

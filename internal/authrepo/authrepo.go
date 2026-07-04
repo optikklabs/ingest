@@ -21,13 +21,13 @@ func New(db *sql.DB) *Repository {
 	return &Repository{db: sqlx.NewDb(db, "mysql")}
 }
 
-func (r *Repository) FindTeamIDByAPIKey(ctx context.Context, apiKey string) (int64, error) {
-	var teamID int64
-	err := dbutil.GetSQL(ctx, r.db, "authrepo.FindTeamIDByAPIKey", &teamID, `
-		SELECT id FROM teams WHERE api_key = ? AND active = 1 LIMIT 1
+func (r *Repository) FindTenantIDByAPIKey(ctx context.Context, apiKey string) (int64, error) {
+	var tenantID int64
+	err := dbutil.GetSQL(ctx, r.db, "authrepo.FindTenantIDByAPIKey", &tenantID, `
+		SELECT id FROM tenant WHERE api_key = ? AND active = 1 LIMIT 1
 	`, apiKey)
 	if errors.Is(err, sql.ErrNoRows) {
 		return 0, auth.ErrInvalidAPIKey
 	}
-	return teamID, err
+	return tenantID, err
 }

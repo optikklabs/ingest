@@ -8,7 +8,7 @@ import (
 
 // Summary and ExponentialHistogram must not be silently dropped.
 func TestExponentialHistogramMapped(t *testing.T) {
-	hdr := rowHeader{teamID: 1, resMap: map[string]string{"service.name": "api"}}
+	hdr := rowHeader{tenantID: 1, resMap: map[string]string{"service.name": "api"}}
 	m := &metricsdatapb.Metric{
 		Name: "http.server.duration",
 		Data: &metricsdatapb.Metric_ExponentialHistogram{
@@ -58,7 +58,7 @@ func TestExponentialHistogramMapped(t *testing.T) {
 }
 
 func TestSummaryMapped(t *testing.T) {
-	hdr := rowHeader{teamID: 1, resMap: map[string]string{"service.name": "api"}}
+	hdr := rowHeader{tenantID: 1, resMap: map[string]string{"service.name": "api"}}
 	m := &metricsdatapb.Metric{
 		Name: "rpc.duration",
 		Data: &metricsdatapb.Metric_Summary{

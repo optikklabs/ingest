@@ -12,7 +12,7 @@ const chTable = "optikk.spans"
 
 // chColumns mirrors the column order in db/clickhouse/01_spans.sql.
 var chColumns = []string{
-	"team_id",
+	"tenant_id",
 	"timestamp", "trace_id", "span_id", "parent_span_id", "trace_state", "flags",
 	"name", "kind", "kind_string", "duration_nano", "has_error",
 	"status_code", "status_code_string", "status_message",
@@ -35,7 +35,7 @@ func NewClickHouseWriter(ch clickhouse.Conn) *core.ClickHouseWriter[*schema.Row]
 
 func rowValues(r *schema.Row) []any {
 	return []any{
-		r.GetTeamId(),
+		r.GetTenantId(),
 		time.Unix(0, r.GetTimestampNs()),
 		r.GetTraceId(),
 		r.GetSpanId(),

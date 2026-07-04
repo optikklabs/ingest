@@ -24,7 +24,7 @@ func gaugeWith(kvs ...*commonpb.KeyValue) *metricsdatapb.NumberDataPoint {
 }
 
 func TestRowFingerprintOrderIndependent(t *testing.T) {
-	hdr := rowHeader{teamID: 1, resMap: map[string]string{"service.name": "api"}}
+	hdr := rowHeader{tenantID: 1, resMap: map[string]string{"service.name": "api"}}
 	m := &metricsdatapb.Metric{Name: "kafka.consumer.commit_rate"}
 
 	a, _ := gaugeRow(hdr, m, gaugeWith(
@@ -38,7 +38,7 @@ func TestRowFingerprintOrderIndependent(t *testing.T) {
 }
 
 func TestRowFingerprintDistinctOnValue(t *testing.T) {
-	hdr := rowHeader{teamID: 1, resMap: map[string]string{"service.name": "api"}}
+	hdr := rowHeader{tenantID: 1, resMap: map[string]string{"service.name": "api"}}
 	m := &metricsdatapb.Metric{Name: "kafka.consumer_group.lag"}
 
 	a, _ := gaugeRow(hdr, m, gaugeWith(strKV("topic", "orders")))
@@ -50,7 +50,7 @@ func TestRowFingerprintDistinctOnValue(t *testing.T) {
 }
 
 func TestRowFingerprintDropsHighCardinality(t *testing.T) {
-	hdr := rowHeader{teamID: 1, resMap: map[string]string{"service.name": "api"}}
+	hdr := rowHeader{tenantID: 1, resMap: map[string]string{"service.name": "api"}}
 	m := &metricsdatapb.Metric{Name: "http.server.duration"}
 
 	a, _ := gaugeRow(hdr, m, gaugeWith(strKV("route", "/x"), strKV("k8s.pod.uid", "pod-aaa")))
@@ -64,9 +64,9 @@ func TestRowFingerprintDropsHighCardinality(t *testing.T) {
 func TestRowFingerprintResourceDataPointNoCollision(t *testing.T) {
 	m := &metricsdatapb.Metric{Name: "app.requests"}
 
-	a, _ := gaugeRow(rowHeader{teamID: 1, resMap: map[string]string{"k8s.namespace.name": "prod"}},
+	a, _ := gaugeRow(rowHeader{tenantID: 1, resMap: map[string]string{"k8s.namespace.name": "prod"}},
 		m, gaugeWith(strKV("k8s.namespace.name", "team-a")))
-	b, _ := gaugeRow(rowHeader{teamID: 1, resMap: map[string]string{"k8s.namespace.name": "team-a"}},
+	b, _ := gaugeRow(rowHeader{tenantID: 1, resMap: map[string]string{"k8s.namespace.name": "team-a"}},
 		m, gaugeWith(strKV("k8s.namespace.name", "prod")))
 
 	if a.Fingerprint == b.Fingerprint {

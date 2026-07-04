@@ -23,18 +23,18 @@ const (
 )
 
 type cacheEntry struct {
-	teamID    int64
+	tenantID    int64
 	err       error
 	expiresAt time.Time
 }
 
 // TeamResolver turns an OTLP API key into the owning team id.
 type TeamResolver interface {
-	ResolveTeamID(ctx context.Context, apiKey string) (int64, error)
+	ResolveTenantID(ctx context.Context, apiKey string) (int64, error)
 }
 
 type TeamFinder interface {
-	FindTeamIDByAPIKey(ctx context.Context, apiKey string) (int64, error)
+	FindTenantIDByAPIKey(ctx context.Context, apiKey string) (int64, error)
 }
 
 type Authenticator struct {
@@ -48,14 +48,14 @@ func NewAuthenticator(finder TeamFinder) *Authenticator {
 	return a
 }
 
-func (a *Authenticator) ResolveTeamID(ctx context.Context, apiKey string) (int64, error) {
+func (a *Authenticator) ResolveTenantID(ctx context.Context, apiKey string) (int64, error) {
 	if apiKey == "" {
 		return 0, ErrMissingAPIKey
 	}
 	if entry, ok := a.lookupCache(apiKey); ok {
-		return entry.teamID, entry.err
+		return entry.tenantID, entry.err
 	}
-	id, err := a.finder.FindTeamIDByAPIKey(ctx, apiKey)
+	id, err := a.finder.FindTenantIDByAPIKey(ctx, apiKey)
 	if err != nil {
 		// Only negative-cache genuine not-found; never cache transient or
 		// context errors, which would lock out a tenant for the full TTL.
@@ -81,13 +81,13 @@ func (a *Authenticator) lookupCache(apiKey string) (cacheEntry, bool) {
 	return entry, true
 }
 
-func (a *Authenticator) cacheSet(apiKey string, teamID int64, err error) {
+func (a *Authenticator) cacheSet(apiKey string, tenantID int64, err error) {
 	ttl := cacheTTL
 	if err != nil {
 		ttl = negativeCacheTTL
 	}
 	a.cache.Store(apiKeyCacheKey(apiKey), cacheEntry{
-		teamID:    teamID,
+		tenantID:    tenantID,
 		err:       err,
 		expiresAt: time.Now().Add(ttl),
 	})
