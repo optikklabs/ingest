@@ -20,16 +20,18 @@ import (
 
 type Handler struct {
 	tracepb.UnimplementedTraceServiceServer
-	producer         *core.Producer[*schema.Row]
-	resourceProducer *core.Producer[*spansresourceschema.ResourceRow]
-	resourceCache    *core.ResourceCache
+	producer           *core.Producer[*schema.Row]
+	tracegraphProducer *core.Producer[*schema.Row]
+	resourceProducer   *core.Producer[*spansresourceschema.ResourceRow]
+	resourceCache      *core.ResourceCache
 }
 
-func NewHandler(p *core.Producer[*schema.Row], rp *core.Producer[*spansresourceschema.ResourceRow], cache *core.ResourceCache) *Handler {
+func NewHandler(p *core.Producer[*schema.Row], tp *core.Producer[*schema.Row], rp *core.Producer[*spansresourceschema.ResourceRow], cache *core.ResourceCache) *Handler {
 	return &Handler{
-		producer:         p,
-		resourceProducer: rp,
-		resourceCache:    cache,
+		producer:           p,
+		tracegraphProducer: tp,
+		resourceProducer:   rp,
+		resourceCache:      cache,
 	}
 }
 
@@ -82,6 +84,15 @@ func (h *Handler) Export(ctx context.Context, req *tracepb.ExportTraceServiceReq
 		return nil, status.Error(codes.Unavailable, err.Error())
 	}
 	metrics.HandlerPublishDuration.WithLabelValues("spans", "ok").Observe(time.Since(pubStart).Seconds())
+
+	go func() {
+		publishCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := h.tracegraphProducer.Publish(publishCtx, rows); err != nil {
+			slog.WarnContext(publishCtx, "spans handler: failed to publish to tracegraph", slog.Any("error", err))
+		}
+	}()
+
 	return &tracepb.ExportTraceServiceResponse{}, nil
 }
 

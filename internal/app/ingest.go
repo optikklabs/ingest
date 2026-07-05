@@ -26,6 +26,8 @@ import (
 	spansschema "github.com/optikklabs/ingest/internal/ingestion/spans/schema"
 	spansresource "github.com/optikklabs/ingest/internal/ingestion/spansresource"
 	spansresourceschema "github.com/optikklabs/ingest/internal/ingestion/spansresource/schema"
+	"github.com/optikklabs/ingest/internal/modules/spanaggregator/servicegraph"
+	"github.com/optikklabs/ingest/internal/modules/spanaggregator/spanmetrics"
 )
 
 // ingestBundle is everything buildIngest produces for the Infra.
@@ -62,11 +64,16 @@ func wireSpans(in signalWireInput) (registry.Module, ConsumerRunner) {
 	resourceTopic := kafkainfra.IngestTopic(in.topicPrefix, kafkainfra.SignalSpansResource)
 	resourceProducer := core.NewProducer[*spansresourceschema.ResourceRow](resourceTopic, in.producerBase)
 
+	tracegraphTopic := kafkainfra.IngestTopic(in.topicPrefix, kafkainfra.SignalSpansTracegraph)
+	tracegraphProducer := core.NewProducer[*spansschema.Row](tracegraphTopic, in.producerBase).WithKeyFunc(func(r *spansschema.Row) []byte {
+		return []byte(r.GetTraceId())
+	})
+
 	writer := spansignal.NewClickHouseWriter(in.ch)
 	dlq := core.NewDLQ(in.producerBase, in.dlqTopic, kafkainfra.SignalSpans)
 	consumer := spansignal.NewConsumer(in.consumer, writer, dlq)
 	
-	handler := spansignal.NewHandler(producer, resourceProducer, spansResourceCache)
+	handler := spansignal.NewHandler(producer, tracegraphProducer, resourceProducer, spansResourceCache)
 	mod := spansignal.NewModule(spansignal.Deps{Handler: handler})
 	return mod, consumer
 }
@@ -120,6 +127,26 @@ func wireMetricSeries(in signalWireInput) (registry.Module, ConsumerRunner) {
 	return nil, consumer
 }
 
+func wireSpanmetrics(in signalWireInput) (registry.Module, ConsumerRunner) {
+	metricsTopic := kafkainfra.IngestTopic(in.topicPrefix, kafkainfra.SignalMetrics)
+	seriesTopic := kafkainfra.IngestTopic(in.topicPrefix, kafkainfra.SignalMetricSeries)
+	metricsPub := core.NewProducer[*metricsschema.Row](metricsTopic, in.producerBase)
+	seriesPub := core.NewProducer[*metricseriesschema.SeriesRow](seriesTopic, in.producerBase)
+
+	consumer := spanmetrics.NewConsumer(in.consumer, metricsPub, seriesPub)
+	return nil, consumer
+}
+
+func wireServicegraph(in signalWireInput) (registry.Module, ConsumerRunner) {
+	metricsTopic := kafkainfra.IngestTopic(in.topicPrefix, kafkainfra.SignalMetrics)
+	seriesTopic := kafkainfra.IngestTopic(in.topicPrefix, kafkainfra.SignalMetricSeries)
+	metricsPub := core.NewProducer[*metricsschema.Row](metricsTopic, in.producerBase)
+	seriesPub := core.NewProducer[*metricseriesschema.SeriesRow](seriesTopic, in.producerBase)
+
+	consumer := servicegraph.NewConsumer(in.consumer, metricsPub, seriesPub)
+	return nil, consumer
+}
+
 func ingestTopicSpecs(wirings []signalWiring, topicPrefix, dlqPrefix string) []kafkainfra.TopicSpec {
 	specs := make([]kafkainfra.TopicSpec, 0, len(wirings)*2)
 	for _, w := range wirings {
@@ -144,6 +171,15 @@ func buildIngest(cfg config.Config, ch clickhouse.Conn) (ingestBundle, error) {
 
 		{signal: kafkainfra.SignalMetrics, cfg: cfg.IngestSignal("metrics"), wire: wireMetrics},
 		{signal: kafkainfra.SignalMetricSeries, cfg: cfg.IngestSignal("metric_series"), wire: wireMetricSeries},
+		
+		{signal: kafkainfra.SignalSpans, cfg: config.SignalConfig{
+			Partitions:     cfg.IngestSignal("spans").Partitions,
+			Replicas:       cfg.IngestSignal("spans").Replicas,
+			RetentionHours: cfg.IngestSignal("spans").RetentionHours,
+			ConsumerGroup:  "optikk-ingest.spanaggregator.spanmetrics.consumer",
+		}, wire: wireSpanmetrics},
+		
+		{signal: kafkainfra.SignalSpansTracegraph, cfg: cfg.IngestSignal("spans_tracegraph"), wire: wireServicegraph},
 	}
 
 	ensureCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)

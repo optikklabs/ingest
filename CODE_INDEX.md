@@ -7,7 +7,6 @@ Welcome to the `ingest` repository index! This service is the high-throughput in
 ## 🚀 Entry Points & Setup
 - **Main Entrypoint**: `cmd/ingest/main.go` (Initializes Kafka consumers, OTLP receivers, and ClickHouse writers).
 - **Configuration**: `config.yml` (App configuration).
-- **OTLP Config**: `otel-collector-config.yaml` (Defines how the OTEL collector should parse and route incoming traces/metrics/logs).
 
 ---
 
@@ -20,6 +19,12 @@ This directory contains the logic for reading from Kafka, mapping/normalizing th
   - Also handles metric fingerprinting and schema definitions (`schema/`).
 - **`logs/` & `logsresource/`**: Consumers and mapping logic for log entries.
 - **`spans/` & `spansresource/`**: Consumers and mapping logic for APM traces and spans.
+
+---
+
+## 🧩 Pipeline Modules (`internal/modules/`)
+This directory contains specialized modules that run as Kafka consumers or stream processors.
+- **`spanaggregator/`**: Consumes raw spans and computes RED metrics (`spanmetrics`) and service edge metrics (`servicegraph`). Replaces the deprecated OpenTelemetry Collector spanmetrics and servicegraph connectors.
 
 ---
 

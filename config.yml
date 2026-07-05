@@ -29,6 +29,10 @@ ingestion:
     partitions: 8
     replicas: 1
     retention_hours: 24
+  spans_tracegraph:
+    partitions: 8
+    replicas: 1
+    retention_hours: 24
   logs:
     partitions: 8
     replicas: 1

@@ -14,12 +14,24 @@ import (
 // Producer publishes mapped Rows to Kafka using the shared base producer.
 // The key is fingerprint for balanced per-series partitioning.
 type Producer[T Row] struct {
-	topic string
-	base  *kafkainfra.Producer
+	topic   string
+	base    *kafkainfra.Producer
+	keyFunc func(T) []byte
 }
 
 func NewProducer[T Row](topic string, base *kafkainfra.Producer) *Producer[T] {
-	return &Producer[T]{topic: topic, base: base}
+	return &Producer[T]{
+		topic: topic,
+		base:  base,
+		keyFunc: func(r T) []byte {
+			return []byte(strconv.FormatUint(r.GetFingerprint(), 10))
+		},
+	}
+}
+
+func (p *Producer[T]) WithKeyFunc(f func(T) []byte) *Producer[T] {
+	p.keyFunc = f
+	return p
 }
 
 func (p *Producer[T]) Publish(ctx context.Context, rows []T) error {
@@ -35,7 +47,7 @@ func (p *Producer[T]) Publish(ctx context.Context, rows []T) error {
 		}
 		records = append(records, &kgo.Record{
 			Topic:     p.topic,
-			Key:       []byte(strconv.FormatUint(r.GetFingerprint(), 10)),
+			Key:       p.keyFunc(r),
 			Value:     value,
 			Timestamp: now,
 		})

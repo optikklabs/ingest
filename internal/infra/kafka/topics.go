@@ -14,12 +14,13 @@ import (
 
 // Signal name constants used by topic naming and the observability hooks.
 const (
-	SignalSpans         = "spans"
-	SignalSpansResource = "spans_resource"
-	SignalLogs          = "logs"
-	SignalLogsResource  = "logs_resource"
-	SignalMetrics       = "metrics"
-	SignalMetricSeries  = "metric_series"
+	SignalSpans           = "spans"
+	SignalSpansTracegraph = "spans_tracegraph"
+	SignalSpansResource   = "spans_resource"
+	SignalLogs            = "logs"
+	SignalLogsResource    = "logs_resource"
+	SignalMetrics         = "metrics"
+	SignalMetricSeries    = "metric_series"
 )
 
 type TopicSpec struct {
