@@ -56,8 +56,7 @@ services:
     container_name: optikk-otel-collector
     restart: unless-stopped
     environment:
-      - OPTIKK_API_KEY=c3448fae
-      
+      - OPTIKK_API_KEY=ok_3dd75d9a49afdece51b7a58d10d65bc303621390aac4776fba1edfd8072b17e9
       - GOMEMLIMIT=400MiB
     command: ["--config=/etc/otelcol-contrib/config.yaml"]
     volumes:

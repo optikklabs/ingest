@@ -11,12 +11,12 @@ import (
 const chTableData = "optikk.logs"
 
 var chColumnsData = []string{
-	"tenant_id", "fingerprint", "trace_id", "log_id", "timestamp",
+	"tenant_id", "fingerprint", "ts_bucket", "trace_id", "log_id", "timestamp",
 	"service", "environment", "host", "pod", "container",
 	"severity_text", "severity_number", "severity_bucket",
 	"attributes_string", "attributes_number", "attributes_bool",
 	"observed_timestamp", "span_id", "trace_flags",
-	"body", "resource", "scope_name", "scope_version",
+	"body", "body_search", "resource", "scope_name", "scope_version",
 }
 
 func NewDataWriter(ch clickhouse.Conn) *core.ClickHouseWriter[*schema.Row] {
@@ -27,6 +27,7 @@ func rowDataValues(r *schema.Row) []any {
 	return []any{
 		r.GetTenantId(),
 		r.GetFingerprint(),
+		r.GetTsBucket(),
 		r.GetTraceId(),
 		r.GetLogId(),
 		time.Unix(0, r.GetTimestampNs()),
@@ -44,6 +45,7 @@ func rowDataValues(r *schema.Row) []any {
 		r.GetObservedTimestampNs(),
 		r.GetSpanId(),
 		r.GetTraceFlags(),
+		r.GetBody(),
 		r.GetBody(),
 		r.GetResource(),
 		r.GetScopeName(),

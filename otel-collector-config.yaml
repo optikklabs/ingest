@@ -99,7 +99,7 @@ connectors:
 extensions:
   headers_setter:
     headers:
-      - action: upsert
+      - action: insert
         key: x-api-key
         value: ${env:OPTIKK_API_KEY}
   health_check:
