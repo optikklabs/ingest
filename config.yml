@@ -22,7 +22,7 @@ clickhouse:
   secure: false
 
 otlp:
-  grpc_port: "4318"
+  grpc_port: "18317"
 
 ingestion:
   spans:
