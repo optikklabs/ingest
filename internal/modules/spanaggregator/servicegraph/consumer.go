@@ -54,8 +54,8 @@ func (c *Consumer) handle(ctx context.Context, recs []*kgo.Record) error {
 			continue
 		}
 		
-		isClient := row.GetKindString() == "SPAN_KIND_CLIENT" || row.GetKindString() == "SPAN_KIND_PRODUCER"
-		isServer := row.GetKindString() == "SPAN_KIND_SERVER" || row.GetKindString() == "SPAN_KIND_CONSUMER"
+		isClient := row.GetKindString() == "CLIENT" || row.GetKindString() == "PRODUCER"
+		isServer := row.GetKindString() == "SERVER" || row.GetKindString() == "CONSUMER"
 		
 		if !isClient && !isServer {
 			continue
