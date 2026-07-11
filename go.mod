@@ -7,6 +7,7 @@ require (
 	github.com/cespare/xxhash/v2 v2.3.0
 	github.com/go-sql-driver/mysql v1.9.3
 	github.com/go-viper/mapstructure/v2 v2.5.0
+	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/jmoiron/sqlx v1.4.0
 	github.com/oklog/run v1.2.0
 	github.com/prometheus/client_golang v1.20.5
@@ -15,6 +16,7 @@ require (
 	github.com/twmb/franz-go/pkg/kadm v1.18.0
 	github.com/twmb/franz-go/pkg/kmsg v1.13.1
 	go.opentelemetry.io/proto/otlp v1.4.0
+	golang.org/x/sync v0.20.0
 	google.golang.org/grpc v1.71.0-dev
 	google.golang.org/protobuf v1.35.2
 )

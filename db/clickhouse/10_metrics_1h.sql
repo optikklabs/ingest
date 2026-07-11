@@ -1,7 +1,3 @@
--- 1-hour scalar rollup. Cascaded from metrics_5m (SimpleAggregateFunction columns
--- re-apply losslessly, no *Merge). Readers route here for windows > 24h. Same
--- columns/key as metrics_1m; hour boundaries are valid 1m boundaries.
-
 CREATE TABLE IF NOT EXISTS optikk.metrics_1h (
     tenant_id     UInt32 CODEC(T64, ZSTD(1)),
     metric_name LowCardinality(String),
@@ -20,6 +16,7 @@ PARTITION BY toYYYYMMDD(timestamp)
 ORDER BY (tenant_id, metric_name, fingerprint, timestamp)
 TTL timestamp + INTERVAL 30 DAY DELETE
 SETTINGS
+    storage_policy = 'gcs_only',
     index_granularity = 8192,
     ttl_only_drop_parts = 1;
 

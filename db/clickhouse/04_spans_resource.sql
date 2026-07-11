@@ -7,9 +7,12 @@ CREATE TABLE IF NOT EXISTS optikk.spans_resource (
     service     LowCardinality(String) CODEC(ZSTD(1)),
     host        LowCardinality(String) CODEC(ZSTD(1)),
     pod         LowCardinality(String) CODEC(ZSTD(1)),
-    environment LowCardinality(String) CODEC(ZSTD(1))
+    environment LowCardinality(String) CODEC(ZSTD(1)),
+    last_seen   DateTime DEFAULT now() CODEC(DoubleDelta, LZ4)
 ) ENGINE = ReplicatedReplacingMergeTree('/clickhouse/tables/{shard}/optikk/spans_resource', '{replica}')
-PARTITION BY tuple()
+PARTITION BY toYYYYMMDD(last_seen)
 ORDER BY (tenant_id, service, host, pod, environment, fingerprint)
+TTL last_seen + INTERVAL 15 DAY DELETE
 SETTINGS
+    storage_policy = 'gcs_only',
     index_granularity = 8192;

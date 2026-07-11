@@ -1,9 +1,3 @@
--- 1-minute scalar rollup. min/max/sum/count are SimpleAggregateFunction; val_last
--- is AggregateFunction(argMax) for deterministic last-value. With Optikk val_*
--- names. Labels stay off the hot
--- rows: resolve any dim via metrics_series on fingerprint. timestamp is the
--- 1m-aligned bucket, derived server-side in the MV to match the display ladder.
-
 CREATE TABLE IF NOT EXISTS optikk.metrics_1m (
     tenant_id     UInt32 CODEC(T64, ZSTD(1)),
     metric_name LowCardinality(String),
@@ -22,6 +16,7 @@ PARTITION BY toYYYYMMDD(timestamp)
 ORDER BY (tenant_id, metric_name, fingerprint, timestamp)
 TTL timestamp + INTERVAL 7 DAY DELETE
 SETTINGS
+    storage_policy = 'gcs_only',
     index_granularity = 8192,
     ttl_only_drop_parts = 1;
 
@@ -42,4 +37,3 @@ SELECT
     quantilesPrometheusHistogramArrayState(0.5, 0.95, 0.99)(empty(hist_buckets) ? hist_buckets : arrayPushBack(hist_buckets, inf), arrayCumSum(hist_counts)) AS latency_state
 FROM optikk.metrics
 GROUP BY tenant_id, metric_name, fingerprint, timestamp;
-

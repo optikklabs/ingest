@@ -9,7 +9,7 @@ mysql:
   port: "13306"
   database: optikk
   user: root
-  password: root123
+  password: "" # Use OPTIKK_MYSQL_PASSWORD environment variable
   max_open_conns: 10
   max_idle_conns: 5
 
@@ -18,8 +18,11 @@ clickhouse:
   port: "19000"
   database: optikk
   user: default
-  password: clickhouse123
+  password: "" # Use OPTIKK_CLICKHOUSE_PASSWORD environment variable
   secure: false
+  # Insert pool; batched writes need few connections. 0 falls back to 20/10.
+  max_open_conns: 20
+  max_idle_conns: 10
 
 otlp:
   grpc_port: "18317"
@@ -61,3 +64,7 @@ kafka:
   compression: zstd
   linger_ms: 20
   batch_max_bytes: 1048576
+  # CH insert retries before a batch falls back to the DLQ (default 2)
+  consumer_max_retries: 2
+  # One Kafka poll maps directly to one ClickHouse insert batch.
+  consumer_max_poll_records: 5000

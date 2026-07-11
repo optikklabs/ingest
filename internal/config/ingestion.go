@@ -12,6 +12,7 @@ type IngestionConfig struct {
 	LogsResource    SignalConfig `yaml:"logs_resource"`
 	Metrics         SignalConfig `yaml:"metrics"`
 	MetricSeries    SignalConfig `yaml:"metric_series"`
+	IngestionStats  SignalConfig `yaml:"ingestion_stats"`
 }
 
 type SignalConfig struct {
@@ -47,6 +48,8 @@ func (c Config) IngestSignal(signal string) SignalConfig {
 		raw = c.Ingestion.Metrics
 	case "metric_series":
 		raw = c.Ingestion.MetricSeries
+	case "ingestion_stats":
+		raw = c.Ingestion.IngestionStats
 	}
 	def := SignalDefaults(signal)
 	if raw.Partitions <= 0 {

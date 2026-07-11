@@ -19,6 +19,10 @@ type KafkaConfig struct {
 	LingerMs int `yaml:"linger_ms"`
 
 	BatchMaxBytes int `yaml:"batch_max_bytes"`
+
+	ConsumerMaxPollRecords int `yaml:"consumer_max_poll_records"`
+
+	ConsumerMaxRetries int `yaml:"consumer_max_retries"`
 }
 
 func (c Config) KafkaBrokers() []string {
@@ -61,4 +65,23 @@ func (c Config) KafkaBatchMaxBytes() int {
 		return n
 	}
 	return 1 << 20
+}
+
+// KafkaConsumerMaxPollRecords bounds one Kafka poll and therefore one
+// ClickHouse insert batch. Values <= 0 use the production default of 5,000.
+func (c Config) KafkaConsumerMaxPollRecords() int {
+	if n := c.Kafka.ConsumerMaxPollRecords; n > 0 {
+		return n
+	}
+	return 5_000
+}
+
+// KafkaConsumerMaxRetries is how many times a failed ClickHouse insert is
+// retried before the batch falls back to the DLQ. Values <= 0 use the
+// default of 2.
+func (c Config) KafkaConsumerMaxRetries() int {
+	if n := c.Kafka.ConsumerMaxRetries; n > 0 {
+		return n
+	}
+	return 2
 }

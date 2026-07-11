@@ -1,8 +1,3 @@
--- 5-minute scalar rollup. Fills the 5h-25h window range where the display ladder
--- already buckets at 5m but reads scanned metrics_1m (~5x too many rows).
--- Cascaded from metrics_1m (lossless SimpleAggregateFunction re-apply, like 1h).
--- Same columns/key as metrics_1m; 5m boundaries are valid 1m boundaries.
-
 CREATE TABLE IF NOT EXISTS optikk.metrics_5m (
     tenant_id     UInt32 CODEC(T64, ZSTD(1)),
     metric_name LowCardinality(String),
@@ -21,6 +16,7 @@ PARTITION BY toYYYYMMDD(timestamp)
 ORDER BY (tenant_id, metric_name, fingerprint, timestamp)
 TTL timestamp + INTERVAL 14 DAY DELETE
 SETTINGS
+    storage_policy = 'gcs_only',
     index_granularity = 8192,
     ttl_only_drop_parts = 1;
 

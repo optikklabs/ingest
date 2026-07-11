@@ -1,16 +1,14 @@
-// Package logs is the OTLP logs ingestion path. Same shape as ingestion/spans:
-// handler → mapper → producer → consumer → writer, plus dlq + module.
 package logs
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"time"
 
 	"github.com/optikklabs/ingest/internal/auth"
 	"github.com/optikklabs/ingest/internal/infra/metrics"
 	"github.com/optikklabs/ingest/internal/ingestion/core"
+	"github.com/optikklabs/ingest/internal/ingestion/ingestionstats"
 	"github.com/optikklabs/ingest/internal/ingestion/logs/schema"
 	logsresourceschema "github.com/optikklabs/ingest/internal/ingestion/logsresource/schema"
 	logspb "go.opentelemetry.io/proto/otlp/collector/logs/v1"
@@ -23,13 +21,15 @@ type Handler struct {
 	producer         *core.Producer[*schema.Row]
 	resourceProducer *core.Producer[*logsresourceschema.ResourceRow]
 	resourceCache    *core.ResourceCache
+	stats            ingestionstats.Recorder
 }
 
-func NewHandler(p *core.Producer[*schema.Row], rp *core.Producer[*logsresourceschema.ResourceRow], cache *core.ResourceCache) *Handler {
+func NewHandler(p *core.Producer[*schema.Row], rp *core.Producer[*logsresourceschema.ResourceRow], cache *core.ResourceCache, stats ingestionstats.Recorder) *Handler {
 	return &Handler{
 		producer:         p,
 		resourceProducer: rp,
 		resourceCache:    cache,
+		stats:            stats,
 	}
 }
 
@@ -46,14 +46,19 @@ func (h *Handler) Export(ctx context.Context, req *logspb.ExportLogsServiceReque
 		return &logspb.ExportLogsServiceResponse{}, nil
 	}
 
+	// Meter usage best-effort; never blocks or fails ingestion.
+	ingestionstats.Emit(h.stats, statRows(uint32(tenantID), req))
+
 	// Extract unique resources and filter using rolling cache
 	var resourceRows []*logsresourceschema.ResourceRow
+	var newKeys []core.ResourceKey
 	for _, row := range rows {
 		if row.GetFingerprint() == 0 {
 			continue
 		}
-		key := fmt.Sprintf("%d:%d", row.GetTenantId(), row.GetFingerprint())
+		key := core.ResourceKey{TenantID: row.GetTenantId(), Fingerprint: row.GetFingerprint()}
 		if h.resourceCache.CheckAndUpdateBucket(key, row.GetTsBucket()) {
+			newKeys = append(newKeys, key)
 			resourceRows = append(resourceRows, &logsresourceschema.ResourceRow{
 				TenantId:      row.GetTenantId(),
 				Fingerprint: row.GetFingerprint(),
@@ -66,16 +71,7 @@ func (h *Handler) Export(ctx context.Context, req *logspb.ExportLogsServiceReque
 			})
 		}
 	}
-
-	if len(resourceRows) > 0 {
-		go func() {
-			publishCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancel()
-			if err := h.resourceProducer.Publish(publishCtx, resourceRows); err != nil {
-				slog.WarnContext(publishCtx, "logs handler: failed to publish resources", slog.Any("error", err))
-			}
-		}()
-	}
+	core.PublishResources(h.resourceProducer, h.resourceCache, newKeys, resourceRows, "logs")
 
 	pubStart := time.Now()
 	if err := h.producer.Publish(ctx, rows); err != nil {

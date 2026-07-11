@@ -28,10 +28,20 @@ CREATE TABLE IF NOT EXISTS optikk.spans (
     db_system                             LowCardinality(String) CODEC(ZSTD(1)),
     db_name                               LowCardinality(String) CODEC(ZSTD(1)),
     db_statement                          String                 CODEC(ZSTD(1)),
+    db_statement_normalized               String                 MATERIALIZED if(db_statement = '', '', normalizeQuery(db_statement)) CODEC(ZSTD(1)),
+    query_hash                            String                 MATERIALIZED if(db_statement = '', '', lower(hex(normalizedQueryHash(db_statement)))) CODEC(ZSTD(1)),
     http_route                            LowCardinality(String) CODEC(ZSTD(1)),
     http_status_bucket                    LowCardinality(String) CODEC(ZSTD(1)),
 
     attributes                            JSON(max_dynamic_paths = 100) CODEC(ZSTD(1)),
+
+    gen_ai_system                         LowCardinality(String) CODEC(ZSTD(1)),
+    gen_ai_operation                      LowCardinality(String) CODEC(ZSTD(1)),
+    gen_ai_request_model                  LowCardinality(String) CODEC(ZSTD(1)),
+    gen_ai_response_model                 LowCardinality(String) CODEC(ZSTD(1)),
+    gen_ai_input_tokens                   UInt64                 CODEC(T64, ZSTD(1)),
+    gen_ai_output_tokens                  UInt64                 CODEC(T64, ZSTD(1)),
+    is_gen_ai                             Bool                   CODEC(T64, ZSTD(1)),
 
     fingerprint                           UInt64          CODEC(ZSTD(1)),
     events                                Array(String)   CODEC(ZSTD(2)),
@@ -52,12 +62,14 @@ CREATE TABLE IF NOT EXISTS optikk.spans (
     is_error                 UInt8                  ALIAS if(has_error OR toUInt16OrZero(response_status_code) >= 400, 1, 0),
     is_root                  UInt8                  ALIAS if((parent_span_id = '') OR (parent_span_id = '0000000000000000'), 1, 0),
 
-    INDEX idx_error_group_id error_group_id TYPE bloom_filter GRANULARITY 1
+    INDEX idx_error_group_id error_group_id TYPE bloom_filter GRANULARITY 1,
+    INDEX idx_query_hash query_hash TYPE bloom_filter GRANULARITY 1
 ) ENGINE = ReplicatedMergeTree('/clickhouse/tables/{shard}/optikk/spans', '{replica}')
 PARTITION BY toYYYYMMDD(timestamp)
 ORDER BY (tenant_id, timestamp, fingerprint, trace_id, span_id)
 TTL timestamp + INTERVAL 15 DAY DELETE
 SETTINGS
+    storage_policy = 'gcs_only',
     index_granularity = 8192,
     non_replicated_deduplication_window = 100000,
     ttl_only_drop_parts = 1;

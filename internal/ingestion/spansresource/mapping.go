@@ -1,6 +1,8 @@
 package spansresource
 
 import (
+	"time"
+
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/optikklabs/ingest/internal/ingestion/core"
 	"github.com/optikklabs/ingest/internal/ingestion/spansresource/schema"
@@ -9,7 +11,7 @@ import (
 const chResourceTable = "optikk.spans_resource"
 
 var chResourceColumns = []string{
-	"tenant_id", "fingerprint", "service", "host", "pod", "environment",
+	"tenant_id", "fingerprint", "service", "host", "pod", "environment", "last_seen",
 }
 
 func NewClickHouseWriter(ch clickhouse.Conn) core.Writer[*schema.ResourceRow] {
@@ -24,6 +26,6 @@ func resourceRowValues(r *schema.ResourceRow) []any {
 		r.GetHost(),
 		r.GetPod(),
 		r.GetEnvironment(),
+		time.Now(),
 	}
 }
-

@@ -18,6 +18,11 @@ import (
 
 // Consumer reads span rows from Kafka, aggregates them into RED metrics,
 // and publishes to the metrics and metric_series topics every 10s.
+//
+// Accepted loss: aggregates buffered since the last ticker flush (<= flush
+// interval) are lost on restart or rebalance. Source spans are unaffected;
+// this matches the OTel spanmetrics connector trade-off. Do not add a
+// shutdown flush — the loss window is an accepted design decision.
 type Consumer struct {
 	client     *kafkainfra.Consumer
 	metricsPub *core.Producer[*metricsschema.Row]
@@ -87,6 +92,7 @@ func (c *Consumer) flush(ctx context.Context, state map[AggKey]*common.AggState)
 			TenantId:    k.TenantId,
 			Fingerprint: fp,
 			MetricName:  "traces.span.metrics.duration",
+			TimestampNs: nowNs,
 			MetricType:  "Histogram",
 			Description: "Generated from spans",
 			Unit:        "ms",

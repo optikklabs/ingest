@@ -7,6 +7,8 @@ import (
 	"errors"
 	"sync"
 	"time"
+
+	"golang.org/x/sync/singleflight"
 )
 
 var (
@@ -19,7 +21,6 @@ const (
 	cacheTTL = 5 * time.Minute
 	// Short so a key tried before its team exists recovers quickly.
 	negativeCacheTTL = 15 * time.Second
-	redisKeyPrefix   = "optikk:otlp:team_by_api_key:"
 )
 
 type cacheEntry struct {
@@ -40,11 +41,12 @@ type TeamFinder interface {
 type Authenticator struct {
 	finder TeamFinder
 	cache  sync.Map
+	group  singleflight.Group
 }
 
-func NewAuthenticator(finder TeamFinder) *Authenticator {
+func NewAuthenticator(ctx context.Context, finder TeamFinder) *Authenticator {
 	a := &Authenticator{finder: finder}
-	go a.startCleanup(5 * time.Minute)
+	go a.startCleanup(ctx, 5*time.Minute)
 	return a
 }
 
@@ -55,17 +57,28 @@ func (a *Authenticator) ResolveTenantID(ctx context.Context, apiKey string) (int
 	if entry, ok := a.lookupCache(apiKey); ok {
 		return entry.tenantID, entry.err
 	}
-	id, err := a.finder.FindTenantIDByAPIKey(ctx, apiKey)
-	if err != nil {
-		// Only negative-cache genuine not-found; never cache transient or
-		// context errors, which would lock out a tenant for the full TTL.
-		if errors.Is(err, ErrInvalidAPIKey) {
-			a.cacheSet(apiKey, 0, err)
+	// Collapse concurrent lookups for the same cold key into one DB call so a
+	// traffic spike on an uncached key can't stampede the auth database.
+	v, err, _ := a.group.Do(apiKeyCacheKey(apiKey), func() (any, error) {
+		if entry, ok := a.lookupCache(apiKey); ok {
+			return entry.tenantID, entry.err
 		}
+		id, err := a.finder.FindTenantIDByAPIKey(ctx, apiKey)
+		if err != nil {
+			// Only negative-cache genuine not-found; never cache transient or
+			// context errors, which would lock out a tenant for the full TTL.
+			if errors.Is(err, ErrInvalidAPIKey) {
+				a.cacheSet(apiKey, 0, err)
+			}
+			return int64(0), err
+		}
+		a.cacheSet(apiKey, id, nil)
+		return id, nil
+	})
+	if err != nil {
 		return 0, err
 	}
-	a.cacheSet(apiKey, id, nil)
-	return id, nil
+	return v.(int64), nil
 }
 
 func (a *Authenticator) lookupCache(apiKey string) (cacheEntry, bool) {
@@ -95,18 +108,24 @@ func (a *Authenticator) cacheSet(apiKey string, tenantID int64, err error) {
 
 func apiKeyCacheKey(apiKey string) string {
 	h := sha256.Sum256([]byte(apiKey))
-	return redisKeyPrefix + hex.EncodeToString(h[:])
+	return hex.EncodeToString(h[:])
 }
 
-func (a *Authenticator) startCleanup(interval time.Duration) {
+func (a *Authenticator) startCleanup(ctx context.Context, interval time.Duration) {
 	ticker := time.NewTicker(interval)
-	for range ticker.C {
-		now := time.Now()
-		a.cache.Range(func(key, val any) bool {
-			if entry, ok := val.(cacheEntry); ok && now.After(entry.expiresAt) {
-				a.cache.Delete(key)
-			}
-			return true
-		})
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			now := time.Now()
+			a.cache.Range(func(key, val any) bool {
+				if entry, ok := val.(cacheEntry); ok && now.After(entry.expiresAt) {
+					a.cache.Delete(key)
+				}
+				return true
+			})
+		}
 	}
 }

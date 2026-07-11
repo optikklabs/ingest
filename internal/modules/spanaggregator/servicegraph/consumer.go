@@ -3,6 +3,7 @@ package servicegraph
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
 	kafkainfra "github.com/optikklabs/ingest/internal/infra/kafka"
@@ -10,14 +11,17 @@ import (
 	metricsschema "github.com/optikklabs/ingest/internal/ingestion/metrics/schema"
 	metricseriesschema "github.com/optikklabs/ingest/internal/ingestion/metricseries/schema"
 	spansschema "github.com/optikklabs/ingest/internal/ingestion/spans/schema"
-	"github.com/optikklabs/ingest/internal/infra/fingerprint"
-	"github.com/optikklabs/ingest/internal/modules/spanaggregator/common"
 	"github.com/twmb/franz-go/pkg/kgo"
 	"google.golang.org/protobuf/proto"
 )
 
 // Consumer reads span rows from spans_tracegraph, pairs CLIENT and SERVER spans,
 // and publishes edge metrics to metrics and metric_series topics.
+//
+// Accepted loss: edges buffered since the last ticker flush (<= flush
+// interval) are lost on restart or rebalance. Source spans are unaffected;
+// this matches the OTel servicegraph connector trade-off. Do not add a
+// shutdown flush — the loss window is an accepted design decision.
 type Consumer struct {
 	client     *kafkainfra.Consumer
 	metricsPub *core.Producer[*metricsschema.Row]
@@ -42,7 +46,51 @@ func NewConsumer(
 }
 
 func (c *Consumer) Run(ctx context.Context) {
+	go c.flushLoop(ctx)
 	c.client.Run(ctx, c.handle)
+}
+
+// flushLoop publishes aggregated edges and expires unpaired spans on a fixed
+// cadence, decoupling freshness from Kafka batch arrival.
+func (c *Consumer) flushLoop(ctx context.Context) {
+	ticker := time.NewTicker(flushInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			c.store.EvictExpired(time.Now(), c.onExpire)
+			state := c.aggregator.Drain()
+			if len(state) == 0 {
+				continue
+			}
+			if err := c.flush(ctx, state); err != nil {
+				slog.ErrorContext(ctx, "servicegraph flush failed", slog.Any("error", err))
+			}
+		}
+	}
+}
+
+// onExpire synthesizes a virtual edge to an uninstrumented peer when a client
+// span expires without ever pairing with a server span. Latency is the client
+// span's own duration, since no server span exists.
+func (c *Consumer) onExpire(span CachedSpan) {
+	if !span.IsClient || span.PeerName == "" {
+		return
+	}
+	// No server span exists, so the client's own duration is the only latency
+	// signal; record it on the server histogram to keep the edge measurable.
+	key := EdgeKey{
+		TenantId:       span.TenantId,
+		Client:         span.Service,
+		Server:         span.PeerName,
+		VirtualNode:    virtualNodeServer,
+		ConnectionType: span.ConnectionType,
+	}
+	c.aggregator.AddServer(key, span.Duration)
+	c.aggregator.Record(key, isErrorStatus(span.StatusCode))
 }
 
 func (c *Consumer) handle(ctx context.Context, recs []*kgo.Record) error {
@@ -71,103 +119,51 @@ func (c *Consumer) handle(ctx context.Context, recs []*kgo.Record) error {
 		durMs := float64(row.GetDurationNano()) / 1000000.0
 		
 		if paired, exists := c.store.GetAndRemove(matchKey); exists {
-			var clientSvc, serverSvc, statusCode string
-			var edgeDur float64
-			
+			var clientSvc, serverSvc string
+			var clientDur, serverDur float64
+
 			if isClient && paired.IsServer {
 				clientSvc = row.GetService()
 				serverSvc = paired.Service
-				edgeDur = paired.Duration 
-				statusCode = paired.StatusCode
+				clientDur = durMs
+				serverDur = paired.Duration
 			} else if isServer && paired.IsClient {
 				clientSvc = paired.Service
 				serverSvc = row.GetService()
-				edgeDur = durMs
-				statusCode = row.GetStatusCodeString()
+				clientDur = paired.Duration
+				serverDur = durMs
 			} else {
 				continue
 			}
-			
+
 			eKey := EdgeKey{
-				TenantId:   row.GetTenantId(),
-				Client:     clientSvc,
-				Server:     serverSvc,
-				StatusCode: statusCode,
+				TenantId: row.GetTenantId(),
+				Client:   clientSvc,
+				Server:   serverSvc,
 			}
-			
-			c.aggregator.Add(eKey, edgeDur)
+
+			// A request is failed if either paired span reports an error.
+			failed := isErrorStatus(row.GetStatusCodeString()) || isErrorStatus(paired.StatusCode)
+
+			c.aggregator.AddServer(eKey, serverDur)
+			c.aggregator.AddClient(eKey, clientDur)
+			c.aggregator.Record(eKey, failed)
 		} else {
-			c.store.Add(matchKey, CachedSpan{
+			cached := CachedSpan{
 				TenantId:   row.GetTenantId(),
 				Service:    row.GetService(),
 				IsClient:   isClient,
 				IsServer:   isServer,
 				StatusCode: row.GetStatusCodeString(),
 				Duration:   durMs,
-				ExpiresAt:  now.Add(2 * time.Second),
-			})
+				ExpiresAt:  now.Add(pairingTTL),
+			}
+			if isClient {
+				cached.PeerName, cached.ConnectionType = resolvePeer(row)
+			}
+			c.store.Add(matchKey, cached)
 		}
 	}
-	
-	stateToFlush := c.aggregator.FlushIfReady(10 * time.Second)
-	if len(stateToFlush) > 0 {
-		c.store.EvictExpired(time.Now())
-		return c.flush(ctx, stateToFlush)
-	}
-	
-	return nil
-}
 
-func (c *Consumer) flush(ctx context.Context, state map[EdgeKey]*common.AggState) error {
-	var metricsRows []*metricsschema.Row
-	var seriesRows []*metricseriesschema.SeriesRow
-	nowNs := time.Now().UnixNano()
-	
-	for k, s := range state {
-		resAttrs := map[string]string{
-			"client": k.Client,
-			"server": k.Server,
-		}
-		dpAttrs := map[string]string{
-			"status.code": k.StatusCode,
-		}
-		
-		fp := fingerprint.SeriesHash("traces_service_graph_request_server", "Delta", resAttrs, dpAttrs)
-		
-		mergedAttrs := map[string]string{
-			"client": k.Client,
-			"server": k.Server,
-			"status.code": k.StatusCode,
-		}
-
-		seriesRows = append(seriesRows, &metricseriesschema.SeriesRow{
-			TenantId:           k.TenantId,
-			Fingerprint:        fp,
-			MetricName:         "traces_service_graph_request_server",
-			MetricType:         "Histogram",
-			Description:        "Generated from spans",
-			Unit:               "ms",
-			Attributes:         mergedAttrs,
-		})
-		
-		metricsRows = append(metricsRows, &metricsschema.Row{
-			TenantId:    k.TenantId,
-			MetricName:  "traces_service_graph_request_server",
-			Temporality: "Delta",
-			Fingerprint: fp,
-			TimestampNs: nowNs,
-			HistSum:     s.Sum,
-			HistCount:   s.Count,
-			HistBuckets: common.HistogramBuckets,
-			HistCounts:  s.BucketCount,
-		})
-	}
-	
-	if err := c.seriesPub.Publish(ctx, seriesRows); err != nil {
-		return fmt.Errorf("servicegraph series publish: %w", err)
-	}
-	if err := c.metricsPub.Publish(ctx, metricsRows); err != nil {
-		return fmt.Errorf("servicegraph metrics publish: %w", err)
-	}
 	return nil
 }

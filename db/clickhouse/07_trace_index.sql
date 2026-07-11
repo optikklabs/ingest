@@ -12,6 +12,7 @@ PARTITION BY toYYYYMMDD(timestamp)
 ORDER BY (tenant_id, trace_id, timestamp)
 TTL timestamp + INTERVAL 30 DAY DELETE
 SETTINGS
+    storage_policy = 'gcs_only',
     index_granularity = 8192,
     ttl_only_drop_parts = 1;
 

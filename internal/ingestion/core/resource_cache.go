@@ -1,61 +1,48 @@
 package core
 
-import "sync"
+import (
+	lru "github.com/hashicorp/golang-lru/v2"
+)
+
+type ResourceKey struct {
+	TenantID    uint32
+	Fingerprint uint64
+}
 
 type ResourceCache struct {
-	mu      sync.Mutex
-	seen    map[string]uint32
-	queue   []string
-	maxSize int
+	cache *lru.Cache[ResourceKey, uint32]
 }
 
 func NewResourceCache(maxSize int) *ResourceCache {
+	c, err := lru.New[ResourceKey, uint32](maxSize)
+	if err != nil {
+		panic(err)
+	}
 	return &ResourceCache{
-		seen:    make(map[string]uint32),
-		queue:   make([]string, 0, maxSize),
-		maxSize: maxSize,
+		cache: c,
 	}
 }
 
 // Add returns true if the key is newly added.
-func (c *ResourceCache) Add(key string) bool {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+func (c *ResourceCache) Add(key ResourceKey) bool {
+	exists, _ := c.cache.ContainsOrAdd(key, 0)
+	return !exists
+}
 
-	if _, exists := c.seen[key]; exists {
+// Remove evicts a key, e.g. to roll back an Add whose publish failed.
+func (c *ResourceCache) Remove(key ResourceKey) {
+	c.cache.Remove(key)
+}
+
+// CheckAndUpdateBucket returns true if the key is new OR the provided bucket is different
+// from the currently cached bucket.
+func (c *ResourceCache) CheckAndUpdateBucket(key ResourceKey, bucket uint32) bool {
+	v, ok := c.cache.Peek(key)
+	if ok && v == bucket {
+		// Update recent-ness without changing value
+		c.cache.Get(key)
 		return false
 	}
-	c.evictIfNeeded()
-	c.seen[key] = 0
-	c.queue = append(c.queue, key)
+	c.cache.Add(key, bucket)
 	return true
-}
-
-// CheckAndUpdateBucket returns true if the key is new OR the provided bucket is different 
-// from the currently cached bucket.
-func (c *ResourceCache) CheckAndUpdateBucket(key string, bucket uint32) bool {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	if currentBucket, exists := c.seen[key]; exists {
-		if currentBucket == bucket {
-			return false
-		}
-		// Bucket changed, update it. No need to evict/re-queue since it's already there.
-		c.seen[key] = bucket
-		return true
-	}
-	
-	c.evictIfNeeded()
-	c.seen[key] = bucket
-	c.queue = append(c.queue, key)
-	return true
-}
-
-func (c *ResourceCache) evictIfNeeded() {
-	if len(c.queue) >= c.maxSize {
-		oldest := c.queue[0]
-		c.queue = c.queue[1:]
-		delete(c.seen, oldest)
-	}
 }

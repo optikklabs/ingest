@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
 	"log/slog"
 	"time"
@@ -13,6 +14,8 @@ import (
 	"github.com/optikklabs/ingest/internal/config"
 	kafkainfra "github.com/optikklabs/ingest/internal/infra/kafka"
 	"github.com/optikklabs/ingest/internal/ingestion/core"
+	ingestionstats "github.com/optikklabs/ingest/internal/ingestion/ingestionstats"
+	statsschema "github.com/optikklabs/ingest/internal/ingestion/ingestionstats/schema"
 	logsignal "github.com/optikklabs/ingest/internal/ingestion/logs"
 	logsschema "github.com/optikklabs/ingest/internal/ingestion/logs/schema"
 	logsresource "github.com/optikklabs/ingest/internal/ingestion/logsresource"
@@ -52,12 +55,22 @@ type signalWireInput struct {
 	producerBase                 *kafkainfra.Producer
 	consumer                     *kafkainfra.Consumer
 	ch                           clickhouse.Conn
+	spansResourceCache           *core.ResourceCache
+	logsResourceCache            *core.ResourceCache
+	insertMaxRetries             int
 }
 
-var (
-	spansResourceCache = core.NewResourceCache(100000)
-	logsResourceCache  = core.NewResourceCache(100000)
-)
+// newStatsRecorder builds the usage-meter producer, keyed by tenant so a
+// tenant's stat rows land on one partition for merge locality.
+func newStatsRecorder(in signalWireInput) ingestionstats.Recorder {
+	topic := kafkainfra.IngestTopic(in.topicPrefix, kafkainfra.SignalIngestionStats)
+	return core.NewProducer[*statsschema.StatRow](topic, in.producerBase).
+		WithKeyFunc(func(r *statsschema.StatRow) []byte {
+			b := make([]byte, 4)
+			binary.BigEndian.PutUint32(b, r.GetTenantId())
+			return b
+		})
+}
 
 func wireSpans(in signalWireInput) (registry.Module, ConsumerRunner) {
 	producer := core.NewProducer[*spansschema.Row](in.ingestTopic, in.producerBase)
@@ -69,17 +82,17 @@ func wireSpans(in signalWireInput) (registry.Module, ConsumerRunner) {
 		return []byte(r.GetTraceId())
 	})
 
-	writer := spansignal.NewClickHouseWriter(in.ch)
+	writer := core.NewRetryWriter(spansignal.NewClickHouseWriter(in.ch), kafkainfra.SignalSpans, in.insertMaxRetries)
 	dlq := core.NewDLQ(in.producerBase, in.dlqTopic, kafkainfra.SignalSpans)
 	consumer := spansignal.NewConsumer(in.consumer, writer, dlq)
-	
-	handler := spansignal.NewHandler(producer, tracegraphProducer, resourceProducer, spansResourceCache)
+
+	handler := spansignal.NewHandler(producer, tracegraphProducer, resourceProducer, in.spansResourceCache, newStatsRecorder(in))
 	mod := spansignal.NewModule(spansignal.Deps{Handler: handler})
 	return mod, consumer
 }
 
 func wireSpansResource(in signalWireInput) (registry.Module, ConsumerRunner) {
-	writer := spansresource.NewClickHouseWriter(in.ch)
+	writer := core.NewRetryWriter(spansresource.NewClickHouseWriter(in.ch), kafkainfra.SignalSpansResource, in.insertMaxRetries)
 	dlq := core.NewDLQ(in.producerBase, in.dlqTopic, kafkainfra.SignalSpansResource)
 	consumer := spansresource.NewConsumer(in.consumer, writer, dlq)
 	return nil, consumer
@@ -90,17 +103,17 @@ func wireLogs(in signalWireInput) (registry.Module, ConsumerRunner) {
 	resourceTopic := kafkainfra.IngestTopic(in.topicPrefix, kafkainfra.SignalLogsResource)
 	resourceProducer := core.NewProducer[*logsresourceschema.ResourceRow](resourceTopic, in.producerBase)
 
-	dataWriter := logsignal.NewDataWriter(in.ch)
+	dataWriter := core.NewRetryWriter(logsignal.NewDataWriter(in.ch), kafkainfra.SignalLogs, in.insertMaxRetries)
 	dlq := core.NewDLQ(in.producerBase, in.dlqTopic, kafkainfra.SignalLogs)
 	consumer := logsignal.NewConsumer(in.consumer, dataWriter, dlq)
 
-	handler := logsignal.NewHandler(producer, resourceProducer, logsResourceCache)
+	handler := logsignal.NewHandler(producer, resourceProducer, in.logsResourceCache, newStatsRecorder(in))
 	mod := logsignal.NewModule(logsignal.Deps{Handler: handler})
 	return mod, consumer
 }
 
 func wireLogsResource(in signalWireInput) (registry.Module, ConsumerRunner) {
-	writer := logsresource.NewClickHouseWriter(in.ch)
+	writer := core.NewRetryWriter(logsresource.NewClickHouseWriter(in.ch), kafkainfra.SignalLogsResource, in.insertMaxRetries)
 	dlq := core.NewDLQ(in.producerBase, in.dlqTopic, kafkainfra.SignalLogsResource)
 	consumer := logsresource.NewConsumer(in.consumer, writer, dlq)
 	return nil, consumer
@@ -111,17 +124,24 @@ func wireMetrics(in signalWireInput) (registry.Module, ConsumerRunner) {
 	seriesTopic := kafkainfra.IngestTopic(in.topicPrefix, kafkainfra.SignalMetricSeries)
 	seriesProducer := core.NewProducer[*metricseriesschema.SeriesRow](seriesTopic, in.producerBase)
 
-	writer := metricsignal.NewMetricsClickHouseWriter(in.ch)
+	writer := core.NewRetryWriter(metricsignal.NewMetricsClickHouseWriter(in.ch), kafkainfra.SignalMetrics, in.insertMaxRetries)
 	dlq := core.NewDLQ(in.producerBase, in.dlqTopic, kafkainfra.SignalMetrics)
 	consumer := metricsignal.NewConsumer(in.consumer, writer, dlq)
 	mod := metricsignal.NewModule(metricsignal.Deps{
-		Handler: metricsignal.NewHandler(metricsProducer, seriesProducer),
+		Handler: metricsignal.NewHandler(metricsProducer, seriesProducer, newStatsRecorder(in)),
 	})
 	return mod, consumer
 }
 
+func wireIngestionStats(in signalWireInput) (registry.Module, ConsumerRunner) {
+	writer := core.NewRetryWriter(ingestionstats.NewClickHouseWriter(in.ch), kafkainfra.SignalIngestionStats, in.insertMaxRetries)
+	dlq := core.NewDLQ(in.producerBase, in.dlqTopic, kafkainfra.SignalIngestionStats)
+	consumer := ingestionstats.NewConsumer(in.consumer, writer, dlq)
+	return nil, consumer
+}
+
 func wireMetricSeries(in signalWireInput) (registry.Module, ConsumerRunner) {
-	writer := metricseries.NewClickHouseWriter(in.ch)
+	writer := core.NewRetryWriter(metricseries.NewClickHouseWriter(in.ch), kafkainfra.SignalMetricSeries, in.insertMaxRetries)
 	dlq := core.NewDLQ(in.producerBase, in.dlqTopic, kafkainfra.SignalMetricSeries)
 	consumer := metricseries.NewConsumer(in.consumer, writer, dlq)
 	return nil, consumer
@@ -171,14 +191,15 @@ func buildIngest(cfg config.Config, ch clickhouse.Conn) (ingestBundle, error) {
 
 		{signal: kafkainfra.SignalMetrics, cfg: cfg.IngestSignal("metrics"), wire: wireMetrics},
 		{signal: kafkainfra.SignalMetricSeries, cfg: cfg.IngestSignal("metric_series"), wire: wireMetricSeries},
-		
+		{signal: kafkainfra.SignalIngestionStats, cfg: cfg.IngestSignal("ingestion_stats"), wire: wireIngestionStats},
+
 		{signal: kafkainfra.SignalSpans, cfg: config.SignalConfig{
 			Partitions:     cfg.IngestSignal("spans").Partitions,
 			Replicas:       cfg.IngestSignal("spans").Replicas,
 			RetentionHours: cfg.IngestSignal("spans").RetentionHours,
 			ConsumerGroup:  "optikk-ingest.spanaggregator.spanmetrics.consumer",
 		}, wire: wireSpanmetrics},
-		
+
 		{signal: kafkainfra.SignalSpansTracegraph, cfg: cfg.IngestSignal("spans_tracegraph"), wire: wireServicegraph},
 	}
 
@@ -201,6 +222,9 @@ func buildIngest(cfg config.Config, ch clickhouse.Conn) (ingestBundle, error) {
 	}
 	slog.Info("kafka producer client connected", slog.Any("brokers", brokers))
 	producerBase := kafkainfra.NewProducer(producerClient)
+
+	spansResourceCache := core.NewResourceCache(100000)
+	logsResourceCache := core.NewResourceCache(100000)
 
 	b := ingestBundle{
 		producerClient:  producerClient,
@@ -227,14 +251,17 @@ func buildIngest(cfg config.Config, ch clickhouse.Conn) (ingestBundle, error) {
 		b.lagPollers = append(b.lagPollers, kafkainfra.NewLagPoller(client, w.cfg.ConsumerGroup, ingestTopic))
 
 		mod, consumer := w.wire(signalWireInput{
-			topicPrefix:  topicPrefix,
-			ingestTopic:  ingestTopic,
-			dlqTopic:     kafkainfra.DLQTopic(dlqPrefix, w.signal),
-			group:        w.cfg.ConsumerGroup,
-			sc:           w.cfg,
-			producerBase: producerBase,
-			consumer:     kafkainfra.NewConsumer(client),
-			ch:           ch,
+			topicPrefix:        topicPrefix,
+			ingestTopic:        ingestTopic,
+			dlqTopic:           kafkainfra.DLQTopic(dlqPrefix, w.signal),
+			group:              w.cfg.ConsumerGroup,
+			sc:                 w.cfg,
+			producerBase:       producerBase,
+			consumer:           kafkainfra.NewConsumer(client, cfg.KafkaConsumerMaxPollRecords()),
+			ch:                 ch,
+			spansResourceCache: spansResourceCache,
+			logsResourceCache:  logsResourceCache,
+			insertMaxRetries:   cfg.KafkaConsumerMaxRetries(),
 		})
 		if mod != nil {
 			b.modules = append(b.modules, mod)

@@ -1,16 +1,14 @@
-// Package spans provides the OTLP spans ingestion path: gRPC handler to
-// Kafka producer.
 package spans
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"time"
 
 	"github.com/optikklabs/ingest/internal/auth"
 	"github.com/optikklabs/ingest/internal/infra/metrics"
 	"github.com/optikklabs/ingest/internal/ingestion/core"
+	"github.com/optikklabs/ingest/internal/ingestion/ingestionstats"
 	"github.com/optikklabs/ingest/internal/ingestion/spans/schema"
 	spansresourceschema "github.com/optikklabs/ingest/internal/ingestion/spansresource/schema"
 	tracepb "go.opentelemetry.io/proto/otlp/collector/trace/v1"
@@ -24,14 +22,16 @@ type Handler struct {
 	tracegraphProducer *core.Producer[*schema.Row]
 	resourceProducer   *core.Producer[*spansresourceschema.ResourceRow]
 	resourceCache      *core.ResourceCache
+	stats              ingestionstats.Recorder
 }
 
-func NewHandler(p *core.Producer[*schema.Row], tp *core.Producer[*schema.Row], rp *core.Producer[*spansresourceschema.ResourceRow], cache *core.ResourceCache) *Handler {
+func NewHandler(p *core.Producer[*schema.Row], tp *core.Producer[*schema.Row], rp *core.Producer[*spansresourceschema.ResourceRow], cache *core.ResourceCache, stats ingestionstats.Recorder) *Handler {
 	return &Handler{
 		producer:           p,
 		tracegraphProducer: tp,
 		resourceProducer:   rp,
 		resourceCache:      cache,
+		stats:              stats,
 	}
 }
 
@@ -48,16 +48,23 @@ func (h *Handler) Export(ctx context.Context, req *tracepb.ExportTraceServiceReq
 		return &tracepb.ExportTraceServiceResponse{}, nil
 	}
 
-	// Extract unique resources and filter using LRU cache
+	// Meter usage best-effort; never blocks or fails ingestion.
+	ingestionstats.Emit(h.stats, statRows(uint32(tenantID), req))
+
+	// Re-publish active resources once per day so the resource TTL stays aligned
+	// with the raw-span retention window.
 	var resourceRows []*spansresourceschema.ResourceRow
+	var newKeys []core.ResourceKey
+	resourceDay := uint32(time.Now().Unix() / 86_400)
 	for _, row := range rows {
 		if row.GetFingerprint() == 0 {
 			continue
 		}
-		key := fmt.Sprintf("%d:%d", row.GetTenantId(), row.GetFingerprint())
-		if h.resourceCache.Add(key) {
+		key := core.ResourceKey{TenantID: row.GetTenantId(), Fingerprint: row.GetFingerprint()}
+		if h.resourceCache.CheckAndUpdateBucket(key, resourceDay) {
+			newKeys = append(newKeys, key)
 			resourceRows = append(resourceRows, &spansresourceschema.ResourceRow{
-				TenantId:      row.GetTenantId(),
+				TenantId:    row.GetTenantId(),
 				Fingerprint: row.GetFingerprint(),
 				Service:     row.GetService(),
 				Host:        row.GetHost(),
@@ -66,16 +73,7 @@ func (h *Handler) Export(ctx context.Context, req *tracepb.ExportTraceServiceReq
 			})
 		}
 	}
-
-	if len(resourceRows) > 0 {
-		go func() {
-			publishCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancel()
-			if err := h.resourceProducer.Publish(publishCtx, resourceRows); err != nil {
-				slog.WarnContext(publishCtx, "spans handler: failed to publish resources", slog.Any("error", err))
-			}
-		}()
-	}
+	core.PublishResources(h.resourceProducer, h.resourceCache, newKeys, resourceRows, "spans")
 
 	pubStart := time.Now()
 	if err := h.producer.Publish(ctx, rows); err != nil {
@@ -85,14 +83,30 @@ func (h *Handler) Export(ctx context.Context, req *tracepb.ExportTraceServiceReq
 	}
 	metrics.HandlerPublishDuration.WithLabelValues("spans", "ok").Observe(time.Since(pubStart).Seconds())
 
-	go func() {
+	tgRows := tracegraphRows(rows)
+	metrics.TracegraphRowsPublished.Add(float64(len(tgRows)))
+	metrics.TracegraphRowsFiltered.Add(float64(len(rows) - len(tgRows)))
+	if len(tgRows) > 0 {
 		publishCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		if err := h.tracegraphProducer.Publish(publishCtx, rows); err != nil {
+		if err := h.tracegraphProducer.Publish(publishCtx, tgRows); err != nil {
 			slog.WarnContext(publishCtx, "spans handler: failed to publish to tracegraph", slog.Any("error", err))
 		}
-	}()
+		cancel()
+	}
 
 	return &tracepb.ExportTraceServiceResponse{}, nil
 }
 
+// tracegraphRows keeps only spans that can form a service-graph edge,
+// mirroring the servicegraph pairer's kind filter so INTERNAL spans never
+// ship over the tracegraph topic.
+func tracegraphRows(rows []*schema.Row) []*schema.Row {
+	out := make([]*schema.Row, 0, len(rows))
+	for _, row := range rows {
+		switch row.GetKindString() {
+		case "CLIENT", "SERVER", "PRODUCER", "CONSUMER":
+			out = append(out, row)
+		}
+	}
+	return out
+}

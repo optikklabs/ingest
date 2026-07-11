@@ -1,13 +1,10 @@
 services:
   clickhouse:
     image: clickhouse/clickhouse-server:latest
-    ports:
-      - "18123:8123"
-      - "19000:9000"
     environment:
       CLICKHOUSE_DB: optikk
       CLICKHOUSE_USER: default
-      CLICKHOUSE_PASSWORD: clickhouse123
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:?set in .env}
     volumes:
       - clickhouse_data:/var/lib/clickhouse
       - ./db/clickhouse/config.d/keeper.xml:/etc/clickhouse-server/config.d/keeper.xml:ro
@@ -21,10 +18,8 @@ services:
 
   mariadb:
     image: mariadb:latest
-    ports:
-      - "13306:3306"
     environment:
-      MARIADB_ROOT_PASSWORD: root123
+      MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD:?set in .env}
       MARIADB_DATABASE: optikk
     volumes:
       - mariadb_data:/var/lib/mysql
@@ -39,9 +34,6 @@ services:
   # in-network client connects to the broker.
   kafka:
     image: ghcr.io/ramantayal12/mq:latest
-    user: "root"
-    ports:
-      - "9092:9092"
     environment:
       KAFKA_LISTENERS: "0.0.0.0:9092"
       KAFKA_ADVERTISED_LISTENERS: "localhost:9092"
@@ -68,29 +60,9 @@ services:
       - "--storage.tsdb.retention.time=7d"
       - "--web.enable-lifecycle"
 
-  grafana:
-    image: grafana/grafana:11.2.0
-    container_name: optikk-grafana
-    restart: unless-stopped
-    ports:
-      - "13001:3000"
-    environment:
-      GF_SECURITY_ADMIN_USER: ${GF_SECURITY_ADMIN_USER:-admin}
-      GF_SECURITY_ADMIN_PASSWORD: ${GF_SECURITY_ADMIN_PASSWORD:-admin}
-      GF_AUTH_ANONYMOUS_ENABLED: "true"
-      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
-      GF_USERS_ALLOW_SIGN_UP: "false"
-      GF_FEATURE_TOGGLES_ENABLE: publicDashboards
-    volumes:
-      - grafana-data:/var/lib/grafana
-      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
-      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
-    depends_on:
-      - prometheus
 
 volumes:
   clickhouse_data:
   mariadb_data:
   mq_data:
   prometheus-data:
-  grafana-data:

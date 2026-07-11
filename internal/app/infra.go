@@ -35,6 +35,9 @@ type Infra struct {
 
 	KafkaProducer   *kgo.Client
 	consumerClients []*kgo.Client
+
+	ctx    context.Context
+	cancel context.CancelFunc
 }
 
 func newInfra(cfg config.Config) (_ *Infra, err error) {
@@ -63,7 +66,8 @@ func newInfra(cfg config.Config) (_ *Infra, err error) {
 		return nil, err
 	}
 
-	authenticator := auth.NewAuthenticator(authrepo.New(dbConn))
+	ctx, cancel := context.WithCancel(context.Background())
+	authenticator := auth.NewAuthenticator(ctx, authrepo.New(dbConn))
 
 	return &Infra{
 		DB:              dbConn,
@@ -74,6 +78,8 @@ func newInfra(cfg config.Config) (_ *Infra, err error) {
 		Consumers:       ingest.consumers,
 		KafkaProducer:   ingest.producerClient,
 		consumerClients: ingest.consumerClients,
+		ctx:             ctx,
+		cancel:          cancel,
 	}, nil
 }
 
@@ -90,7 +96,7 @@ func openMySQL(cfg config.Config) (*sql.DB, error) {
 }
 
 func openClickHouse(cfg config.Config) (clickhouse.Conn, error) {
-	chConn, err := dbutil.OpenClickHouseConn(cfg.ClickHouseDSN())
+	chConn, err := dbutil.OpenClickHouseConn(cfg.ClickHouseDSN(), cfg.ClickHouseMaxOpenConns(), cfg.ClickHouseMaxIdleConns())
 	if err != nil {
 		return nil, fmt.Errorf("clickhouse: %w", err)
 	}
@@ -125,6 +131,9 @@ func runMigrate(conn clickhouse.Conn, database string) error {
 func (i *Infra) Close() error {
 	if i == nil {
 		return nil
+	}
+	if i.cancel != nil {
+		i.cancel()
 	}
 	if n := len(i.consumerClients); n > 0 {
 		for _, c := range i.consumerClients {

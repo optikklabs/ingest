@@ -20,6 +20,7 @@ PARTITION BY toYYYYMMDD(timestamp)
 ORDER BY (tenant_id, timestamp, service, environment, gen_ai_system, gen_ai_request_model, gen_ai_operation)
 TTL timestamp + INTERVAL 90 DAY DELETE
 SETTINGS
+    storage_policy = 'gcs_only',
     index_granularity = 8192,
     ttl_only_drop_parts = 1;
 

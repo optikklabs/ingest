@@ -54,7 +54,24 @@ func Load(path ...string) (Config, error) {
 		return Config{}, fmt.Errorf("invalid config in %s: %w", resolved, err)
 	}
 
+	if err := cfg.Validate(); err != nil {
+		return Config{}, err
+	}
+
 	return cfg, nil
+}
+
+// Validate rejects a config missing the credentials required to run safely.
+// The service is always deployed in production, so these checks are
+// unconditional. Each failing field is named so the startup log is actionable.
+func (c Config) Validate() error {
+	if c.MySQL.Password == "" {
+		return errors.New("mysql.password must not be empty")
+	}
+	if c.ClickHouse.Password == "" {
+		return errors.New("clickhouse.password must not be empty")
+	}
+	return nil
 }
 
 func resolveConfigFilePath(p string) (string, error) {
@@ -106,10 +123,14 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("clickhouse.password", "")
 	v.SetDefault("clickhouse.production", false)
 	v.SetDefault("clickhouse.cloud_host", "")
+	v.SetDefault("clickhouse.max_open_conns", 0)
+	v.SetDefault("clickhouse.max_idle_conns", 0)
 
 	v.SetDefault("kafka.broker_list", "")
 	v.SetDefault("kafka.consumer_group", "")
 	v.SetDefault("kafka.topic_prefix", "")
+	v.SetDefault("kafka.consumer_max_retries", 0)
+	v.SetDefault("kafka.consumer_max_poll_records", 5000)
 
 	v.SetDefault("otlp.grpc_port", "")
 	v.SetDefault("otlp.grpc_max_concurrent_streams", 10000)

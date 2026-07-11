@@ -2,8 +2,8 @@ package core
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
-	"strconv"
 	"time"
 
 	kafkainfra "github.com/optikklabs/ingest/internal/infra/kafka"
@@ -24,7 +24,9 @@ func NewProducer[T Row](topic string, base *kafkainfra.Producer) *Producer[T] {
 		topic: topic,
 		base:  base,
 		keyFunc: func(r T) []byte {
-			return []byte(strconv.FormatUint(r.GetFingerprint(), 10))
+			b := make([]byte, 8)
+			binary.BigEndian.PutUint64(b, r.GetFingerprint())
+			return b
 		},
 	}
 }

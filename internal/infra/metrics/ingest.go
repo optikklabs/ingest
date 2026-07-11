@@ -63,4 +63,32 @@ var (
 		Name:      "mapper_unsupported_type_total",
 		Help:      "Metric data points dropped because their OTLP type is unsupported, by signal.",
 	}, []string{"signal"})
+
+	InsertRetries = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "optikk",
+		Subsystem: "ingest",
+		Name:      "insert_retries_total",
+		Help:      "ClickHouse insert retry attempts after a failed write, by signal.",
+	}, []string{"signal"})
+
+	RecordsLost = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "optikk",
+		Subsystem: "ingest",
+		Name:      "records_lost_total",
+		Help:      "Records dropped after both CH insert retries and the DLQ publish failed, by signal.",
+	}, []string{"signal"})
+
+	TracegraphRowsPublished = promauto.NewCounter(prometheus.CounterOpts{
+		Namespace: "optikk",
+		Subsystem: "ingest",
+		Name:      "tracegraph_rows_published_total",
+		Help:      "Span rows published to the tracegraph topic (client/server/producer/consumer kinds).",
+	})
+
+	TracegraphRowsFiltered = promauto.NewCounter(prometheus.CounterOpts{
+		Namespace: "optikk",
+		Subsystem: "ingest",
+		Name:      "tracegraph_rows_filtered_total",
+		Help:      "Span rows excluded from the tracegraph topic because their kind cannot form a service-graph edge.",
+	})
 )

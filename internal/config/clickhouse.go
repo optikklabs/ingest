@@ -3,12 +3,30 @@ package config
 import "fmt"
 
 type ClickHouseConfig struct {
-	Host     string `yaml:"host"`
-	Port     string `yaml:"port"`
-	Database string `yaml:"database"`
-	User     string `yaml:"user"`
-	Password string `yaml:"password"`
-	Secure   bool   `yaml:"secure"`
+	Host         string `yaml:"host"`
+	Port         string `yaml:"port"`
+	Database     string `yaml:"database"`
+	User         string `yaml:"user"`
+	Password     string `yaml:"password"`
+	Secure       bool   `yaml:"secure"`
+	MaxOpenConns int    `yaml:"max_open_conns"`
+	MaxIdleConns int    `yaml:"max_idle_conns"`
+}
+
+// The insert path batches rows per signal, so a small pool suffices and
+// leaves ClickHouse's max_concurrent_queries budget to the query service.
+func (c Config) ClickHouseMaxOpenConns() int {
+	if n := c.ClickHouse.MaxOpenConns; n > 0 {
+		return n
+	}
+	return 20
+}
+
+func (c Config) ClickHouseMaxIdleConns() int {
+	if n := c.ClickHouse.MaxIdleConns; n > 0 {
+		return n
+	}
+	return 10
 }
 
 func (c Config) ClickHouseDSN() string {

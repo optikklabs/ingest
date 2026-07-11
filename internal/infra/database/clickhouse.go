@@ -9,21 +9,22 @@ import (
 )
 
 const (
-	chMaxOpenConns    = 200
-	chMaxIdleConns    = 100
 	chConnMaxLifetime = 30 * time.Minute
 	chDialTimeout     = 5 * time.Second
 )
 
-func OpenClickHouseConn(dsn string) (clickhouse.Conn, error) {
+// OpenClickHouseConn opens the shared insert pool. Pool sizing is
+// config-driven (clickhouse.max_open_conns / max_idle_conns): the writer
+// path batches inserts, so it needs far fewer connections than a query pool.
+func OpenClickHouseConn(dsn string, maxOpenConns, maxIdleConns int) (clickhouse.Conn, error) {
 	opts, err := clickhouse.ParseDSN(dsn)
 	if err != nil {
 		return nil, fmt.Errorf("clickhouse: parse DSN: %w", err)
 	}
 
 	opts.Compression = &clickhouse.Compression{Method: clickhouse.CompressionLZ4}
-	opts.MaxOpenConns = chMaxOpenConns
-	opts.MaxIdleConns = chMaxIdleConns
+	opts.MaxOpenConns = maxOpenConns
+	opts.MaxIdleConns = maxIdleConns
 	opts.ConnMaxLifetime = chConnMaxLifetime
 	opts.DialTimeout = chDialTimeout
 	opts.ConnOpenStrategy = clickhouse.ConnOpenRoundRobin

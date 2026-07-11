@@ -10,6 +10,7 @@ import (
 	"github.com/optikklabs/ingest/internal/auth"
 	obsmetrics "github.com/optikklabs/ingest/internal/infra/metrics"
 	"github.com/optikklabs/ingest/internal/ingestion/core"
+	"github.com/optikklabs/ingest/internal/ingestion/ingestionstats"
 	"github.com/optikklabs/ingest/internal/ingestion/metrics/schema"
 	seriesschema "github.com/optikklabs/ingest/internal/ingestion/metricseries/schema"
 	metricspb "go.opentelemetry.io/proto/otlp/collector/metrics/v1"
@@ -21,12 +22,14 @@ type Handler struct {
 	metricspb.UnimplementedMetricsServiceServer
 	metricsPublisher core.Publisher[*schema.Row]
 	seriesPublisher  core.Publisher[*seriesschema.SeriesRow]
+	stats            ingestionstats.Recorder
 }
 
-func NewHandler(mp core.Publisher[*schema.Row], sp core.Publisher[*seriesschema.SeriesRow]) *Handler {
+func NewHandler(mp core.Publisher[*schema.Row], sp core.Publisher[*seriesschema.SeriesRow], stats ingestionstats.Recorder) *Handler {
 	return &Handler{
 		metricsPublisher: mp,
 		seriesPublisher:  sp,
+		stats:            stats,
 	}
 }
 
@@ -42,6 +45,10 @@ func (h *Handler) Export(ctx context.Context, req *metricspb.ExportMetricsServic
 	if len(rows) == 0 {
 		return &metricspb.ExportMetricsServiceResponse{}, nil
 	}
+
+	// Meter usage best-effort; never blocks or fails ingestion.
+	ingestionstats.Emit(h.stats, statRows(uint32(tenantID), req))
+
 	// Publish series first: they are fingerprint-idempotent, so a retry that
 	// re-sends them is harmless. The non-idempotent raw-metric publish goes
 	// last, so a series failure never leaves metrics half-published.

@@ -49,6 +49,8 @@ func NewConsumerClient(cfg Config, groupID, topic string) (*kgo.Client, error) {
 		kgo.DisableAutoCommit(),
 		kgo.Balancers(kgo.CooperativeStickyBalancer()),
 		kgo.FetchMaxWait(2*time.Second),
+		kgo.FetchMaxBytes(8<<20),
+		kgo.FetchMaxPartitionBytes(1<<20),
 		WithHooks(),
 	)
 }

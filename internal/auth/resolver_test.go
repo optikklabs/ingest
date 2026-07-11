@@ -3,9 +3,49 @@ package auth
 import (
 	"context"
 	"errors"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
+
+// blockingFinder holds the first lookup open until released, so concurrent
+// callers pile up behind singleflight instead of racing to the DB.
+type blockingFinder struct {
+	calls   int64
+	release chan struct{}
+}
+
+func (b *blockingFinder) FindTenantIDByAPIKey(_ context.Context, _ string) (int64, error) {
+	atomic.AddInt64(&b.calls, 1)
+	<-b.release
+	return 7, nil
+}
+
+// Concurrent lookups for the same cold key collapse into one finder call.
+func TestResolveCollapsesConcurrentLookups(t *testing.T) {
+	f := &blockingFinder{release: make(chan struct{})}
+	a := &Authenticator{finder: f}
+
+	const n = 20
+	var wg sync.WaitGroup
+	wg.Add(n)
+	for i := 0; i < n; i++ {
+		go func() {
+			defer wg.Done()
+			if id, err := a.ResolveTenantID(context.Background(), "k"); err != nil || id != 7 {
+				t.Errorf("got id=%d err=%v", id, err)
+			}
+		}()
+	}
+	time.Sleep(20 * time.Millisecond) // let goroutines reach the finder
+	close(f.release)
+	wg.Wait()
+
+	if got := atomic.LoadInt64(&f.calls); got != 1 {
+		t.Fatalf("stampede not collapsed: %d finder calls, want 1", got)
+	}
+}
 
 type fakeFinder struct {
 	calls int
