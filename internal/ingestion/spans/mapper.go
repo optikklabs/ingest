@@ -30,13 +30,17 @@ func mapRequest(tenantID int64, req *tracepb.ExportTraceServiceRequest) []*schem
 		if rs.Resource != nil {
 			resAttrs = rs.Resource.Attributes
 		}
-		resMap := otlp.AttrsToMap(resAttrs)
+		// resMap is shared across this resource's spans and copied into each
+		// row's fields/merged map — free to pool once the inner loop ends.
+		resMap := otlp.GetAttrMap()
+		otlp.AttrsToMapInto(resMap, resAttrs)
 		fp := fingerprint.CalculateHash(resMap)
 		for _, ss := range rs.GetScopeSpans() {
 			for _, s := range ss.GetSpans() {
 				rows = append(rows, buildSpanRow(tenantID, resMap, fp, s))
 			}
 		}
+		otlp.PutAttrMap(resMap)
 	}
 	return rows
 }
@@ -52,7 +56,11 @@ func buildSpanRow(tenantID int64, resMap map[string]string, fp uint64, s *trace.
 		statusCode = s.Status.GetCode()
 	}
 
-	spanMap := otlp.AttrsToMap(s.GetAttributes())
+	// spanMap is read for promoted fields and copied into merged, then unused —
+	// pool it per span. merged is retained on the Row, so it is never pooled.
+	spanMap := otlp.GetAttrMap()
+	defer otlp.PutAttrMap(spanMap)
+	otlp.AttrsToMapInto(spanMap, s.GetAttributes())
 	merged := mergeAndCapAttrs(resMap, spanMap)
 
 	httpMethod := firstNonEmpty(spanMap, "http.method", "http.request.method")

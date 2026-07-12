@@ -35,6 +35,7 @@ type Infra struct {
 
 	KafkaProducer   *kgo.Client
 	consumerClients []*kgo.Client
+	closers         []func()
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -78,6 +79,7 @@ func newInfra(cfg config.Config) (_ *Infra, err error) {
 		Consumers:       ingest.consumers,
 		KafkaProducer:   ingest.producerClient,
 		consumerClients: ingest.consumerClients,
+		closers:         ingest.closers,
 		ctx:             ctx,
 		cancel:          cancel,
 	}, nil
@@ -140,6 +142,13 @@ func (i *Infra) Close() error {
 			c.Close()
 		}
 		slog.Info("kafka consumers closed", slog.Int("count", n))
+	}
+	// Drain async side-publishers before the producer they write through.
+	for _, closeFn := range i.closers {
+		closeFn()
+	}
+	if n := len(i.closers); n > 0 {
+		slog.Info("async side-publishers drained", slog.Int("count", n))
 	}
 	if i.KafkaProducer != nil {
 		i.KafkaProducer.Close()

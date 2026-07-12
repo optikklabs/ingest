@@ -56,12 +56,80 @@ func EnsureTopics(ctx context.Context, brokers []string, specs []TopicSpec) erro
 				return fmt.Errorf("kafka ensure topics: create %q: %w", r.Topic, r.Err)
 			}
 		}
+		// CreateTopics no-ops on an existing topic, so grow partitions
+		// separately to keep the desired count declarative and idempotent.
+		if err := EnsureTopicPartitions(ctx, adm, s.Name, s.Partitions); err != nil {
+			return fmt.Errorf("kafka ensure topics: partitions %q: %w", s.Name, err)
+		}
 		slog.Info("kafka topic ready",
 			slog.String("topic", s.Name),
 			slog.Int("partitions", int(s.Partitions)),
 			slog.Int("replicas", int(s.Replicas)),
 			slog.Int("retention_hours", s.RetentionHours),
 		)
+	}
+	return nil
+}
+
+// partitionAction is how a topic's live partition count reconciles to target.
+type partitionAction int
+
+const (
+	partitionNoop       partitionAction = iota // already at target
+	partitionGrow                              // below target, safe to grow
+	partitionShrinkSkip                        // above target, Kafka forbids shrink
+)
+
+// decidePartitionAction reconciles current→target. Kafka never shrinks
+// partitions, so a higher current count is skipped with a warning upstream.
+func decidePartitionAction(current, target int32) partitionAction {
+	switch {
+	case current < target:
+		return partitionGrow
+	case current > target:
+		return partitionShrinkSkip
+	default:
+		return partitionNoop
+	}
+}
+
+// EnsureTopicPartitions grows an existing topic to target partitions. It never
+// shrinks (Kafka forbids it) and no-ops when already at or above target.
+func EnsureTopicPartitions(ctx context.Context, adm *kadm.Client, topic string, target int32) error {
+	td, err := adm.ListTopics(ctx, topic)
+	if err != nil {
+		return fmt.Errorf("list topic %q: %w", topic, err)
+	}
+	detail, ok := td[topic]
+	if !ok || detail.Err != nil {
+		return fmt.Errorf("topic %q metadata unavailable: %w", topic, detail.Err)
+	}
+	current := int32(len(detail.Partitions))
+
+	switch decidePartitionAction(current, target) {
+	case partitionNoop:
+		return nil
+	case partitionShrinkSkip:
+		slog.Warn("kafka topic has more partitions than desired, skipping shrink",
+			slog.String("topic", topic),
+			slog.Int("current", int(current)),
+			slog.Int("desired", int(target)),
+		)
+		return nil
+	case partitionGrow:
+		resp, err := adm.UpdatePartitions(ctx, int(target), topic)
+		if err != nil {
+			return fmt.Errorf("update partitions %q: %w", topic, err)
+		}
+		if err := resp.Error(); err != nil {
+			return fmt.Errorf("update partitions %q: %w", topic, err)
+		}
+		slog.Info("kafka topic partitions grown",
+			slog.String("topic", topic),
+			slog.Int("old", int(current)),
+			slog.Int("new", int(target)),
+		)
+		return nil
 	}
 	return nil
 }

@@ -22,21 +22,28 @@ type CachedSpan struct {
 	ConnectionType string
 }
 
+// spanKey identifies a span by trace + span id. A comparable struct key avoids
+// the per-span string format the map lookups would otherwise allocate.
+type spanKey struct {
+	TraceID string
+	SpanID  string
+}
+
 // Store buffers unpaired spans keyed by trace+span id. Access is serialized by
 // a single mutex so GetAndRemove is an atomic match-and-consume.
 type Store struct {
 	mu    sync.Mutex
-	cache map[string]CachedSpan
+	cache map[spanKey]CachedSpan
 }
 
 func NewStore() *Store {
 	return &Store{
-		cache: make(map[string]CachedSpan),
+		cache: make(map[spanKey]CachedSpan),
 	}
 }
 
 // Add buffers a span, dropping it when the store is at capacity.
-func (s *Store) Add(key string, span CachedSpan) {
+func (s *Store) Add(key spanKey, span CachedSpan) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if len(s.cache) < maxPendingSpans {
@@ -46,7 +53,7 @@ func (s *Store) Add(key string, span CachedSpan) {
 
 // GetAndRemove atomically returns and deletes a buffered span, marking a
 // successful pairing so it is never seen as an expiry.
-func (s *Store) GetAndRemove(key string) (CachedSpan, bool) {
+func (s *Store) GetAndRemove(key spanKey) (CachedSpan, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	span, ok := s.cache[key]

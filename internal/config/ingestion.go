@@ -13,6 +13,16 @@ type IngestionConfig struct {
 	Metrics         SignalConfig `yaml:"metrics"`
 	MetricSeries    SignalConfig `yaml:"metric_series"`
 	IngestionStats  SignalConfig `yaml:"ingestion_stats"`
+
+	SidePublish       SidePublishConfig `yaml:"side_publish"`
+	ResourceCacheSize int               `yaml:"resource_cache_size"`
+}
+
+// SidePublishConfig tunes the async best-effort publisher used for the
+// tracegraph and resource side-topics (off the OTLP request path).
+type SidePublishConfig struct {
+	QueueSize int `yaml:"queue_size"`
+	Workers   int `yaml:"workers"`
 }
 
 type SignalConfig struct {
@@ -65,4 +75,32 @@ func (c Config) IngestSignal(signal string) SignalConfig {
 		raw.ConsumerGroup = def.ConsumerGroup
 	}
 	return raw
+}
+
+// SidePublishQueueSize bounds the async side-topic queue. Values <= 0 default
+// to 4096; a full queue drops best-effort rows rather than blocking Export.
+func (c Config) SidePublishQueueSize() int {
+	if n := c.Ingestion.SidePublish.QueueSize; n > 0 {
+		return n
+	}
+	return 4096
+}
+
+// SidePublishWorkers is the number of goroutines draining the side-topic
+// queue. Values <= 0 default to 2.
+func (c Config) SidePublishWorkers() int {
+	if n := c.Ingestion.SidePublish.Workers; n > 0 {
+		return n
+	}
+	return 2
+}
+
+// ResourceCacheSize is the total per-signal resource-cache capacity (split
+// across shards). Sized to active-series cardinality, not tenant count.
+// Values <= 0 default to 500,000.
+func (c Config) ResourceCacheSize() int {
+	if n := c.Ingestion.ResourceCacheSize; n > 0 {
+		return n
+	}
+	return 500_000
 }

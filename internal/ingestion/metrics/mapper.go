@@ -15,7 +15,10 @@ import (
 
 type rowHeader struct {
 	tenantID uint32
-	resMap map[string]string
+	resMap   map[string]string
+	// resSeriesMap is resMap with high-cardinality keys removed, filtered once
+	// per ResourceMetrics and reused for every datapoint's series hash.
+	resSeriesMap map[string]string
 }
 
 func mapRequest(tenantID int64, req *metricspb.ExportMetricsServiceRequest) ([]*schema.Row, []*seriesschema.SeriesRow) {
@@ -27,8 +30,9 @@ func mapRequest(tenantID int64, req *metricspb.ExportMetricsServiceRequest) ([]*
 		}
 		resMap := otlp.AttrsToMap(resAttrs)
 		hdr := rowHeader{
-			tenantID: uint32(tenantID),
-			resMap: resMap,
+			tenantID:     uint32(tenantID),
+			resMap:       resMap,
+			resSeriesMap: fingerprint.FilterHighCardinality(resMap),
 		}
 		for _, sm := range rm.GetScopeMetrics() {
 			for _, m := range sm.GetMetrics() {
@@ -178,7 +182,7 @@ func baseRow(
 	value float64,
 ) (*schema.Row, *seriesschema.SeriesRow) {
 	normalizeAttrs(name, attrs)
-	fp := fingerprint.SeriesHash(name, temporality, hdr.resMap, attrs)
+	fp := fingerprint.SeriesHashPreFiltered(name, temporality, hdr.resSeriesMap, attrs)
 	row := &schema.Row{
 		TenantId:      hdr.tenantID,
 		MetricName:  name,

@@ -91,4 +91,74 @@ var (
 		Name:      "tracegraph_rows_filtered_total",
 		Help:      "Span rows excluded from the tracegraph topic because their kind cannot form a service-graph edge.",
 	})
+
+	// ResourceCacheHits counts CheckAndUpdateBucket calls served without a
+	// resource re-publish, by signal.
+	ResourceCacheHits = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "optikk",
+		Subsystem: "ingest",
+		Name:      "resource_cache_hits_total",
+		Help:      "Resource-cache lookups that matched an existing key+bucket, by signal.",
+	}, []string{"signal"})
+
+	// ResourceCacheMisses counts lookups that triggered a resource re-publish.
+	ResourceCacheMisses = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "optikk",
+		Subsystem: "ingest",
+		Name:      "resource_cache_misses_total",
+		Help:      "Resource-cache lookups that were new or changed bucket, by signal.",
+	}, []string{"signal"})
+
+	// ResourceCacheEvictions counts LRU evictions, by signal.
+	ResourceCacheEvictions = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "optikk",
+		Subsystem: "ingest",
+		Name:      "resource_cache_evictions_total",
+		Help:      "Resource-cache keys evicted by LRU capacity pressure, by signal.",
+	}, []string{"signal"})
+
+	// AggregatorKeys tracks live key cardinality in in-memory aggregators.
+	AggregatorKeys = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "optikk",
+		Subsystem: "ingest",
+		Name:      "aggregator_keys",
+		Help:      "Live key count held by an in-memory aggregator, by signal.",
+	}, []string{"signal"})
+
+	// AggregatorKeysDropped counts aggregator keys shed by a cardinality cap.
+	AggregatorKeysDropped = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "optikk",
+		Subsystem: "ingest",
+		Name:      "aggregator_keys_dropped_total",
+		Help:      "Aggregator keys dropped after hitting a cardinality cap, by signal.",
+	}, []string{"signal"})
+
+	// ConsumerBatchInsertDuration measures per-batch handle latency (unmarshal
+	// + ClickHouse insert + commit), by signal.
+	ConsumerBatchInsertDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace: "optikk",
+		Subsystem: "ingest",
+		Name:      "consumer_batch_insert_duration_seconds",
+		Help:      "Consumer batch handle latency (unmarshal + CH insert + commit), by signal.",
+		Buckets: []float64{
+			0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10,
+		},
+	}, []string{"signal"})
+
+	// ConsumerInflightBatches tracks batches held between fetch and commit.
+	ConsumerInflightBatches = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "optikk",
+		Subsystem: "ingest",
+		Name:      "consumer_inflight_batches",
+		Help:      "Batches in flight between fetch and commit, by signal.",
+	}, []string{"signal"})
+
+	// SidePublishDropped counts best-effort side-topic rows dropped because the
+	// async queue was full or the async publish failed, by signal and topic.
+	SidePublishDropped = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "optikk",
+		Subsystem: "ingest",
+		Name:      "sidepublish_dropped_total",
+		Help:      "Best-effort side-topic publishes dropped (queue full or publish error), by signal and topic.",
+	}, []string{"signal", "topic"})
 )

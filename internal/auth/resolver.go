@@ -54,13 +54,15 @@ func (a *Authenticator) ResolveTenantID(ctx context.Context, apiKey string) (int
 	if apiKey == "" {
 		return 0, ErrMissingAPIKey
 	}
-	if entry, ok := a.lookupCache(apiKey); ok {
+	// Hash once per request; the digest keys the cache, singleflight, and store.
+	cacheKey := apiKeyCacheKey(apiKey)
+	if entry, ok := a.lookupCache(cacheKey); ok {
 		return entry.tenantID, entry.err
 	}
 	// Collapse concurrent lookups for the same cold key into one DB call so a
 	// traffic spike on an uncached key can't stampede the auth database.
-	v, err, _ := a.group.Do(apiKeyCacheKey(apiKey), func() (any, error) {
-		if entry, ok := a.lookupCache(apiKey); ok {
+	v, err, _ := a.group.Do(cacheKey, func() (any, error) {
+		if entry, ok := a.lookupCache(cacheKey); ok {
 			return entry.tenantID, entry.err
 		}
 		id, err := a.finder.FindTenantIDByAPIKey(ctx, apiKey)
@@ -68,11 +70,11 @@ func (a *Authenticator) ResolveTenantID(ctx context.Context, apiKey string) (int
 			// Only negative-cache genuine not-found; never cache transient or
 			// context errors, which would lock out a tenant for the full TTL.
 			if errors.Is(err, ErrInvalidAPIKey) {
-				a.cacheSet(apiKey, 0, err)
+				a.cacheSet(cacheKey, 0, err)
 			}
 			return int64(0), err
 		}
-		a.cacheSet(apiKey, id, nil)
+		a.cacheSet(cacheKey, id, nil)
 		return id, nil
 	})
 	if err != nil {
@@ -81,26 +83,26 @@ func (a *Authenticator) ResolveTenantID(ctx context.Context, apiKey string) (int
 	return v.(int64), nil
 }
 
-func (a *Authenticator) lookupCache(apiKey string) (cacheEntry, bool) {
-	val, ok := a.cache.Load(apiKeyCacheKey(apiKey))
+func (a *Authenticator) lookupCache(cacheKey string) (cacheEntry, bool) {
+	val, ok := a.cache.Load(cacheKey)
 	if !ok {
 		return cacheEntry{}, false
 	}
 	entry := val.(cacheEntry)
 	if time.Now().After(entry.expiresAt) {
-		a.cache.Delete(apiKeyCacheKey(apiKey))
+		a.cache.Delete(cacheKey)
 		return cacheEntry{}, false
 	}
 	return entry, true
 }
 
-func (a *Authenticator) cacheSet(apiKey string, tenantID int64, err error) {
+func (a *Authenticator) cacheSet(cacheKey string, tenantID int64, err error) {
 	ttl := cacheTTL
 	if err != nil {
 		ttl = negativeCacheTTL
 	}
-	a.cache.Store(apiKeyCacheKey(apiKey), cacheEntry{
-		tenantID:    tenantID,
+	a.cache.Store(cacheKey, cacheEntry{
+		tenantID:  tenantID,
 		err:       err,
 		expiresAt: time.Now().Add(ttl),
 	})

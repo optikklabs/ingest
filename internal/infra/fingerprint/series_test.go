@@ -28,3 +28,22 @@ func TestSeriesHashDistinctOnResource(t *testing.T) {
 		t.Fatal("distinct resources collided into one fingerprint")
 	}
 }
+
+// TestSeriesHashPreFilteredEquivalent proves the hoisted pre-filter path
+// produces byte-identical fingerprints, including when the resource carries
+// high-cardinality keys that must be dropped.
+func TestSeriesHashPreFilteredEquivalent(t *testing.T) {
+	res := map[string]string{
+		"service.name": "api",
+		"host.name":    "h1",
+		"k8s.pod.uid":  "should-drop",
+		"container.id": "should-drop",
+	}
+	dp := map[string]string{"db.system": "postgres", "process.pid": "should-drop"}
+
+	want := SeriesHash("m", "Cumulative", res, dp)
+	got := SeriesHashPreFiltered("m", "Cumulative", FilterHighCardinality(res), dp)
+	if got != want {
+		t.Fatalf("pre-filtered hash = %d, want %d (must match legacy SeriesHash)", got, want)
+	}
+}

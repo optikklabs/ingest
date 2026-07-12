@@ -18,18 +18,18 @@ import (
 
 type Handler struct {
 	logspb.UnimplementedLogsServiceServer
-	producer         *core.Producer[*schema.Row]
-	resourceProducer *core.Producer[*logsresourceschema.ResourceRow]
-	resourceCache    *core.ResourceCache
-	stats            ingestionstats.Recorder
+	producer          *core.Producer[*schema.Row]
+	resourcePublisher *core.AsyncPublisher[*logsresourceschema.ResourceRow]
+	resourceCache     *core.ResourceCache
+	stats             ingestionstats.Recorder
 }
 
-func NewHandler(p *core.Producer[*schema.Row], rp *core.Producer[*logsresourceschema.ResourceRow], cache *core.ResourceCache, stats ingestionstats.Recorder) *Handler {
+func NewHandler(p *core.Producer[*schema.Row], rp *core.AsyncPublisher[*logsresourceschema.ResourceRow], cache *core.ResourceCache, stats ingestionstats.Recorder) *Handler {
 	return &Handler{
-		producer:         p,
-		resourceProducer: rp,
-		resourceCache:    cache,
-		stats:            stats,
+		producer:          p,
+		resourcePublisher: rp,
+		resourceCache:     cache,
+		stats:             stats,
 	}
 }
 
@@ -71,7 +71,13 @@ func (h *Handler) Export(ctx context.Context, req *logspb.ExportLogsServiceReque
 			})
 		}
 	}
-	core.PublishResources(h.resourceProducer, h.resourceCache, newKeys, resourceRows, "logs")
+	// Resource re-publish is best-effort and off the request path. Roll the
+	// cache key back only if the async publish is dropped or fails.
+	h.resourcePublisher.Enqueue(resourceRows, func() {
+		for _, k := range newKeys {
+			h.resourceCache.Remove(k)
+		}
+	})
 
 	pubStart := time.Now()
 	if err := h.producer.Publish(ctx, rows); err != nil {

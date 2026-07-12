@@ -2,7 +2,6 @@ package servicegraph
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"time"
 
@@ -109,11 +108,11 @@ func (c *Consumer) handle(ctx context.Context, recs []*kgo.Record) error {
 			continue
 		}
 		
-		var matchKey string
+		var matchKey spanKey
 		if isClient {
-			matchKey = fmt.Sprintf("%s:%s", row.GetTraceId(), row.GetSpanId())
+			matchKey = spanKey{TraceID: row.GetTraceId(), SpanID: row.GetSpanId()}
 		} else {
-			matchKey = fmt.Sprintf("%s:%s", row.GetTraceId(), row.GetParentSpanId())
+			matchKey = spanKey{TraceID: row.GetTraceId(), SpanID: row.GetParentSpanId()}
 		}
 		
 		durMs := float64(row.GetDurationNano()) / 1000000.0

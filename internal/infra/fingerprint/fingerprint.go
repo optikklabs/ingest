@@ -19,11 +19,27 @@ var highCardinalityKeys = map[string]struct{}{
 }
 
 func SeriesHash(metricName, temporality string, resAttrs, dpAttrs map[string]string) uint64 {
-	merged := make(map[string]string, len(resAttrs)+len(dpAttrs)+2)
-	for k, v := range resAttrs {
+	return SeriesHashPreFiltered(metricName, temporality, FilterHighCardinality(resAttrs), dpAttrs)
+}
+
+// FilterHighCardinality returns a copy of attrs without the high-cardinality
+// keys. Hoist this once per ResourceMetrics instead of per datapoint.
+func FilterHighCardinality(attrs map[string]string) map[string]string {
+	out := make(map[string]string, len(attrs))
+	for k, v := range attrs {
 		if _, drop := highCardinalityKeys[k]; !drop {
-			merged[k] = v
+			out[k] = v
 		}
+	}
+	return out
+}
+
+// SeriesHashPreFiltered hashes a series whose resource attrs are already
+// high-cardinality-filtered; only dpAttrs is filtered here (per datapoint).
+func SeriesHashPreFiltered(metricName, temporality string, filteredResAttrs, dpAttrs map[string]string) uint64 {
+	merged := make(map[string]string, len(filteredResAttrs)+len(dpAttrs)+2)
+	for k, v := range filteredResAttrs {
+		merged[k] = v
 	}
 	for k, v := range dpAttrs {
 		if _, drop := highCardinalityKeys[k]; !drop {

@@ -19,19 +19,19 @@ import (
 type Handler struct {
 	tracepb.UnimplementedTraceServiceServer
 	producer           *core.Producer[*schema.Row]
-	tracegraphProducer *core.Producer[*schema.Row]
-	resourceProducer   *core.Producer[*spansresourceschema.ResourceRow]
+	tracegraphPublisher *core.AsyncPublisher[*schema.Row]
+	resourcePublisher   *core.AsyncPublisher[*spansresourceschema.ResourceRow]
 	resourceCache      *core.ResourceCache
 	stats              ingestionstats.Recorder
 }
 
-func NewHandler(p *core.Producer[*schema.Row], tp *core.Producer[*schema.Row], rp *core.Producer[*spansresourceschema.ResourceRow], cache *core.ResourceCache, stats ingestionstats.Recorder) *Handler {
+func NewHandler(p *core.Producer[*schema.Row], tp *core.AsyncPublisher[*schema.Row], rp *core.AsyncPublisher[*spansresourceschema.ResourceRow], cache *core.ResourceCache, stats ingestionstats.Recorder) *Handler {
 	return &Handler{
-		producer:           p,
-		tracegraphProducer: tp,
-		resourceProducer:   rp,
-		resourceCache:      cache,
-		stats:              stats,
+		producer:            p,
+		tracegraphPublisher: tp,
+		resourcePublisher:   rp,
+		resourceCache:       cache,
+		stats:               stats,
 	}
 }
 
@@ -73,7 +73,14 @@ func (h *Handler) Export(ctx context.Context, req *tracepb.ExportTraceServiceReq
 			})
 		}
 	}
-	core.PublishResources(h.resourceProducer, h.resourceCache, newKeys, resourceRows, "spans")
+	// Resource re-publish is best-effort and off the request path. The cache
+	// key was written synchronously above (dedup); roll it back only if the
+	// async publish is dropped or fails, so a later window re-emits.
+	h.resourcePublisher.Enqueue(resourceRows, func() {
+		for _, k := range newKeys {
+			h.resourceCache.Remove(k)
+		}
+	})
 
 	pubStart := time.Now()
 	if err := h.producer.Publish(ctx, rows); err != nil {
@@ -86,13 +93,8 @@ func (h *Handler) Export(ctx context.Context, req *tracepb.ExportTraceServiceReq
 	tgRows := tracegraphRows(rows)
 	metrics.TracegraphRowsPublished.Add(float64(len(tgRows)))
 	metrics.TracegraphRowsFiltered.Add(float64(len(rows) - len(tgRows)))
-	if len(tgRows) > 0 {
-		publishCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		if err := h.tracegraphProducer.Publish(publishCtx, tgRows); err != nil {
-			slog.WarnContext(publishCtx, "spans handler: failed to publish to tracegraph", slog.Any("error", err))
-		}
-		cancel()
-	}
+	// Tracegraph is best-effort with no cache state, so no rollback hook.
+	h.tracegraphPublisher.Enqueue(tgRows, nil)
 
 	return &tracepb.ExportTraceServiceResponse{}, nil
 }

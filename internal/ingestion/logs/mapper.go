@@ -31,7 +31,10 @@ func mapRequest(tenantID int64, req *logspb.ExportLogsServiceRequest) []*schema.
 		if rl.Resource != nil {
 			resAttrs = rl.Resource.Attributes
 		}
-		resourceMap := otlp.AttrsToMap(resAttrs)
+		// resourceMap is only read (fillResourceFallbacks copies it into each
+		// row's Resource), so it is free to pool once this resource's logs map.
+		resourceMap := otlp.GetAttrMap()
+		otlp.AttrsToMapInto(resourceMap, resAttrs)
 		for _, sl := range rl.GetScopeLogs() {
 			scopeName, scopeVersion := "", ""
 			if sl.GetScope() != nil {
@@ -42,6 +45,7 @@ func mapRequest(tenantID int64, req *logspb.ExportLogsServiceRequest) []*schema.
 				rows = append(rows, buildLogRow(tenantID, resourceMap, scopeName, scopeVersion, lr, nowNs))
 			}
 		}
+		otlp.PutAttrMap(resourceMap)
 	}
 	return rows
 }
