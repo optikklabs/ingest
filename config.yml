@@ -9,7 +9,7 @@ mysql:
   port: "13306"
   database: optikk
   user: root
-  password: "" # Use OPTIKK_MYSQL_PASSWORD environment variable
+  password: "localdev" # Overridable by OPTIKK_MYSQL_PASSWORD environment variable
   max_open_conns: 10
   max_idle_conns: 5
 
@@ -18,7 +18,7 @@ clickhouse:
   port: "19000"
   database: optikk
   user: default
-  password: "" # Use OPTIKK_CLICKHOUSE_PASSWORD environment variable
+  password: "localdev" # Overridable by OPTIKK_CLICKHOUSE_PASSWORD environment variable
   secure: false
   # Insert pool; batched writes need few connections. 0 falls back to 20/10.
   max_open_conns: 20

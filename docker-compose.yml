@@ -4,7 +4,9 @@ services:
     environment:
       CLICKHOUSE_DB: optikk
       CLICKHOUSE_USER: default
-      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:?set in .env}
+      CLICKHOUSE_PASSWORD: localdev
+    ports:
+      - "19000:9000"
     volumes:
       - clickhouse_data:/var/lib/clickhouse
       - ./db/clickhouse/config.d/keeper.xml:/etc/clickhouse-server/config.d/keeper.xml:ro
@@ -19,8 +21,10 @@ services:
   mariadb:
     image: mariadb:latest
     environment:
-      MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD:?set in .env}
+      MARIADB_ROOT_PASSWORD: localdev
       MARIADB_DATABASE: optikk
+    ports:
+      - "13306:3306"
     volumes:
       - mariadb_data:/var/lib/mysql
     healthcheck:
@@ -40,6 +44,8 @@ services:
       KAFKA_NUM_PARTITIONS: "8"
       KAFKA_AUTO_CREATE_TOPICS: "true"
       KAFKA_LOG_DIRS: "/var/lib/mq"
+    ports:
+      - "9092:9092"
     volumes:
       - mq_data:/var/lib/mq
   
