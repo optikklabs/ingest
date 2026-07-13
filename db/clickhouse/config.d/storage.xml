@@ -1,0 +1,16 @@
+<clickhouse>
+    <storage_configuration>
+        <disks>
+            <default></default>
+        </disks>
+        <policies>
+            <gcs_only>
+                <volumes>
+                    <local>
+                        <disk>default</disk>
+                    </local>
+                </volumes>
+            </gcs_only>
+        </policies>
+    </storage_configuration>
+</clickhouse>
