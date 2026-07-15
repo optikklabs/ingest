@@ -22,24 +22,24 @@ func (p *Producer) PublishBatch(ctx context.Context, records []*kgo.Record) erro
 	}
 	var (
 		wg       sync.WaitGroup
-		firstErr atomic.Value
+		mu       sync.Mutex
+		firstErr error
 	)
 	wg.Add(len(records))
 	for _, r := range records {
 		p.client.Produce(ctx, r, func(_ *kgo.Record, err error) {
 			defer wg.Done()
 			if err != nil {
-				firstErr.CompareAndSwap(nil, err)
+				mu.Lock()
+				if firstErr == nil {
+					firstErr = err
+				}
+				mu.Unlock()
 			}
 		})
 	}
 	wg.Wait()
-	if v := firstErr.Load(); v != nil {
-		if err, ok := v.(error); ok {
-			return err
-		}
-	}
-	return nil
+	return firstErr
 }
 
 func (p *Producer) PublishSync(ctx context.Context, rec *kgo.Record) error {
