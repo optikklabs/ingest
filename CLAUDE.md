@@ -1,7 +1,5 @@
 # CLAUDE.md
 
-**CRITICAL RULE**: You MUST refer to and update `CODE_INDEX.md` after every architectural or structural task to ensure the codebase index remains accurate.
-
 Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-specific instructions as needed.
 
 **Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
