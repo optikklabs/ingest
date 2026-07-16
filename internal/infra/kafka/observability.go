@@ -16,7 +16,10 @@ import (
 
 // hooks implements the kgo.Hook* interfaces we instrument: produce/fetch
 // counters, broker connect counter, group rebalance error counter.
-type hooks struct{}
+type hooks struct {
+	group string
+	topic string
+}
 
 var (
 	_ kgo.HookProduceRecordUnbuffered = (*hooks)(nil)
@@ -25,7 +28,9 @@ var (
 	_ kgo.HookGroupManageError        = (*hooks)(nil)
 )
 
-func WithHooks() kgo.Opt { return kgo.WithHooks(hooks{}) }
+func WithHooks(group, topic string) kgo.Opt {
+	return kgo.WithHooks(hooks{group: group, topic: topic})
+}
 
 func (hooks) OnProduceRecordUnbuffered(r *kgo.Record, err error) {
 	signal := signalFromTopic(r.Topic)
@@ -61,12 +66,17 @@ func (hooks) OnBrokerConnect(meta kgo.BrokerMetadata, _ time.Duration, _ net.Con
 	metrics.KafkaBrokerConnects.WithLabelValues(result).Inc()
 }
 
-func (hooks) OnGroupManageError(err error) {
+func (h hooks) OnGroupManageError(err error) {
 	if err == nil {
 		return
 	}
 	metrics.KafkaRebalances.WithLabelValues("manage_error").Inc()
-	slog.Warn("kafka group manage error", slog.Any("error", err))
+	slog.Warn("kafka group manage error",
+		slog.String("group", h.group),
+		slog.String("topic", h.topic),
+		slog.String("signal", signalFromTopic(h.topic)),
+		slog.Any("error", err),
+	)
 }
 
 // knownSignals covers every signal a topic name can end with; topics are
