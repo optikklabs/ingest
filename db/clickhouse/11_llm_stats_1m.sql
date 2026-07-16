@@ -18,9 +18,11 @@ CREATE TABLE IF NOT EXISTS optikk.llm_stats_1m (
 ) ENGINE = ReplicatedAggregatingMergeTree('/clickhouse/tables/{shard}/optikk/llm_stats_1m', '{replica}')
 PARTITION BY toYYYYMMDD(timestamp)
 ORDER BY (tenant_id, timestamp, service, environment, gen_ai_system, gen_ai_request_model, gen_ai_operation)
-TTL timestamp + INTERVAL 90 DAY DELETE
+TTL
+    timestamp + INTERVAL 3 DAY TO VOLUME 'main',
+    timestamp + INTERVAL 90 DAY DELETE
 SETTINGS
-    storage_policy = 'gcs_only',
+    storage_policy = 'tiered',
     index_granularity = 8192,
     ttl_only_drop_parts = 1;
 

@@ -17,7 +17,7 @@ PARTITION BY toYYYYMMDD(timestamp)
 ORDER BY (tenant_id, metric_name, fingerprint, timestamp)
 TTL timestamp + INTERVAL 2 DAY DELETE
 SETTINGS
-    storage_policy = 'gcs_only',
+    storage_policy = 'tiered',
     index_granularity = 8192,
     enable_mixed_granularity_parts = 1,
     non_replicated_deduplication_window = 100000,

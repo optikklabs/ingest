@@ -12,7 +12,9 @@ CREATE TABLE IF NOT EXISTS optikk.spans_resource (
 ) ENGINE = ReplicatedReplacingMergeTree('/clickhouse/tables/{shard}/optikk/spans_resource', '{replica}')
 PARTITION BY toYYYYMMDD(last_seen)
 ORDER BY (tenant_id, service, host, pod, environment, fingerprint)
-TTL last_seen + INTERVAL 15 DAY DELETE
+TTL
+    last_seen + INTERVAL 3 DAY TO VOLUME 'main',
+    last_seen + INTERVAL 15 DAY DELETE
 SETTINGS
-    storage_policy = 'gcs_only',
+    storage_policy = 'tiered',
     index_granularity = 8192;

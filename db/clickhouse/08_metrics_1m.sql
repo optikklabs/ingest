@@ -13,10 +13,12 @@ CREATE TABLE IF NOT EXISTS optikk.metrics_1m (
     latency_state AggregateFunction(quantilesPrometheusHistogram(0.5, 0.95, 0.99), Float64, UInt64) CODEC(ZSTD(1))
 ) ENGINE = ReplicatedAggregatingMergeTree('/clickhouse/tables/{shard}/optikk/metrics_1m', '{replica}')
 PARTITION BY toYYYYMMDD(timestamp)
-ORDER BY (tenant_id, metric_name, fingerprint, timestamp)
-TTL timestamp + INTERVAL 7 DAY DELETE
+ORDER BY (tenant_id, metric_name, timestamp, fingerprint)
+TTL
+    timestamp + INTERVAL 3 DAY TO VOLUME 'main',
+    timestamp + INTERVAL 7 DAY DELETE
 SETTINGS
-    storage_policy = 'gcs_only',
+    storage_policy = 'tiered',
     index_granularity = 8192,
     ttl_only_drop_parts = 1;
 
@@ -34,6 +36,9 @@ SELECT
     count()        AS val_count,
     sum(hist_sum)   AS hist_sum,
     sum(hist_count) AS hist_count,
-    quantilesPrometheusHistogramArrayState(0.5, 0.95, 0.99)(empty(hist_buckets) ? hist_buckets : arrayPushBack(hist_buckets, inf), arrayCumSum(hist_counts)) AS latency_state
+    quantilesPrometheusHistogramArrayState(0.5, 0.95, 0.99)(
+        if(length(hist_counts) = length(hist_buckets) + 1, arrayPushBack(hist_buckets, inf), emptyArrayFloat64()),
+        if(length(hist_counts) = length(hist_buckets) + 1, arrayCumSum(hist_counts), emptyArrayUInt64())
+    ) AS latency_state
 FROM optikk.metrics
 GROUP BY tenant_id, metric_name, fingerprint, timestamp;

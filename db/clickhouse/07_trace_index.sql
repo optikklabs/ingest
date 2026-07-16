@@ -10,9 +10,11 @@ CREATE TABLE IF NOT EXISTS optikk.trace_index (
 ) ENGINE = ReplicatedMergeTree('/clickhouse/tables/{shard}/optikk/trace_index', '{replica}')
 PARTITION BY toYYYYMMDD(timestamp)
 ORDER BY (tenant_id, trace_id, timestamp)
-TTL timestamp + INTERVAL 30 DAY DELETE
+TTL
+    timestamp + INTERVAL 3 DAY TO VOLUME 'main',
+    timestamp + INTERVAL 30 DAY DELETE
 SETTINGS
-    storage_policy = 'gcs_only',
+    storage_policy = 'tiered',
     index_granularity = 8192,
     ttl_only_drop_parts = 1;
 

@@ -11,6 +11,14 @@
                     </local>
                 </volumes>
             </gcs_only>
+            <!-- Local development has one disk, so the cold move is a no-op. -->
+            <tiered>
+                <volumes>
+                    <main>
+                        <disk>default</disk>
+                    </main>
+                </volumes>
+            </tiered>
         </policies>
     </storage_configuration>
 </clickhouse>

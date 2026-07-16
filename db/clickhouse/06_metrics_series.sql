@@ -18,8 +18,10 @@ CREATE TABLE IF NOT EXISTS optikk.metrics_series (
 ) ENGINE = ReplicatedReplacingMergeTree('/clickhouse/tables/{shard}/optikk/metrics_series_v2', '{replica}')
 PARTITION BY toYYYYMMDD(timestamp)
 ORDER BY (tenant_id, metric_name, toStartOfInterval(timestamp, INTERVAL 6 HOUR), service, fingerprint)
-TTL timestamp + INTERVAL 30 DAY DELETE
+TTL
+    timestamp + INTERVAL 3 DAY TO VOLUME 'main',
+    timestamp + INTERVAL 30 DAY DELETE
 SETTINGS
-    storage_policy = 'gcs_only',
+    storage_policy = 'tiered',
     index_granularity = 8192,
     ttl_only_drop_parts = 1;

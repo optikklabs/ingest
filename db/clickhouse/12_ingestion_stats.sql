@@ -9,9 +9,11 @@ CREATE TABLE IF NOT EXISTS optikk.ingestion_stats (
 ) ENGINE = ReplicatedSummingMergeTree('/clickhouse/tables/{shard}/optikk/ingestion_stats', '{replica}')
 PARTITION BY toYYYYMM(bucket_hour)
 ORDER BY (tenant_id, bucket_hour, signal, service, environment)
-TTL bucket_hour + INTERVAL 400 DAY DELETE
+TTL
+    bucket_hour + INTERVAL 30 DAY TO VOLUME 'main',
+    bucket_hour + INTERVAL 400 DAY DELETE
 SETTINGS
-    storage_policy = 'gcs_only',
+    storage_policy = 'tiered',
     index_granularity = 8192,
     ttl_only_drop_parts = 1,
     replicated_deduplication_window = 0,

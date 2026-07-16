@@ -13,7 +13,9 @@ CREATE TABLE IF NOT EXISTS optikk.logs_resource (
 ) ENGINE = ReplicatedReplacingMergeTree('/clickhouse/tables/{shard}/optikk/logs_resource', '{replica}')
 PARTITION BY toYYYYMMDD(toDateTime(ts_bucket))
 ORDER BY (tenant_id, service, ts_bucket, fingerprint)
-TTL toDateTime(ts_bucket) + INTERVAL 15 DAY DELETE
+TTL
+    toDateTime(ts_bucket) + INTERVAL 3 DAY TO VOLUME 'main',
+    toDateTime(ts_bucket) + INTERVAL 15 DAY DELETE
 SETTINGS
-    storage_policy = 'gcs_only',
+    storage_policy = 'tiered',
     index_granularity = 8192;

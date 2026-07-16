@@ -13,10 +13,12 @@ CREATE TABLE IF NOT EXISTS optikk.metrics_5m (
     latency_state AggregateFunction(quantilesPrometheusHistogram(0.5, 0.95, 0.99), Float64, UInt64) CODEC(ZSTD(1))
 ) ENGINE = ReplicatedAggregatingMergeTree('/clickhouse/tables/{shard}/optikk/metrics_5m', '{replica}')
 PARTITION BY toYYYYMMDD(timestamp)
-ORDER BY (tenant_id, metric_name, fingerprint, timestamp)
-TTL timestamp + INTERVAL 14 DAY DELETE
+ORDER BY (tenant_id, metric_name, timestamp, fingerprint)
+TTL
+    timestamp + INTERVAL 3 DAY TO VOLUME 'main',
+    timestamp + INTERVAL 14 DAY DELETE
 SETTINGS
-    storage_policy = 'gcs_only',
+    storage_policy = 'tiered',
     index_granularity = 8192,
     ttl_only_drop_parts = 1;
 
