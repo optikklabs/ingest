@@ -3,7 +3,6 @@ package kafka
 import (
 	"context"
 	"sync"
-	"sync/atomic"
 
 	"github.com/twmb/franz-go/pkg/kgo"
 )

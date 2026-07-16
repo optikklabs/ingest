@@ -45,8 +45,7 @@ func (hooks) OnProduceRecordUnbuffered(r *kgo.Record, err error) {
 }
 
 func (hooks) OnFetchRecordUnbuffered(r *kgo.Record, _ bool) {
-	signal := signalFromTopic(r.Topic)
-	metrics.IngestRecordsTotal.WithLabelValues(signal, "ok").Inc()
+	metrics.ConsumedRecordsTotal.WithLabelValues(signalFromTopic(r.Topic)).Inc()
 }
 
 func (hooks) OnBrokerConnect(meta kgo.BrokerMetadata, _ time.Duration, _ net.Conn, err error) {
@@ -70,19 +69,26 @@ func (hooks) OnGroupManageError(err error) {
 	slog.Warn("kafka group manage error", slog.Any("error", err))
 }
 
+// knownSignals covers every signal a topic name can end with; topics are
+// always built as prefix + "." + signal (see IngestTopic/DLQTopic).
+var knownSignals = map[string]struct{}{
+	SignalSpans:           {},
+	SignalSpansTracegraph: {},
+	SignalSpansResource:   {},
+	SignalLogs:            {},
+	SignalLogsResource:    {},
+	SignalMetrics:         {},
+	SignalMetricSeries:    {},
+	SignalIngestionStats:  {},
+}
+
 func signalFromTopic(topic string) string {
-	switch {
-	case strings.HasSuffix(topic, "."+SignalSpans):
-		return SignalSpans
-	case strings.HasSuffix(topic, "."+SignalLogs):
-		return SignalLogs
-	case strings.HasSuffix(topic, "."+SignalMetrics):
-		return SignalMetrics
-	case strings.HasSuffix(topic, "."+SignalMetricSeries):
-		return SignalMetricSeries
-	default:
-		return "unknown"
+	if i := strings.LastIndexByte(topic, '.'); i >= 0 {
+		if _, ok := knownSignals[topic[i+1:]]; ok {
+			return topic[i+1:]
+		}
 	}
+	return "unknown"
 }
 
 type LagPoller struct {

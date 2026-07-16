@@ -12,8 +12,17 @@ var (
 		Namespace: "optikk",
 		Subsystem: "ingest",
 		Name:      "records_total",
-		Help:      "OTLP records accepted into the ingest pipeline, by signal (traces/logs/metrics) and result (ok/err).",
+		Help:      "Records published to Kafka by the ingest pipeline, by signal and result (ok/err).",
 	}, []string{"signal", "result"})
+
+	// ConsumedRecordsTotal counts fetch-side records separately from
+	// records_total: publish success must never mask a stalled consumer.
+	ConsumedRecordsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "optikk",
+		Subsystem: "ingest",
+		Name:      "consumed_records_total",
+		Help:      "Records fetched from Kafka by ingest consumers, by signal.",
+	}, []string{"signal"})
 
 	IngestRecordBytes = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "optikk",
