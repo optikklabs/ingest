@@ -2,3 +2,8 @@
 -- retained per series for host metadata panels. Allowlisted at ingest.
 ALTER TABLE optikk.metrics_series
     ADD COLUMN IF NOT EXISTS resource_attributes JSON(max_dynamic_paths=100) CODEC(ZSTD(1));
+
+ALTER TABLE optikk.ingestion_stats
+    MODIFY SETTING
+        replicated_deduplication_window = 1000,
+        replicated_deduplication_window_seconds = 86400;
