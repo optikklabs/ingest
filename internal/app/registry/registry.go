@@ -1,10 +1,19 @@
 package registry
 
-import "google.golang.org/grpc"
+import (
+	"net/http"
 
-// Module is the interface every ingest signal module implements. Ingest modules
-// serve OTLP over gRPC only — there is no HTTP API surface.
+	"github.com/optikklabs/ingest/internal/auth"
+	"google.golang.org/grpc"
+)
+
+// Module is the interface every ingest signal module implements.
 type Module interface {
 	Name() string
 	RegisterGRPC(srv *grpc.Server)
+}
+
+// HTTPModule is optional because only OTLP signal modules expose HTTP.
+type HTTPModule interface {
+	RegisterOTLPHTTP(*http.ServeMux, auth.TeamResolver)
 }

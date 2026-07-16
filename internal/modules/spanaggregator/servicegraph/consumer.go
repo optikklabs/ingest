@@ -10,6 +10,7 @@ import (
 	metricsschema "github.com/optikklabs/ingest/internal/ingestion/metrics/schema"
 	metricseriesschema "github.com/optikklabs/ingest/internal/ingestion/metricseries/schema"
 	spansschema "github.com/optikklabs/ingest/internal/ingestion/spans/schema"
+	"github.com/optikklabs/ingest/internal/modules/spanaggregator/common"
 	"github.com/twmb/franz-go/pkg/kgo"
 	"google.golang.org/protobuf/proto"
 )
@@ -25,14 +26,14 @@ type Consumer struct {
 	client     *kafkainfra.Consumer
 	metricsPub *core.Producer[*metricsschema.Row]
 	seriesPub  *core.Producer[*metricseriesschema.SeriesRow]
-	
+
 	store      *Store
 	aggregator *Aggregator
 }
 
 func NewConsumer(
-	client *kafkainfra.Consumer, 
-	metricsPub *core.Producer[*metricsschema.Row], 
+	client *kafkainfra.Consumer,
+	metricsPub *core.Producer[*metricsschema.Row],
 	seriesPub *core.Producer[*metricseriesschema.SeriesRow],
 ) *Consumer {
 	return &Consumer{
@@ -52,24 +53,16 @@ func (c *Consumer) Run(ctx context.Context) {
 // flushLoop publishes aggregated edges and expires unpaired spans on a fixed
 // cadence, decoupling freshness from Kafka batch arrival.
 func (c *Consumer) flushLoop(ctx context.Context) {
-	ticker := time.NewTicker(flushInterval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
+	common.RunPeriodic(ctx, flushInterval, func(ctx context.Context) {
+		c.store.EvictExpired(time.Now(), c.onExpire)
+		state := c.aggregator.Drain()
+		if len(state) == 0 {
 			return
-		case <-ticker.C:
-			c.store.EvictExpired(time.Now(), c.onExpire)
-			state := c.aggregator.Drain()
-			if len(state) == 0 {
-				continue
-			}
-			if err := c.flush(ctx, state); err != nil {
-				slog.ErrorContext(ctx, "servicegraph flush failed", slog.Any("error", err))
-			}
 		}
-	}
+		if err := c.flush(ctx, state); err != nil {
+			slog.ErrorContext(ctx, "servicegraph flush failed", slog.Any("error", err))
+		}
+	})
 }
 
 // onExpire synthesizes a virtual edge to an uninstrumented peer when a client
@@ -94,29 +87,29 @@ func (c *Consumer) onExpire(span CachedSpan) {
 
 func (c *Consumer) handle(ctx context.Context, recs []*kgo.Record) error {
 	now := time.Now()
-	
+
 	for _, r := range recs {
 		row := &spansschema.Row{}
 		if err := proto.Unmarshal(r.Value, row); err != nil {
 			continue
 		}
-		
+
 		isClient := row.GetKindString() == "CLIENT" || row.GetKindString() == "PRODUCER"
 		isServer := row.GetKindString() == "SERVER" || row.GetKindString() == "CONSUMER"
-		
+
 		if !isClient && !isServer {
 			continue
 		}
-		
+
 		var matchKey spanKey
 		if isClient {
 			matchKey = spanKey{TraceID: row.GetTraceId(), SpanID: row.GetSpanId()}
 		} else {
 			matchKey = spanKey{TraceID: row.GetTraceId(), SpanID: row.GetParentSpanId()}
 		}
-		
+
 		durMs := float64(row.GetDurationNano()) / 1000000.0
-		
+
 		if paired, exists := c.store.GetAndRemove(matchKey); exists {
 			var clientSvc, serverSvc string
 			var clientDur, serverDur float64

@@ -15,7 +15,7 @@ var seriesColumns = []string{
 	"tenant_id", "timestamp", "metric_name", "metric_type", "temporality", "is_monotonic",
 	"unit", "description", "fingerprint",
 	"service", "host", "environment", "k8s_namespace", "pod", "container",
-	"attributes",
+	"attributes", "resource_attributes",
 }
 
 func NewClickHouseWriter(ch clickhouse.Conn) core.Writer[*schema.SeriesRow] {
@@ -40,5 +40,6 @@ func seriesRowValues(r *schema.SeriesRow) []any {
 		r.GetPod(),
 		r.GetContainer(),
 		r.GetAttributes(),
+		r.GetResourceAttributes(),
 	}
 }

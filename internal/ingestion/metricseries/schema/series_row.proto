@@ -24,4 +24,7 @@ message SeriesRow {
   string pod = 14;
   string container = 15;
   map<string, string> attributes = 16;
+  // Allowlisted host resource attributes (os.*, host.*, cloud.*,
+  // k8s.node.name, k8s.cluster.name). Empty for non-host resources.
+  map<string, string> resource_attributes = 17;
 }

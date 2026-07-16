@@ -3,14 +3,15 @@ package spanmetrics
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
+	"github.com/optikklabs/ingest/internal/infra/fingerprint"
 	kafkainfra "github.com/optikklabs/ingest/internal/infra/kafka"
 	"github.com/optikklabs/ingest/internal/ingestion/core"
 	metricsschema "github.com/optikklabs/ingest/internal/ingestion/metrics/schema"
 	metricseriesschema "github.com/optikklabs/ingest/internal/ingestion/metricseries/schema"
 	spansschema "github.com/optikklabs/ingest/internal/ingestion/spans/schema"
-	"github.com/optikklabs/ingest/internal/infra/fingerprint"
 	"github.com/optikklabs/ingest/internal/modules/spanaggregator/common"
 	"github.com/twmb/franz-go/pkg/kgo"
 	"google.golang.org/protobuf/proto"
@@ -31,8 +32,8 @@ type Consumer struct {
 }
 
 func NewConsumer(
-	client *kafkainfra.Consumer, 
-	metricsPub *core.Producer[*metricsschema.Row], 
+	client *kafkainfra.Consumer,
+	metricsPub *core.Producer[*metricsschema.Row],
 	seriesPub *core.Producer[*metricseriesschema.SeriesRow],
 ) *Consumer {
 	return &Consumer{
@@ -44,6 +45,7 @@ func NewConsumer(
 }
 
 func (c *Consumer) Run(ctx context.Context) {
+	go common.RunPeriodic(ctx, 10*time.Second, c.flushCurrent)
 	c.client.Run(ctx, c.handle)
 }
 
@@ -55,21 +57,28 @@ func (c *Consumer) handle(ctx context.Context, recs []*kgo.Record) error {
 		}
 		c.aggregator.Add(row)
 	}
-	
-	stateToFlush := c.aggregator.FlushIfReady(10 * time.Second)
-	if len(stateToFlush) > 0 {
-		return c.flush(ctx, stateToFlush)
-	}
-	
+
 	return nil
+}
+
+func (c *Consumer) flushCurrent(ctx context.Context) {
+	state := c.aggregator.Drain()
+	if len(state) == 0 {
+		return
+	}
+	if err := c.flush(ctx, state); err != nil {
+		// The source spans remain durable in Kafka; a later interval proceeds
+		// rather than blocking aggregation indefinitely.
+		slog.ErrorContext(ctx, "spanmetrics flush failed", slog.Any("error", err))
+	}
 }
 
 func (c *Consumer) flush(ctx context.Context, state map[AggKey]*common.AggState) error {
 	var metricsRows []*metricsschema.Row
 	var seriesRows []*metricseriesschema.SeriesRow
-	
+
 	nowNs := time.Now().UnixNano()
-	
+
 	for k, s := range state {
 		dpAttrs := map[string]string{
 			"span.name":   k.SpanName,
@@ -85,9 +94,9 @@ func (c *Consumer) flush(ctx context.Context, state map[AggKey]*common.AggState)
 		if k.DbSystem != "" {
 			dpAttrs["db.system"] = k.DbSystem
 		}
-		
+
 		fp := fingerprint.SeriesHash("traces.span.metrics.duration", "Delta", map[string]string{"service.name": k.Service}, dpAttrs)
-		
+
 		seriesRows = append(seriesRows, &metricseriesschema.SeriesRow{
 			TenantId:    k.TenantId,
 			Fingerprint: fp,
@@ -99,7 +108,7 @@ func (c *Consumer) flush(ctx context.Context, state map[AggKey]*common.AggState)
 			Service:     k.Service,
 			Attributes:  dpAttrs,
 		})
-		
+
 		metricsRows = append(metricsRows, &metricsschema.Row{
 			TenantId:    k.TenantId,
 			MetricName:  "traces.span.metrics.duration",
@@ -112,16 +121,10 @@ func (c *Consumer) flush(ctx context.Context, state map[AggKey]*common.AggState)
 			HistCounts:  s.BucketCount,
 		})
 	}
-	
-	// Publish series first
-	if err := c.seriesPub.Publish(ctx, seriesRows); err != nil {
-		return fmt.Errorf("spanmetrics series publish: %w", err)
+
+	if err := core.PublishMetricPair(ctx, c.seriesPub, seriesRows, c.metricsPub, metricsRows); err != nil {
+		return fmt.Errorf("spanmetrics paired publish: %w", err)
 	}
-	
-	// Publish metrics next
-	if err := c.metricsPub.Publish(ctx, metricsRows); err != nil {
-		return fmt.Errorf("spanmetrics metrics publish: %w", err)
-	}
-	
+
 	return nil
 }

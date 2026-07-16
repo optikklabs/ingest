@@ -161,3 +161,23 @@ func TestResolvePeerPriority(t *testing.T) {
 		})
 	}
 }
+
+func TestExpiryCallbackRunsWithoutHoldingStoreLock(t *testing.T) {
+	store := NewStore()
+	key := spanKey{TraceID: "trace", SpanID: "span"}
+	store.Add(key, CachedSpan{ExpiresAt: time.Now().Add(-time.Second)})
+
+	done := make(chan struct{})
+	go func() {
+		store.EvictExpired(time.Now(), func(CachedSpan) {
+			store.Add(spanKey{TraceID: "new", SpanID: "span"}, CachedSpan{})
+		})
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("expiry callback was called while the store lock was held")
+	}
+}

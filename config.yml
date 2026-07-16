@@ -26,6 +26,7 @@ clickhouse:
 
 otlp:
   grpc_port: "18317"
+  http_port: "18318"
 
 ingestion:
   spans:
@@ -69,6 +70,8 @@ ingestion:
   # Total per-signal resource-cache capacity (split across 32 shards). Size to
   # active-series cardinality, not tenant count. Default 500000.
   resource_cache_size: 500000
+  spanmetrics:
+    consumer_group: optikk-ingest.spanaggregator.spanmetrics.consumer
 
 kafka:
   broker_list: "127.0.0.1:9092"

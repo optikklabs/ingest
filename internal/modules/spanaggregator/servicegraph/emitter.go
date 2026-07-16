@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/optikklabs/ingest/internal/infra/fingerprint"
+	"github.com/optikklabs/ingest/internal/ingestion/core"
 	metricsschema "github.com/optikklabs/ingest/internal/ingestion/metrics/schema"
 	metricseriesschema "github.com/optikklabs/ingest/internal/ingestion/metricseries/schema"
 	"github.com/optikklabs/ingest/internal/modules/spanaggregator/common"
@@ -43,11 +44,8 @@ func (c *Consumer) flush(ctx context.Context, state map[EdgeKey]*EdgeAgg) error 
 		}
 	}
 
-	if err := c.seriesPub.Publish(ctx, seriesRows); err != nil {
-		return fmt.Errorf("servicegraph series publish: %w", err)
-	}
-	if err := c.metricsPub.Publish(ctx, metricsRows); err != nil {
-		return fmt.Errorf("servicegraph metrics publish: %w", err)
+	if err := core.PublishMetricPair(ctx, c.seriesPub, seriesRows, c.metricsPub, metricsRows); err != nil {
+		return fmt.Errorf("servicegraph paired publish: %w", err)
 	}
 	return nil
 }

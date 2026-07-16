@@ -2,10 +2,9 @@ package spanmetrics
 
 import (
 	"sync"
-	"time"
 
-	"github.com/optikklabs/ingest/internal/modules/spanaggregator/common"
 	spansschema "github.com/optikklabs/ingest/internal/ingestion/spans/schema"
+	"github.com/optikklabs/ingest/internal/modules/spanaggregator/common"
 )
 
 type AggKey struct {
@@ -20,15 +19,13 @@ type AggKey struct {
 }
 
 type Aggregator struct {
-	mu        sync.Mutex
-	lastFlush time.Time
-	state     map[AggKey]*common.AggState
+	mu    sync.Mutex
+	state map[AggKey]*common.AggState
 }
 
 func NewAggregator() *Aggregator {
 	return &Aggregator{
-		lastFlush: time.Now(),
-		state:     make(map[AggKey]*common.AggState),
+		state: make(map[AggKey]*common.AggState),
 	}
 }
 
@@ -57,17 +54,10 @@ func (a *Aggregator) Add(row *spansschema.Row) {
 	s.Add(durMs)
 }
 
-func (a *Aggregator) FlushIfReady(interval time.Duration) map[AggKey]*common.AggState {
+func (a *Aggregator) Drain() map[AggKey]*common.AggState {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-
-	if time.Since(a.lastFlush) < interval {
-		return nil
-	}
-
 	stateToFlush := a.state
 	a.state = make(map[AggKey]*common.AggState)
-	a.lastFlush = time.Now()
-	
 	return stateToFlush
 }

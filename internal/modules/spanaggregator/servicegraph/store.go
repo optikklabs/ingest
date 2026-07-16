@@ -3,6 +3,8 @@ package servicegraph
 import (
 	"sync"
 	"time"
+
+	"github.com/optikklabs/ingest/internal/infra/metrics"
 )
 
 // CachedSpan holds the fields of an unpaired span needed to build an edge once
@@ -37,18 +39,23 @@ type Store struct {
 }
 
 func NewStore() *Store {
+	metrics.ServicegraphPendingSpans.Set(0)
 	return &Store{
 		cache: make(map[spanKey]CachedSpan),
 	}
 }
 
-// Add buffers a span, dropping it when the store is at capacity.
-func (s *Store) Add(key spanKey, span CachedSpan) {
+// Add buffers a span, admitting at most maxPendingSpans unique keys.
+func (s *Store) Add(key spanKey, span CachedSpan) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if len(s.cache) < maxPendingSpans {
+	if _, exists := s.cache[key]; exists || len(s.cache) < maxPendingSpans {
 		s.cache[key] = span
+		metrics.ServicegraphPendingSpans.Set(float64(len(s.cache)))
+		return true
 	}
+	metrics.ServicegraphPendingSpansDropped.Inc()
+	return false
 }
 
 // GetAndRemove atomically returns and deletes a buffered span, marking a
@@ -59,6 +66,7 @@ func (s *Store) GetAndRemove(key spanKey) (CachedSpan, bool) {
 	span, ok := s.cache[key]
 	if ok {
 		delete(s.cache, key)
+		metrics.ServicegraphPendingSpans.Set(float64(len(s.cache)))
 	}
 	return span, ok
 }
@@ -67,13 +75,18 @@ func (s *Store) GetAndRemove(key spanKey) (CachedSpan, bool) {
 // callers can react to spans that never found a peer.
 func (s *Store) EvictExpired(now time.Time, onExpire func(CachedSpan)) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
+	expired := make([]CachedSpan, 0)
 	for k, v := range s.cache {
 		if now.After(v.ExpiresAt) {
 			delete(s.cache, k)
-			if onExpire != nil {
-				onExpire(v)
-			}
+			expired = append(expired, v)
+		}
+	}
+	metrics.ServicegraphPendingSpans.Set(float64(len(s.cache)))
+	s.mu.Unlock()
+	if onExpire != nil {
+		for _, span := range expired {
+			onExpire(span)
 		}
 	}
 }

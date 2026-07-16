@@ -170,4 +170,32 @@ var (
 		Name:      "sidepublish_dropped_total",
 		Help:      "Best-effort side-topic publishes dropped (queue full or publish error), by signal and topic.",
 	}, []string{"signal", "topic"})
+
+	IngestionStatsPublishRetries = promauto.NewCounter(prometheus.CounterOpts{
+		Namespace: "optikk",
+		Subsystem: "ingest",
+		Name:      "ingestion_stats_publish_retries_total",
+		Help:      "Hourly ingestion-stat snapshot publish failures retained for retry.",
+	})
+
+	IngestionStatsPublishDropped = promauto.NewCounter(prometheus.CounterOpts{
+		Namespace: "optikk",
+		Subsystem: "ingest",
+		Name:      "ingestion_stats_publish_dropped_total",
+		Help:      "Hourly ingestion-stat rows discarded only after bounded shutdown retries.",
+	})
+
+	ServicegraphPendingSpans = promauto.NewGauge(prometheus.GaugeOpts{
+		Namespace: "optikk",
+		Subsystem: "ingest",
+		Name:      "servicegraph_pending_spans",
+		Help:      "Unique unpaired spans currently retained for service-graph matching.",
+	})
+
+	ServicegraphPendingSpansDropped = promauto.NewCounter(prometheus.CounterOpts{
+		Namespace: "optikk",
+		Subsystem: "ingest",
+		Name:      "servicegraph_pending_spans_dropped_total",
+		Help:      "Unique unpaired spans rejected because the service-graph pairing store is full.",
+	})
 )

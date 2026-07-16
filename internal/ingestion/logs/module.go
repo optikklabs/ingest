@@ -1,7 +1,11 @@
 package logs
 
 import (
+	"net/http"
+
 	"github.com/optikklabs/ingest/internal/app/registry"
+	"github.com/optikklabs/ingest/internal/auth"
+	"github.com/optikklabs/ingest/internal/ingestion/otlphttp"
 	logspb "go.opentelemetry.io/proto/otlp/collector/logs/v1"
 	"google.golang.org/grpc"
 )
@@ -22,6 +26,10 @@ func (m *Module) Name() string { return "logs" }
 
 func (m *Module) RegisterGRPC(srv *grpc.Server) {
 	logspb.RegisterLogsServiceServer(srv, m.handler)
+}
+
+func (m *Module) RegisterOTLPHTTP(mux *http.ServeMux, resolver auth.TeamResolver) {
+	mux.Handle("/v1/logs", otlphttp.Export(resolver, func() *logspb.ExportLogsServiceRequest { return &logspb.ExportLogsServiceRequest{} }, m.handler.Export))
 }
 
 var _ registry.Module = (*Module)(nil)

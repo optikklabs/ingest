@@ -2,6 +2,7 @@ package metrics
 
 import (
 	"math"
+	"strings"
 
 	"github.com/optikklabs/ingest/internal/infra/fingerprint"
 	obsmetrics "github.com/optikklabs/ingest/internal/infra/metrics"
@@ -19,6 +20,39 @@ type rowHeader struct {
 	// resSeriesMap is resMap with high-cardinality keys removed, filtered once
 	// per ResourceMetrics and reused for every datapoint's series hash.
 	resSeriesMap map[string]string
+	// hostResAttrs is the allowlisted host-metadata subset of resMap,
+	// persisted on every series row; nil when the resource has none.
+	hostResAttrs map[string]string
+}
+
+// hostResourceAttrKeys are the exact non-prefix keys retained in
+// resource_attributes; prefixes os./host./cloud. are retained as well.
+var hostResourceAttrKeys = map[string]struct{}{
+	"k8s.node.name":    {},
+	"k8s.cluster.name": {},
+}
+
+// hostResourceAttrs extracts the host-metadata allowlist from resource
+// attributes. Bounded keys keep the JSON column compressible and exclude
+// high-cardinality SDK noise (service.instance.id, telemetry.sdk.*).
+func hostResourceAttrs(resMap map[string]string) map[string]string {
+	var out map[string]string
+	for k, v := range resMap {
+		_, keep := hostResourceAttrKeys[k]
+		if !keep {
+			keep = strings.HasPrefix(k, "os.") ||
+				strings.HasPrefix(k, "host.") ||
+				strings.HasPrefix(k, "cloud.")
+		}
+		if !keep {
+			continue
+		}
+		if out == nil {
+			out = make(map[string]string)
+		}
+		out[k] = v
+	}
+	return out
 }
 
 func mapRequest(tenantID int64, req *metricspb.ExportMetricsServiceRequest) ([]*schema.Row, []*seriesschema.SeriesRow) {
@@ -33,6 +67,7 @@ func mapRequest(tenantID int64, req *metricspb.ExportMetricsServiceRequest) ([]*
 			tenantID:     uint32(tenantID),
 			resMap:       resMap,
 			resSeriesMap: fingerprint.FilterHighCardinality(resMap),
+			hostResAttrs: hostResourceAttrs(resMap),
 		}
 		for _, sm := range rm.GetScopeMetrics() {
 			for _, m := range sm.GetMetrics() {
@@ -184,7 +219,7 @@ func baseRow(
 	normalizeAttrs(name, attrs)
 	fp := fingerprint.SeriesHashPreFiltered(name, temporality, hdr.resSeriesMap, attrs)
 	row := &schema.Row{
-		TenantId:      hdr.tenantID,
+		TenantId:    hdr.tenantID,
 		MetricName:  name,
 		Temporality: temporality,
 		Fingerprint: fp,
@@ -192,7 +227,7 @@ func baseRow(
 		Value:       value,
 	}
 	series := &seriesschema.SeriesRow{
-		TenantId:       hdr.tenantID,
+		TenantId:     hdr.tenantID,
 		Fingerprint:  fp,
 		TimestampNs:  tsNs,
 		MetricName:   name,
@@ -208,6 +243,8 @@ func baseRow(
 		Pod:          hdr.resMap["k8s.pod.name"],
 		Container:    hdr.resMap["k8s.container.name"],
 		Attributes:   attrs,
+
+		ResourceAttributes: hdr.hostResAttrs,
 	}
 	return row, series
 }

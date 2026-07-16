@@ -46,26 +46,14 @@ func (h *Handler) Export(ctx context.Context, req *metricspb.ExportMetricsServic
 		return &metricspb.ExportMetricsServiceResponse{}, nil
 	}
 
-	// Meter usage best-effort; never blocks or fails ingestion.
+	// Usage is intentionally measured at accepted-request time, before Kafka
+	// acknowledgement. This records attempted ingest volume and never delays it.
 	ingestionstats.Emit(h.stats, statRows(uint32(tenantID), req))
 
-	// Publish series first: they are fingerprint-idempotent, so a retry that
-	// re-sends them is harmless. The non-idempotent raw-metric publish goes
-	// last, so a series failure never leaves metrics half-published.
-	if len(seriesRows) > 0 {
-		seriesPubStart := time.Now()
-		if err := h.seriesPublisher.Publish(ctx, seriesRows); err != nil {
-			obsmetrics.HandlerPublishDuration.WithLabelValues("metric_series", "err").Observe(time.Since(seriesPubStart).Seconds())
-			slog.ErrorContext(ctx, "metrics handler: series publish failed", slog.Any("error", err))
-			return nil, status.Error(codes.Unavailable, err.Error())
-		}
-		obsmetrics.HandlerPublishDuration.WithLabelValues("metric_series", "ok").Observe(time.Since(seriesPubStart).Seconds())
-	}
-
 	pubStart := time.Now()
-	if err := h.metricsPublisher.Publish(ctx, rows); err != nil {
+	if err := core.PublishMetricPair(ctx, h.seriesPublisher, seriesRows, h.metricsPublisher, rows); err != nil {
 		obsmetrics.HandlerPublishDuration.WithLabelValues("metrics", "err").Observe(time.Since(pubStart).Seconds())
-		slog.ErrorContext(ctx, "metrics handler: metrics publish failed", slog.Any("error", err))
+		slog.ErrorContext(ctx, "metrics handler: paired publish failed", slog.Any("error", err))
 		return nil, status.Error(codes.Unavailable, err.Error())
 	}
 	obsmetrics.HandlerPublishDuration.WithLabelValues("metrics", "ok").Observe(time.Since(pubStart).Seconds())

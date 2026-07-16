@@ -127,15 +127,30 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("clickhouse.max_idle_conns", 0)
 
 	v.SetDefault("kafka.broker_list", "")
-	v.SetDefault("kafka.consumer_group", "")
 	v.SetDefault("kafka.topic_prefix", "")
+	v.SetDefault("kafka.dlq_prefix", "")
+	v.SetDefault("kafka.compression", "zstd")
+	v.SetDefault("kafka.linger_ms", 20)
+	v.SetDefault("kafka.batch_max_bytes", 1<<20)
 	v.SetDefault("kafka.consumer_max_retries", 0)
 	v.SetDefault("kafka.consumer_max_poll_records", 5000)
 
 	v.SetDefault("otlp.grpc_port", "")
+	v.SetDefault("otlp.http_port", "")
 	v.SetDefault("otlp.grpc_max_concurrent_streams", 10000)
+	v.SetDefault("otlp.grpc_max_recv_msg_size", 16*1024*1024)
 
-	v.SetDefault("ingestion.spans_bucket_seconds", 0)
-	v.SetDefault("ingestion.logs_bucket_seconds", 0)
+	for _, signal := range []string{"spans", "spans_tracegraph", "spans_resource", "logs", "logs_resource", "metrics", "metric_series", "ingestion_stats"} {
+		def := SignalDefaults(signal)
+		prefix := "ingestion." + signal + "."
+		v.SetDefault(prefix+"partitions", def.Partitions)
+		v.SetDefault(prefix+"replicas", def.Replicas)
+		v.SetDefault(prefix+"retention_hours", def.RetentionHours)
+		v.SetDefault(prefix+"consumer_group", def.ConsumerGroup)
+	}
+	v.SetDefault("ingestion.side_publish.queue_size", 4096)
+	v.SetDefault("ingestion.side_publish.workers", 2)
+	v.SetDefault("ingestion.resource_cache_size", 500000)
+	v.SetDefault("ingestion.spanmetrics.consumer_group", "optikk-ingest.spanaggregator.spanmetrics.consumer")
 
 }

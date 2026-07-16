@@ -61,12 +61,13 @@ type signalWireInput struct {
 	insertMaxRetries             int
 	sidePublishQueueSize         int
 	sidePublishWorkers           int
+	stats                        ingestionstats.Recorder
 	registerCloser               func(func())
 }
 
-// newStatsRecorder builds the usage-meter producer, keyed by tenant so a
+// newStatsProducer builds the usage-meter producer, keyed by tenant so a
 // tenant's stat rows land on one partition for merge locality.
-func newStatsRecorder(in signalWireInput) ingestionstats.Recorder {
+func newStatsProducer(in signalWireInput) *core.Producer[*statsschema.StatRow] {
 	topic := kafkainfra.IngestTopic(in.topicPrefix, kafkainfra.SignalIngestionStats)
 	return core.NewProducer[*statsschema.StatRow](topic, in.producerBase).
 		WithKeyFunc(func(r *statsschema.StatRow) []byte {
@@ -94,7 +95,7 @@ func wireSpans(in signalWireInput) (registry.Module, ConsumerRunner) {
 	dlq := core.NewDLQ(in.producerBase, in.dlqTopic, kafkainfra.SignalSpans)
 	consumer := spansignal.NewConsumer(in.consumer, writer, dlq)
 
-	handler := spansignal.NewHandler(producer, tracegraphPublisher, resourcePublisher, in.spansResourceCache, newStatsRecorder(in))
+	handler := spansignal.NewHandler(producer, tracegraphPublisher, resourcePublisher, in.spansResourceCache, in.stats)
 	mod := spansignal.NewModule(spansignal.Deps{Handler: handler})
 	return mod, consumer
 }
@@ -117,7 +118,7 @@ func wireLogs(in signalWireInput) (registry.Module, ConsumerRunner) {
 	dlq := core.NewDLQ(in.producerBase, in.dlqTopic, kafkainfra.SignalLogs)
 	consumer := logsignal.NewConsumer(in.consumer, dataWriter, dlq)
 
-	handler := logsignal.NewHandler(producer, resourcePublisher, in.logsResourceCache, newStatsRecorder(in))
+	handler := logsignal.NewHandler(producer, resourcePublisher, in.logsResourceCache, in.stats)
 	mod := logsignal.NewModule(logsignal.Deps{Handler: handler})
 	return mod, consumer
 }
@@ -138,7 +139,7 @@ func wireMetrics(in signalWireInput) (registry.Module, ConsumerRunner) {
 	dlq := core.NewDLQ(in.producerBase, in.dlqTopic, kafkainfra.SignalMetrics)
 	consumer := metricsignal.NewConsumer(in.consumer, writer, dlq)
 	mod := metricsignal.NewModule(metricsignal.Deps{
-		Handler: metricsignal.NewHandler(metricsProducer, seriesProducer, newStatsRecorder(in)),
+		Handler: metricsignal.NewHandler(metricsProducer, seriesProducer, in.stats),
 	})
 	return mod, consumer
 }
@@ -179,11 +180,15 @@ func wireServicegraph(in signalWireInput) (registry.Module, ConsumerRunner) {
 
 func ingestTopicSpecs(wirings []signalWiring, topicPrefix, dlqPrefix string) []kafkainfra.TopicSpec {
 	specs := make([]kafkainfra.TopicSpec, 0, len(wirings)*2)
+	seen := make(map[string]struct{}, len(wirings)*2)
 	for _, w := range wirings {
-		specs = append(specs,
-			kafkainfra.TopicSpec{Name: kafkainfra.IngestTopic(topicPrefix, w.signal), Partitions: int32(w.cfg.Partitions), Replicas: int16(w.cfg.Replicas), RetentionHours: w.cfg.RetentionHours},
-			kafkainfra.TopicSpec{Name: kafkainfra.DLQTopic(dlqPrefix, w.signal), Partitions: int32(w.cfg.Partitions), Replicas: int16(w.cfg.Replicas), RetentionHours: w.cfg.RetentionHours},
-		)
+		for _, name := range []string{kafkainfra.IngestTopic(topicPrefix, w.signal), kafkainfra.DLQTopic(dlqPrefix, w.signal)} {
+			if _, exists := seen[name]; exists {
+				continue
+			}
+			seen[name] = struct{}{}
+			specs = append(specs, kafkainfra.TopicSpec{Name: name, Partitions: int32(w.cfg.Partitions), Replicas: int16(w.cfg.Replicas), RetentionHours: w.cfg.RetentionHours})
+		}
 	}
 	return specs
 }
@@ -207,7 +212,7 @@ func buildIngest(cfg config.Config, ch clickhouse.Conn) (ingestBundle, error) {
 			Partitions:     cfg.IngestSignal("spans").Partitions,
 			Replicas:       cfg.IngestSignal("spans").Replicas,
 			RetentionHours: cfg.IngestSignal("spans").RetentionHours,
-			ConsumerGroup:  "optikk-ingest.spanaggregator.spanmetrics.consumer",
+			ConsumerGroup:  cfg.SpanmetricsConsumerGroup(),
 		}, wire: wireSpanmetrics},
 
 		{signal: kafkainfra.SignalSpansTracegraph, cfg: cfg.IngestSignal("spans_tracegraph"), wire: wireServicegraph},
@@ -232,6 +237,7 @@ func buildIngest(cfg config.Config, ch clickhouse.Conn) (ingestBundle, error) {
 	}
 	slog.Info("kafka producer client connected", slog.Any("brokers", brokers))
 	producerBase := kafkainfra.NewProducer(producerClient)
+	stats := ingestionstats.NewHourlyRecorder(newStatsProducer(signalWireInput{topicPrefix: topicPrefix, producerBase: producerBase}))
 
 	spansResourceCache := core.NewResourceCache(kafkainfra.SignalSpans, cfg.ResourceCacheSize())
 	logsResourceCache := core.NewResourceCache(kafkainfra.SignalLogs, cfg.ResourceCacheSize())
@@ -243,10 +249,12 @@ func buildIngest(cfg config.Config, ch clickhouse.Conn) (ingestBundle, error) {
 		lagPollers:      make([]*kafkainfra.LagPoller, 0, len(wirings)),
 		consumers:       make([]ConsumerRunner, 0, len(wirings)),
 	}
+	b.closers = append(b.closers, stats.Close)
 	closeOnErr := func() {
 		for _, c := range b.consumerClients {
 			c.Close()
 		}
+		stats.Close()
 		producerClient.Close()
 	}
 
@@ -261,12 +269,12 @@ func buildIngest(cfg config.Config, ch clickhouse.Conn) (ingestBundle, error) {
 		b.lagPollers = append(b.lagPollers, kafkainfra.NewLagPoller(client, w.cfg.ConsumerGroup, ingestTopic))
 
 		mod, consumer := w.wire(signalWireInput{
-			topicPrefix:        topicPrefix,
-			ingestTopic:        ingestTopic,
-			dlqTopic:           kafkainfra.DLQTopic(dlqPrefix, w.signal),
-			group:              w.cfg.ConsumerGroup,
-			sc:                 w.cfg,
-			producerBase:       producerBase,
+			topicPrefix:          topicPrefix,
+			ingestTopic:          ingestTopic,
+			dlqTopic:             kafkainfra.DLQTopic(dlqPrefix, w.signal),
+			group:                w.cfg.ConsumerGroup,
+			sc:                   w.cfg,
+			producerBase:         producerBase,
 			consumer:             kafkainfra.NewConsumer(client, cfg.KafkaConsumerMaxPollRecords(), w.signal),
 			ch:                   ch,
 			spansResourceCache:   spansResourceCache,
@@ -275,6 +283,7 @@ func buildIngest(cfg config.Config, ch clickhouse.Conn) (ingestBundle, error) {
 			sidePublishQueueSize: cfg.SidePublishQueueSize(),
 			sidePublishWorkers:   cfg.SidePublishWorkers(),
 			registerCloser:       func(f func()) { b.closers = append(b.closers, f) },
+			stats:                stats,
 		})
 		if mod != nil {
 			b.modules = append(b.modules, mod)

@@ -18,6 +18,6 @@ COPY config.yml .
 RUN chown -R 1000:1000 /app
 USER 1000:1000
 
-# Match default config.yml: server.port (/metrics + /health) + otlp.grpc_port.
-EXPOSE 18090 4317
+# Match default config.yml: health/metrics plus OTLP gRPC and HTTP.
+EXPOSE 18090 18317 18318
 ENTRYPOINT ["./ingest"]

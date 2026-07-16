@@ -15,11 +15,11 @@ import (
 	_ "google.golang.org/grpc/encoding/gzip"
 	"google.golang.org/grpc/keepalive"
 
+	"github.com/optikklabs/ingest/internal/app/registry"
 	"github.com/optikklabs/ingest/internal/auth"
 )
 
-// addHTTPServerActor serves /metrics and /health probes only — ingest has no
-// query API surface.
+// addHTTPServerActor serves health/metrics and OTLP/HTTP on separate ports.
 func (a *App) addHTTPServerActor(g *run.Group) {
 	mux := http.NewServeMux()
 	mux.Handle("/metrics", promhttp.HandlerFor(prometheus.DefaultGatherer, promhttp.HandlerOpts{}))
@@ -40,6 +40,22 @@ func (a *App) addHTTPServerActor(g *run.Group) {
 		shutCtx, c := context.WithTimeout(context.Background(), 10*time.Second)
 		defer c()
 		srv.Shutdown(shutCtx)
+	})
+
+	if a.Config.OTLP.HTTPPort == "" {
+		return
+	}
+	otlpMux := http.NewServeMux()
+	for _, mod := range a.Modules {
+		if httpMod, ok := mod.(registry.HTTPModule); ok {
+			httpMod.RegisterOTLPHTTP(otlpMux, a.Infra.Authenticator)
+		}
+	}
+	otlpSrv := &http.Server{Addr: fmt.Sprintf(":%s", a.Config.OTLP.HTTPPort), Handler: otlpMux, ReadTimeout: 30 * time.Second, WriteTimeout: 60 * time.Second, IdleTimeout: 120 * time.Second}
+	g.Add(func() error { return otlpSrv.ListenAndServe() }, func(error) {
+		shutCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		_ = otlpSrv.Shutdown(shutCtx)
 	})
 }
 

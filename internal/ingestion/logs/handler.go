@@ -46,7 +46,8 @@ func (h *Handler) Export(ctx context.Context, req *logspb.ExportLogsServiceReque
 		return &logspb.ExportLogsServiceResponse{}, nil
 	}
 
-	// Meter usage best-effort; never blocks or fails ingestion.
+	// Usage is intentionally measured at accepted-request time, before Kafka
+	// acknowledgement. This records attempted ingest volume and never delays it.
 	ingestionstats.Emit(h.stats, statRows(uint32(tenantID), req))
 
 	// Extract unique resources and filter using rolling cache
@@ -60,7 +61,7 @@ func (h *Handler) Export(ctx context.Context, req *logspb.ExportLogsServiceReque
 		if h.resourceCache.CheckAndUpdateBucket(key, row.GetTsBucket()) {
 			newKeys = append(newKeys, key)
 			resourceRows = append(resourceRows, &logsresourceschema.ResourceRow{
-				TenantId:      row.GetTenantId(),
+				TenantId:    row.GetTenantId(),
 				Fingerprint: row.GetFingerprint(),
 				TsBucket:    row.GetTsBucket(),
 				Service:     row.GetService(),
@@ -88,4 +89,3 @@ func (h *Handler) Export(ctx context.Context, req *logspb.ExportLogsServiceReque
 	metrics.HandlerPublishDuration.WithLabelValues("logs", "ok").Observe(time.Since(pubStart).Seconds())
 	return &logspb.ExportLogsServiceResponse{}, nil
 }
-

@@ -16,6 +16,7 @@ type IngestionConfig struct {
 
 	SidePublish       SidePublishConfig `yaml:"side_publish"`
 	ResourceCacheSize int               `yaml:"resource_cache_size"`
+	Spanmetrics       SpanmetricsConfig `yaml:"spanmetrics"`
 }
 
 // SidePublishConfig tunes the async best-effort publisher used for the
@@ -23,6 +24,12 @@ type IngestionConfig struct {
 type SidePublishConfig struct {
 	QueueSize int `yaml:"queue_size"`
 	Workers   int `yaml:"workers"`
+}
+
+// SpanmetricsConfig holds the consumer identity for the aggregate pipeline.
+// It reads the spans topic, so topic topology remains owned by spans.
+type SpanmetricsConfig struct {
+	ConsumerGroup string `yaml:"consumer_group"`
 }
 
 type SignalConfig struct {
@@ -103,4 +110,11 @@ func (c Config) ResourceCacheSize() int {
 		return n
 	}
 	return 500_000
+}
+
+func (c Config) SpanmetricsConsumerGroup() string {
+	if group := c.Ingestion.Spanmetrics.ConsumerGroup; group != "" {
+		return group
+	}
+	return "optikk-ingest.spanaggregator.spanmetrics.consumer"
 }

@@ -18,11 +18,11 @@ import (
 
 type Handler struct {
 	tracepb.UnimplementedTraceServiceServer
-	producer           *core.Producer[*schema.Row]
+	producer            *core.Producer[*schema.Row]
 	tracegraphPublisher *core.AsyncPublisher[*schema.Row]
 	resourcePublisher   *core.AsyncPublisher[*spansresourceschema.ResourceRow]
-	resourceCache      *core.ResourceCache
-	stats              ingestionstats.Recorder
+	resourceCache       *core.ResourceCache
+	stats               ingestionstats.Recorder
 }
 
 func NewHandler(p *core.Producer[*schema.Row], tp *core.AsyncPublisher[*schema.Row], rp *core.AsyncPublisher[*spansresourceschema.ResourceRow], cache *core.ResourceCache, stats ingestionstats.Recorder) *Handler {
@@ -48,7 +48,8 @@ func (h *Handler) Export(ctx context.Context, req *tracepb.ExportTraceServiceReq
 		return &tracepb.ExportTraceServiceResponse{}, nil
 	}
 
-	// Meter usage best-effort; never blocks or fails ingestion.
+	// Usage is intentionally measured at accepted-request time, before Kafka
+	// acknowledgement. This records attempted ingest volume and never delays it.
 	ingestionstats.Emit(h.stats, statRows(uint32(tenantID), req))
 
 	// Re-publish active resources once per day so the resource TTL stays aligned

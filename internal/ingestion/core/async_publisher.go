@@ -31,6 +31,8 @@ type AsyncPublisher[T Row] struct {
 	signal string
 	topic  string
 	queue  chan asyncJob[T]
+	mu     sync.RWMutex
+	closed bool
 	wg     sync.WaitGroup
 }
 
@@ -60,6 +62,12 @@ func NewAsyncPublisher[T Row](pub resourcePublisher[T], signal, topic string, qu
 func (a *AsyncPublisher[T]) Enqueue(rows []T, onFail func()) bool {
 	if len(rows) == 0 {
 		return true
+	}
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	if a.closed {
+		a.drop(len(rows), onFail)
+		return false
 	}
 	select {
 	case a.queue <- asyncJob[T]{rows: rows, onFail: onFail}:
@@ -97,6 +105,13 @@ func (a *AsyncPublisher[T]) drop(rows int, onFail func()) {
 
 // Close stops accepting jobs, drains the queue, and waits for workers.
 func (a *AsyncPublisher[T]) Close() {
+	a.mu.Lock()
+	if a.closed {
+		a.mu.Unlock()
+		return
+	}
+	a.closed = true
 	close(a.queue)
+	a.mu.Unlock()
 	a.wg.Wait()
 }

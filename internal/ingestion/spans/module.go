@@ -1,7 +1,11 @@
 package spans
 
 import (
+	"net/http"
+
 	"github.com/optikklabs/ingest/internal/app/registry"
+	"github.com/optikklabs/ingest/internal/auth"
+	"github.com/optikklabs/ingest/internal/ingestion/otlphttp"
 	tracepb "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	"google.golang.org/grpc"
 )
@@ -24,6 +28,10 @@ func (m *Module) Name() string { return "spans" }
 
 func (m *Module) RegisterGRPC(srv *grpc.Server) {
 	tracepb.RegisterTraceServiceServer(srv, m.handler)
+}
+
+func (m *Module) RegisterOTLPHTTP(mux *http.ServeMux, resolver auth.TeamResolver) {
+	mux.Handle("/v1/traces", otlphttp.Export(resolver, func() *tracepb.ExportTraceServiceRequest { return &tracepb.ExportTraceServiceRequest{} }, m.handler.Export))
 }
 
 var _ registry.Module = (*Module)(nil)
