@@ -10,6 +10,8 @@ import (
 type AggKey struct {
 	TenantId               uint32
 	Service                string
+	Host                   string
+	Pod                    string
 	SpanName               string
 	SpanKind               string
 	StatusCode             string
@@ -40,6 +42,8 @@ func (a *Aggregator) Add(row *spansschema.Row) {
 	key := AggKey{
 		TenantId:               row.GetTenantId(),
 		Service:                row.GetService(),
+		Host:                   row.GetHost(),
+		Pod:                    row.GetPod(),
 		SpanName:               row.GetName(),
 		SpanKind:               row.GetKindString(),
 		StatusCode:             row.GetStatusCodeString(),

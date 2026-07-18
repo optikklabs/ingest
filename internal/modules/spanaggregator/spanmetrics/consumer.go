@@ -104,7 +104,17 @@ func (c *Consumer) flush(ctx context.Context, state map[AggKey]*common.AggState)
 			dpAttrs["messaging.consumer.group.name"] = k.MessagingConsumerGroup
 		}
 
-		fp := fingerprint.SeriesHash("traces.span.metrics.duration", "Delta", map[string]string{"service.name": k.Service}, dpAttrs)
+		resAttrs := map[string]string{
+			"service.name": k.Service,
+		}
+		if k.Host != "" {
+			resAttrs["host.name"] = k.Host
+		}
+		if k.Pod != "" {
+			resAttrs["k8s.pod.name"] = k.Pod
+		}
+
+		fp := fingerprint.SeriesHash("traces.span.metrics.duration", "Delta", resAttrs, dpAttrs)
 
 		seriesRows = append(seriesRows, &metricseriesschema.SeriesRow{
 			TenantId:    k.TenantId,
@@ -115,6 +125,8 @@ func (c *Consumer) flush(ctx context.Context, state map[AggKey]*common.AggState)
 			Description: "Generated from spans",
 			Unit:        "ms",
 			Service:     k.Service,
+			Host:        k.Host,
+			Pod:         k.Pod,
 			Attributes:  dpAttrs,
 		})
 
