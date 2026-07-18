@@ -27,6 +27,7 @@ var chColumns = []string{
 	"exception_type", "exception_message", "exception_stacktrace", "exception_escaped",
 	"gen_ai_system", "gen_ai_operation", "gen_ai_request_model", "gen_ai_response_model",
 	"gen_ai_input_tokens", "gen_ai_output_tokens", "is_gen_ai",
+	"gen_ai_prompt", "gen_ai_completion",
 }
 
 func NewClickHouseWriter(ch clickhouse.Conn) *core.ClickHouseWriter[*schema.Row] {
@@ -80,5 +81,7 @@ func rowValues(r *schema.Row) []any {
 		r.GetGenAiInputTokens(),
 		r.GetGenAiOutputTokens(),
 		r.GetIsGenAi(),
+		r.GetGenAiPrompt(),
+		r.GetGenAiCompletion(),
 	}
 }

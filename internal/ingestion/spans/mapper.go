@@ -115,6 +115,8 @@ func buildSpanRow(tenantID int64, resMap map[string]string, fp uint64, s *trace.
 		GenAiOperation:      gen.Operation,
 		GenAiRequestModel:   gen.RequestModel,
 		GenAiResponseModel:  gen.ResponseModel,
+		GenAiPrompt:         gen.Prompt,
+		GenAiCompletion:     gen.Completion,
 		GenAiInputTokens:    gen.InputTokens,
 		GenAiOutputTokens:   gen.OutputTokens,
 		IsGenAi:             gen.Present,
@@ -253,6 +255,8 @@ var promotedSpanKeys = []string{
 	"gen_ai.system", "gen_ai.operation.name", "gen_ai.request.model", "gen_ai.response.model",
 	"gen_ai.usage.input_tokens", "gen_ai.usage.output_tokens",
 	"gen_ai.usage.prompt_tokens", "gen_ai.usage.completion_tokens",
+	"gen_ai.prompt", "gen_ai.completion",
+	"gen_ai.input.messages", "gen_ai.output.messages",
 }
 
 func stripPromotedKeys(m map[string]string) {

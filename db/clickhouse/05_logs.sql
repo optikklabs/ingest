@@ -23,14 +23,13 @@ CREATE TABLE IF NOT EXISTS optikk.logs (
     span_id              String CODEC(ZSTD(1)),
     trace_flags          UInt32 DEFAULT 0,
     body                 String CODEC(ZSTD(2)),
-    body_search          String CODEC(ZSTD(2)),
     resource             JSON(max_dynamic_paths=100) CODEC(ZSTD(1)),
     scope_name           String CODEC(ZSTD(1)),
     scope_version        String CODEC(ZSTD(1)),
 
     INDEX idx_trace_id     trace_id     TYPE bloom_filter(0.01)        GRANULARITY 1,
     INDEX idx_log_id       log_id       TYPE bloom_filter(0.01)        GRANULARITY 4,
-    INDEX idx_body_text    body_search  TYPE text(tokenizer = 'splitByNonAlpha', preprocessor = lowerUTF8(body_search)) GRANULARITY 1
+    INDEX idx_body_text    body TYPE text(tokenizer = 'splitByNonAlpha', preprocessor = lowerUTF8(body)) GRANULARITY 1
 ) ENGINE = ReplicatedMergeTree('/clickhouse/tables/{shard}/optikk/logs', '{replica}')
 PARTITION BY toYYYYMMDD(timestamp)
 ORDER BY (tenant_id, ts_bucket, timestamp, fingerprint)

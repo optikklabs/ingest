@@ -1,6 +1,12 @@
 package spans
 
-import "strconv"
+import (
+	"strconv"
+	"unicode/utf8"
+)
+
+// maxGenAIContentBytes caps promoted prompt/completion content per span.
+const maxGenAIContentBytes = 16 * 1024
 
 // genAI holds span fields promoted from OTel gen_ai.* semconv attributes.
 type genAI struct {
@@ -8,6 +14,8 @@ type genAI struct {
 	Operation     string
 	RequestModel  string
 	ResponseModel string
+	Prompt        string
+	Completion    string
 	InputTokens   uint64
 	OutputTokens  uint64
 	Present       bool
@@ -20,6 +28,8 @@ func extractGenAI(spanMap map[string]string) genAI {
 		System:        spanMap["gen_ai.system"],
 		RequestModel:  spanMap["gen_ai.request.model"],
 		ResponseModel: spanMap["gen_ai.response.model"],
+		Prompt:        capUTF8(firstNonEmpty(spanMap, "gen_ai.prompt", "gen_ai.input.messages"), maxGenAIContentBytes),
+		Completion:    capUTF8(firstNonEmpty(spanMap, "gen_ai.completion", "gen_ai.output.messages"), maxGenAIContentBytes),
 		InputTokens:   parseTokenCount(firstNonEmpty(spanMap, "gen_ai.usage.input_tokens", "gen_ai.usage.prompt_tokens")),
 		OutputTokens:  parseTokenCount(firstNonEmpty(spanMap, "gen_ai.usage.output_tokens", "gen_ai.usage.completion_tokens")),
 	}
@@ -48,6 +58,18 @@ func normalizeGenAIOperation(op string) string {
 	default:
 		return "other"
 	}
+}
+
+// capUTF8 truncates s to at most max bytes without splitting a rune.
+func capUTF8(s string, max int) string {
+	if len(s) <= max {
+		return s
+	}
+	cut := max
+	for cut > 0 && !utf8.RuneStart(s[cut]) {
+		cut--
+	}
+	return s[:cut]
 }
 
 func parseTokenCount(v string) uint64 {

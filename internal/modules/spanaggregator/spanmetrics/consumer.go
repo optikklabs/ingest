@@ -94,6 +94,15 @@ func (c *Consumer) flush(ctx context.Context, state map[AggKey]*common.AggState)
 		if k.DbSystem != "" {
 			dpAttrs["db.system"] = k.DbSystem
 		}
+		if k.MessagingSystem != "" {
+			dpAttrs["messaging.system"] = k.MessagingSystem
+		}
+		if k.MessagingDestination != "" {
+			dpAttrs["messaging.destination.name"] = k.MessagingDestination
+		}
+		if k.MessagingConsumerGroup != "" {
+			dpAttrs["messaging.consumer.group.name"] = k.MessagingConsumerGroup
+		}
 
 		fp := fingerprint.SeriesHash("traces.span.metrics.duration", "Delta", map[string]string{"service.name": k.Service}, dpAttrs)
 

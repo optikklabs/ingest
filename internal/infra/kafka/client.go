@@ -16,6 +16,10 @@ type Config struct {
 
 	BatchMaxBytes int
 
+	FetchMaxBytes int
+
+	FetchMaxPartitionBytes int
+
 	Compression string
 }
 
@@ -49,8 +53,8 @@ func NewConsumerClient(cfg Config, groupID, topic string) (*kgo.Client, error) {
 		kgo.DisableAutoCommit(),
 		kgo.Balancers(kgo.CooperativeStickyBalancer()),
 		kgo.FetchMaxWait(2*time.Second),
-		kgo.FetchMaxBytes(8<<20),
-		kgo.FetchMaxPartitionBytes(1<<20),
+		kgo.FetchMaxBytes(fetchMax(cfg)),
+		kgo.FetchMaxPartitionBytes(fetchMaxPartition(cfg)),
 		WithHooks(groupID, topic),
 	)
 }
@@ -65,6 +69,20 @@ func linger(cfg Config) time.Duration {
 func batchMax(cfg Config) int32 {
 	if cfg.BatchMaxBytes > 0 {
 		return int32(cfg.BatchMaxBytes)
+	}
+	return 1 << 20
+}
+
+func fetchMax(cfg Config) int32 {
+	if cfg.FetchMaxBytes > 0 {
+		return int32(cfg.FetchMaxBytes)
+	}
+	return 8 << 20
+}
+
+func fetchMaxPartition(cfg Config) int32 {
+	if cfg.FetchMaxPartitionBytes > 0 {
+		return int32(cfg.FetchMaxPartitionBytes)
 	}
 	return 1 << 20
 }

@@ -8,14 +8,17 @@ import (
 )
 
 type AggKey struct {
-	TenantId       uint32
-	Service        string
-	SpanName       string
-	SpanKind       string
-	StatusCode     string
-	HttpRoute      string
-	HttpStatusCode string
-	DbSystem       string
+	TenantId               uint32
+	Service                string
+	SpanName               string
+	SpanKind               string
+	StatusCode             string
+	HttpRoute              string
+	HttpStatusCode         string
+	DbSystem               string
+	MessagingSystem        string
+	MessagingDestination   string
+	MessagingConsumerGroup string
 }
 
 type Aggregator struct {
@@ -33,15 +36,19 @@ func (a *Aggregator) Add(row *spansschema.Row) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
+	attrs := row.GetAttributes()
 	key := AggKey{
-		TenantId:       row.GetTenantId(),
-		Service:        row.GetService(),
-		SpanName:       row.GetName(),
-		SpanKind:       row.GetKindString(),
-		StatusCode:     row.GetStatusCodeString(),
-		HttpRoute:      row.GetHttpRoute(),
-		HttpStatusCode: row.GetResponseStatusCode(),
-		DbSystem:       row.GetDbSystem(),
+		TenantId:               row.GetTenantId(),
+		Service:                row.GetService(),
+		SpanName:               row.GetName(),
+		SpanKind:               row.GetKindString(),
+		StatusCode:             row.GetStatusCodeString(),
+		HttpRoute:              row.GetHttpRoute(),
+		HttpStatusCode:         row.GetResponseStatusCode(),
+		DbSystem:               row.GetDbSystem(),
+		MessagingSystem:        attrs["messaging.system"],
+		MessagingDestination:   attrs["messaging.destination.name"],
+		MessagingConsumerGroup: attrs["messaging.consumer.group.name"],
 	}
 
 	s, ok := a.state[key]

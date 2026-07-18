@@ -80,6 +80,10 @@ kafka:
   compression: zstd
   linger_ms: 20
   batch_max_bytes: 1048576
+  # Consumer fetch ceilings. Keep defaults until a production load test picks
+  # a larger value for the expected signal mix.
+  fetch_max_bytes: 8388608
+  fetch_max_partition_bytes: 1048576
   # CH insert retries before a batch falls back to the DLQ (default 2)
   consumer_max_retries: 2
   # One Kafka poll maps directly to one ClickHouse insert batch.

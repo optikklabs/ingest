@@ -225,10 +225,12 @@ func buildIngest(cfg config.Config, ch clickhouse.Conn) (ingestBundle, error) {
 	}
 
 	kcfg := kafkainfra.Config{
-		Brokers:       brokers,
-		LingerMs:      cfg.KafkaLingerMs(),
-		BatchMaxBytes: cfg.KafkaBatchMaxBytes(),
-		Compression:   cfg.KafkaCompression(),
+		Brokers:                brokers,
+		LingerMs:               cfg.KafkaLingerMs(),
+		BatchMaxBytes:          cfg.KafkaBatchMaxBytes(),
+		FetchMaxBytes:          cfg.KafkaFetchMaxBytes(),
+		FetchMaxPartitionBytes: cfg.KafkaFetchMaxPartitionBytes(),
+		Compression:            cfg.KafkaCompression(),
 	}
 
 	producerClient, err := kafkainfra.NewProducerClient(kcfg)

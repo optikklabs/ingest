@@ -20,6 +20,10 @@ type KafkaConfig struct {
 
 	BatchMaxBytes int `yaml:"batch_max_bytes"`
 
+	FetchMaxBytes int `yaml:"fetch_max_bytes"`
+
+	FetchMaxPartitionBytes int `yaml:"fetch_max_partition_bytes"`
+
 	ConsumerMaxPollRecords int `yaml:"consumer_max_poll_records"`
 
 	ConsumerMaxRetries int `yaml:"consumer_max_retries"`
@@ -62,6 +66,20 @@ func (c Config) KafkaLingerMs() int {
 
 func (c Config) KafkaBatchMaxBytes() int {
 	if n := c.Kafka.BatchMaxBytes; n > 0 {
+		return n
+	}
+	return 1 << 20
+}
+
+func (c Config) KafkaFetchMaxBytes() int {
+	if n := c.Kafka.FetchMaxBytes; n > 0 {
+		return n
+	}
+	return 8 << 20
+}
+
+func (c Config) KafkaFetchMaxPartitionBytes() int {
+	if n := c.Kafka.FetchMaxPartitionBytes; n > 0 {
 		return n
 	}
 	return 1 << 20

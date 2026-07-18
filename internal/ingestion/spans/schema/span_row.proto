@@ -58,4 +58,6 @@ message Row {
   uint64 gen_ai_input_tokens = 47;
   uint64 gen_ai_output_tokens = 48;
   bool   is_gen_ai = 49;
+  string gen_ai_prompt = 50;
+  string gen_ai_completion = 51;
 }
