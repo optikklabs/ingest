@@ -62,6 +62,7 @@ CREATE TABLE IF NOT EXISTS optikk.spans (
     is_error                 UInt8                  ALIAS if(has_error OR toUInt16OrZero(response_status_code) >= 400, 1, 0),
     is_root                  UInt8                  ALIAS if((parent_span_id = '') OR (parent_span_id = '0000000000000000'), 1, 0),
 
+    INDEX idx_trace_id trace_id TYPE bloom_filter(0.01) GRANULARITY 1,
     INDEX idx_error_group_id error_group_id TYPE bloom_filter GRANULARITY 1,
     INDEX idx_query_hash query_hash TYPE bloom_filter GRANULARITY 1
 ) ENGINE = ReplicatedMergeTree('/clickhouse/tables/{shard}/optikk/spans', '{replica}')
