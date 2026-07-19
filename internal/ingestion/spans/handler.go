@@ -48,10 +48,6 @@ func (h *Handler) Export(ctx context.Context, req *tracepb.ExportTraceServiceReq
 		return &tracepb.ExportTraceServiceResponse{}, nil
 	}
 
-	// Usage is intentionally measured at accepted-request time, before Kafka
-	// acknowledgement. This records attempted ingest volume and never delays it.
-	ingestionstats.Emit(h.stats, statRows(uint32(tenantID), req))
-
 	// Re-publish active resources once per day so the resource TTL stays aligned
 	// with the raw-span retention window.
 	var resourceRows []*spansresourceschema.ResourceRow
@@ -90,6 +86,7 @@ func (h *Handler) Export(ctx context.Context, req *tracepb.ExportTraceServiceReq
 		return nil, status.Error(codes.Unavailable, err.Error())
 	}
 	metrics.HandlerPublishDuration.WithLabelValues("spans", "ok").Observe(time.Since(pubStart).Seconds())
+	ingestionstats.Emit(h.stats, statRows(uint32(tenantID), req))
 
 	tgRows := tracegraphRows(rows)
 	metrics.TracegraphRowsPublished.Add(float64(len(tgRows)))

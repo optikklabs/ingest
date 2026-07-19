@@ -17,6 +17,7 @@ import (
 type rowHeader struct {
 	tenantID uint32
 	resMap   map[string]string
+	resource fingerprint.ResourceDimensions
 	// resSeriesMap is resMap with high-cardinality keys removed, filtered once
 	// per ResourceMetrics and reused for every datapoint's series hash.
 	resSeriesMap map[string]string
@@ -66,6 +67,7 @@ func mapRequest(tenantID int64, req *metricspb.ExportMetricsServiceRequest) ([]*
 		hdr := rowHeader{
 			tenantID:     uint32(tenantID),
 			resMap:       resMap,
+			resource:     fingerprint.ResolveResource(resMap),
 			resSeriesMap: fingerprint.FilterHighCardinality(resMap),
 			hostResAttrs: hostResourceAttrs(resMap),
 		}
@@ -236,12 +238,12 @@ func baseRow(
 		IsMonotonic:  isMonotonic,
 		Unit:         m.GetUnit(),
 		Description:  m.GetDescription(),
-		Service:      hdr.resMap["service.name"],
-		Host:         hdr.resMap["host.name"],
-		Environment:  hdr.resMap["deployment.environment"],
-		K8SNamespace: hdr.resMap["k8s.namespace.name"],
-		Pod:          hdr.resMap["k8s.pod.name"],
-		Container:    hdr.resMap["k8s.container.name"],
+		Service:      hdr.resource.Service,
+		Host:         hdr.resource.Host,
+		Environment:  hdr.resource.Environment,
+		K8SNamespace: hdr.resource.Namespace,
+		Pod:          hdr.resource.Pod,
+		Container:    hdr.resource.Container,
 		Attributes:   attrs,
 
 		ResourceAttributes: hdr.hostResAttrs,

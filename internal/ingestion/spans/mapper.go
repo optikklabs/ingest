@@ -35,9 +35,10 @@ func mapRequest(tenantID int64, req *tracepb.ExportTraceServiceRequest) []*schem
 		resMap := otlp.GetAttrMap()
 		otlp.AttrsToMapInto(resMap, resAttrs)
 		fp := fingerprint.CalculateHash(resMap)
+		dims := fingerprint.ResolveResource(resMap)
 		for _, ss := range rs.GetScopeSpans() {
 			for _, s := range ss.GetSpans() {
-				rows = append(rows, buildSpanRow(tenantID, resMap, fp, s))
+				rows = append(rows, buildSpanRow(tenantID, resMap, dims, fp, s))
 			}
 		}
 		otlp.PutAttrMap(resMap)
@@ -45,7 +46,7 @@ func mapRequest(tenantID int64, req *tracepb.ExportTraceServiceRequest) []*schem
 	return rows
 }
 
-func buildSpanRow(tenantID int64, resMap map[string]string, fp uint64, s *trace.Span) *schema.Row {
+func buildSpanRow(tenantID int64, resMap map[string]string, dims fingerprint.ResourceDimensions, fp uint64, s *trace.Span) *schema.Row {
 	timestampNs := s.GetStartTimeUnixNano()
 	tsBucket := timebucket.BucketStart(int64(timestampNs / nsPerSecond))
 
@@ -73,7 +74,7 @@ func buildSpanRow(tenantID int64, resMap map[string]string, fp uint64, s *trace.
 
 	return &schema.Row{
 		TsBucket:            uint64(tsBucket),
-		TenantId:              uint32(tenantID),
+		TenantId:            uint32(tenantID),
 		TimestampNs:         int64(timestampNs),
 		TraceId:             zeroOut(otlp.BytesToHex(s.GetTraceId()), zeroTraceHex),
 		SpanId:              zeroOut(otlp.BytesToHex(s.GetSpanId()), zeroSpanHex),
@@ -93,11 +94,11 @@ func buildSpanRow(tenantID int64, resMap map[string]string, fp uint64, s *trace.
 		HttpHost:            httpHost,
 		ResponseStatusCode:  httpStatus,
 		HttpStatusBucket:    httpStatusBucket(httpStatus, statusCode == trace.Status_STATUS_CODE_ERROR),
-		Service:             resMap["service.name"],
-		Host:                resMap["host.name"],
-		Pod:                 resMap["k8s.pod.name"],
-		ServiceVersion:      resMap["service.version"],
-		Environment:         resMap["deployment.environment"],
+		Service:             dims.Service,
+		Host:                dims.Host,
+		Pod:                 dims.Pod,
+		ServiceVersion:      dims.Version,
+		Environment:         dims.Environment,
 		PeerService:         spanMap["peer.service"],
 		DbSystem:            spanMap["db.system"],
 		DbName:              spanMap["db.name"],

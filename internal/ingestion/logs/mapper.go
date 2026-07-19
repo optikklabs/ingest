@@ -70,13 +70,14 @@ func buildLogRow(tenantID int64, resource map[string]string, scopeName, scopeVer
 	}
 	sevNum := uint32(lr.GetSeverityNumber())
 	res := fillResourceFallbacks(resource, attrStr)
+	dims := fingerprint.ResolveResource(res)
 
 	traceID := zeroOut(otlp.BytesToHex(lr.GetTraceId()), zeroTraceHex)
 	body := otlp.AnyValueString(lr.GetBody())
 	logID := computeLogID(traceID, tsNs, body)
 
 	return &schema.Row{
-		TenantId:              uint32(tenantID),
+		TenantId:            uint32(tenantID),
 		Fingerprint:         fingerprint.CalculateHash(res),
 		TsBucket:            tsBucket,
 		TimestampNs:         int64(tsNs),
@@ -94,11 +95,11 @@ func buildLogRow(tenantID int64, resource map[string]string, scopeName, scopeVer
 		LogId:               logID,
 		ScopeName:           scopeName,
 		ScopeVersion:        scopeVersion,
-		Service:             res["service.name"],
-		Host:                res["host.name"],
-		Pod:                 res["k8s.pod.name"],
-		Container:           res["k8s.container.name"],
-		Environment:         res["deployment.environment"],
+		Service:             dims.Service,
+		Host:                dims.Host,
+		Pod:                 dims.Pod,
+		Container:           dims.Container,
+		Environment:         dims.Environment,
 	}
 }
 

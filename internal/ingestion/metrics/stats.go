@@ -1,6 +1,7 @@
 package metrics
 
 import (
+	"github.com/optikklabs/ingest/internal/infra/fingerprint"
 	"github.com/optikklabs/ingest/internal/infra/otlp"
 	"github.com/optikklabs/ingest/internal/ingestion/ingestionstats"
 	statsschema "github.com/optikklabs/ingest/internal/ingestion/ingestionstats/schema"
@@ -25,9 +26,10 @@ func statRows(tenantID uint32, req *metricspb.ExportMetricsServiceRequest) []*st
 			continue
 		}
 		res := otlp.AttrsToMap(rm.GetResource().GetAttributes())
+		dims := fingerprint.ResolveResource(res)
 		rows = append(rows, ingestionstats.NewRow(
 			tenantID, ingestionstats.SignalMetrics,
-			res["service.name"], res["deployment.environment"],
+			dims.Service, dims.Environment,
 			records, uint64(proto.Size(rm)),
 		))
 	}

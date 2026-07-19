@@ -1,6 +1,7 @@
 package spans
 
 import (
+	"github.com/optikklabs/ingest/internal/infra/fingerprint"
 	"github.com/optikklabs/ingest/internal/infra/otlp"
 	"github.com/optikklabs/ingest/internal/ingestion/ingestionstats"
 	statsschema "github.com/optikklabs/ingest/internal/ingestion/ingestionstats/schema"
@@ -22,9 +23,10 @@ func statRows(tenantID uint32, req *tracepb.ExportTraceServiceRequest) []*statss
 			continue
 		}
 		res := otlp.AttrsToMap(rs.GetResource().GetAttributes())
+		dims := fingerprint.ResolveResource(res)
 		rows = append(rows, ingestionstats.NewRow(
 			tenantID, ingestionstats.SignalSpans,
-			res["service.name"], res["deployment.environment"],
+			dims.Service, dims.Environment,
 			records, uint64(proto.Size(rs)),
 		))
 	}

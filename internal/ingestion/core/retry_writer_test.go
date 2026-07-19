@@ -6,28 +6,30 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cenkalti/backoff/v7"
 	spansschema "github.com/optikklabs/ingest/internal/ingestion/spans/schema"
 )
 
 type fakeWriter struct {
 	calls    int
 	failures int // fail the first N calls
+	err      error
 }
 
 func (f *fakeWriter) Insert(ctx context.Context, rows []*spansschema.Row) error {
 	f.calls++
 	if f.calls <= f.failures {
+		if f.err != nil {
+			return f.err
+		}
 		return errors.New("insert failed")
 	}
 	return nil
 }
 
-func newTestRetryWriter(next Writer[*spansschema.Row], maxRetries int, slept *[]time.Duration) *RetryWriter[*spansschema.Row] {
+func newTestRetryWriter(next Writer[*spansschema.Row], maxRetries int) *RetryWriter[*spansschema.Row] {
 	w := NewRetryWriter(next, "spans", maxRetries)
-	w.sleep = func(_ context.Context, d time.Duration) error {
-		*slept = append(*slept, d)
-		return nil
-	}
+	w.newBackOff = func() backoff.BackOff { return &backoff.ZeroBackOff{} }
 	return w
 }
 
@@ -49,8 +51,7 @@ func TestRetryWriterInsert(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			fake := &fakeWriter{failures: tt.failures}
-			var slept []time.Duration
-			w := newTestRetryWriter(fake, tt.maxRetries, &slept)
+			w := newTestRetryWriter(fake, tt.maxRetries)
 
 			err := w.Insert(context.Background(), rows)
 			if (err != nil) != tt.wantErr {
@@ -59,44 +60,48 @@ func TestRetryWriterInsert(t *testing.T) {
 			if fake.calls != tt.wantCalls {
 				t.Errorf("calls = %d, want %d", fake.calls, tt.wantCalls)
 			}
-			if len(slept) != tt.wantCalls-1 {
-				t.Errorf("backoffs = %d, want %d", len(slept), tt.wantCalls-1)
-			}
 		})
 	}
 }
 
-func TestRetryWriterBackoffSchedule(t *testing.T) {
-	fake := &fakeWriter{failures: 3}
-	var slept []time.Duration
-	w := newTestRetryWriter(fake, 3, &slept)
-
-	if err := w.Insert(context.Background(), []*spansschema.Row{{}}); err != nil {
-		t.Fatalf("Insert() = %v, want nil", err)
+func TestRetryWriterBackoffPolicy(t *testing.T) {
+	policy, ok := newInsertBackOff().(*backoff.ExponentialBackOff)
+	if !ok {
+		t.Fatalf("newInsertBackOff() = %T, want exponential", policy)
 	}
-	want := []time.Duration{250 * time.Millisecond, time.Second, time.Second}
-	if len(slept) != len(want) {
-		t.Fatalf("backoffs = %v, want %v", slept, want)
+	if policy.InitialInterval != 250*time.Millisecond || policy.MaxInterval != time.Second {
+		t.Fatalf("backoff intervals = %v..%v", policy.InitialInterval, policy.MaxInterval)
 	}
-	for i := range want {
-		if slept[i] != want[i] {
-			t.Errorf("backoff[%d] = %v, want %v", i, slept[i], want[i])
-		}
+	if policy.RandomizationFactor == 0 {
+		t.Fatal("backoff must include jitter")
 	}
 }
 
 func TestRetryWriterCanceledContextStopsRetries(t *testing.T) {
 	fake := &fakeWriter{failures: 10}
-	w := NewRetryWriter[*spansschema.Row](fake, "spans", 2)
-	w.sleep = func(ctx context.Context, _ time.Duration) error {
-		return context.Canceled
-	}
+	w := newTestRetryWriter(fake, 2)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
 
-	err := w.Insert(context.Background(), []*spansschema.Row{{}})
-	if err == nil {
-		t.Fatal("Insert() = nil, want error")
+	err := w.Insert(ctx, []*spansschema.Row{{}})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("Insert() error = %v, want context cancellation", err)
 	}
 	if fake.calls != 1 {
 		t.Errorf("calls = %d, want 1 (no retry after canceled backoff)", fake.calls)
+	}
+}
+
+func TestRetryWriterDoesNotRetryPermanentInsertError(t *testing.T) {
+	want := errors.New("invalid row")
+	fake := &fakeWriter{failures: 10, err: &permanentInsertError{err: want}}
+	w := newTestRetryWriter(fake, 2)
+
+	err := w.Insert(context.Background(), []*spansschema.Row{{}})
+	if !errors.Is(err, want) {
+		t.Fatalf("Insert() error = %v, want %v", err, want)
+	}
+	if fake.calls != 1 {
+		t.Fatalf("calls = %d, want 1", fake.calls)
 	}
 }

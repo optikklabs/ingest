@@ -46,10 +46,6 @@ func (h *Handler) Export(ctx context.Context, req *metricspb.ExportMetricsServic
 		return &metricspb.ExportMetricsServiceResponse{}, nil
 	}
 
-	// Usage is intentionally measured at accepted-request time, before Kafka
-	// acknowledgement. This records attempted ingest volume and never delays it.
-	ingestionstats.Emit(h.stats, statRows(uint32(tenantID), req))
-
 	pubStart := time.Now()
 	if err := core.PublishMetricPair(ctx, h.seriesPublisher, seriesRows, h.metricsPublisher, rows); err != nil {
 		obsmetrics.HandlerPublishDuration.WithLabelValues("metrics", "err").Observe(time.Since(pubStart).Seconds())
@@ -57,6 +53,7 @@ func (h *Handler) Export(ctx context.Context, req *metricspb.ExportMetricsServic
 		return nil, status.Error(codes.Unavailable, err.Error())
 	}
 	obsmetrics.HandlerPublishDuration.WithLabelValues("metrics", "ok").Observe(time.Since(pubStart).Seconds())
+	ingestionstats.Emit(h.stats, statRows(uint32(tenantID), req))
 
 	return &metricspb.ExportMetricsServiceResponse{}, nil
 }

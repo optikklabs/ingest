@@ -46,10 +46,6 @@ func (h *Handler) Export(ctx context.Context, req *logspb.ExportLogsServiceReque
 		return &logspb.ExportLogsServiceResponse{}, nil
 	}
 
-	// Usage is intentionally measured at accepted-request time, before Kafka
-	// acknowledgement. This records attempted ingest volume and never delays it.
-	ingestionstats.Emit(h.stats, statRows(uint32(tenantID), req))
-
 	// Extract unique resources and filter using rolling cache
 	var resourceRows []*logsresourceschema.ResourceRow
 	var newKeys []core.ResourceKey
@@ -87,5 +83,6 @@ func (h *Handler) Export(ctx context.Context, req *logspb.ExportLogsServiceReque
 		return nil, status.Error(codes.Unavailable, err.Error())
 	}
 	metrics.HandlerPublishDuration.WithLabelValues("logs", "ok").Observe(time.Since(pubStart).Seconds())
+	ingestionstats.Emit(h.stats, statRows(uint32(tenantID), req))
 	return &logspb.ExportLogsServiceResponse{}, nil
 }

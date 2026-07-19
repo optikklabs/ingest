@@ -2,15 +2,13 @@ package core
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"time"
 
+	"github.com/cenkalti/backoff/v7"
 	"github.com/optikklabs/ingest/internal/infra/metrics"
 )
-
-// insertBackoff is the per-attempt wait before an insert retry; the last
-// entry repeats when max_retries exceeds its length.
-var insertBackoff = []time.Duration{250 * time.Millisecond, time.Second}
 
 // RetryWriter retries failed inserts before the caller falls back to the
 // DLQ. Only the insert is retried: DLQ publishing stays single-attempt by
@@ -19,7 +17,7 @@ type RetryWriter[T Row] struct {
 	next       Writer[T]
 	signal     string
 	maxRetries int
-	sleep      func(ctx context.Context, d time.Duration) error
+	newBackOff func() backoff.BackOff
 }
 
 func NewRetryWriter[T Row](next Writer[T], signal string, maxRetries int) *RetryWriter[T] {
@@ -27,49 +25,56 @@ func NewRetryWriter[T Row](next Writer[T], signal string, maxRetries int) *Retry
 		next:       next,
 		signal:     signal,
 		maxRetries: maxRetries,
-		sleep:      sleepCtx,
+		newBackOff: newInsertBackOff,
 	}
 }
 
-// Insert attempts the underlying insert up to 1+maxRetries times, backing
-// off between attempts. It returns the last error once retries are spent
-// or the context is canceled mid-backoff.
+// Insert attempts the insert up to 1+maxRetries times. Its error retains both
+// the last insert failure and the reason retrying stopped.
 func (w *RetryWriter[T]) Insert(ctx context.Context, rows []T) error {
-	var err error
-	for attempt := 0; ; attempt++ {
-		err = w.next.Insert(ctx, rows)
-		if err == nil || attempt >= w.maxRetries {
-			return err
+	attempts := 0
+	_, err := backoff.Retry(ctx, func() (struct{}, error) {
+		attempts++
+		err := w.next.Insert(ctx, rows)
+		if isPermanentInsertError(err) {
+			return struct{}{}, backoff.Permanent(err)
 		}
-		metrics.InsertRetries.WithLabelValues(w.signal).Inc()
-		slog.WarnContext(ctx, "core retry writer: insert failed, retrying",
-			slog.String("signal", w.signal),
-			slog.Int("attempt", attempt+1),
-			slog.Int("max_retries", w.maxRetries),
-			slog.Int("rows", len(rows)),
-			slog.Any("error", err),
-		)
-		if sleepErr := w.sleep(ctx, backoffFor(attempt)); sleepErr != nil {
-			return err
-		}
+		return struct{}{}, err
+	},
+		backoff.WithBackOff(w.newBackOff()),
+		backoff.WithMaxTries(totalAttempts(w.maxRetries)),
+		backoff.WithMaxElapsedTime(0),
+		backoff.WithNotify(func(err error, next time.Duration) {
+			metrics.InsertRetries.WithLabelValues(w.signal).Inc()
+			slog.WarnContext(ctx, "core retry writer: insert failed, retrying",
+				slog.String("signal", w.signal),
+				slog.Int("attempt", attempts),
+				slog.Int("max_retries", w.maxRetries),
+				slog.Int("rows", len(rows)),
+				slog.Duration("backoff", next),
+				slog.Any("error", err),
+			)
+		}))
+	return err
+}
+
+func newInsertBackOff() backoff.BackOff {
+	return &backoff.ExponentialBackOff{
+		InitialInterval:     250 * time.Millisecond,
+		RandomizationFactor: 0.5,
+		Multiplier:          4,
+		MaxInterval:         time.Second,
 	}
 }
 
-func backoffFor(attempt int) time.Duration {
-	if attempt >= len(insertBackoff) {
-		return insertBackoff[len(insertBackoff)-1]
+func totalAttempts(maxRetries int) uint {
+	if maxRetries <= 0 {
+		return 1
 	}
-	return insertBackoff[attempt]
+	return uint(maxRetries) + 1
 }
 
-// sleepCtx waits for d or until ctx is canceled, whichever comes first.
-func sleepCtx(ctx context.Context, d time.Duration) error {
-	t := time.NewTimer(d)
-	defer t.Stop()
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-t.C:
-		return nil
-	}
+func isPermanentInsertError(err error) bool {
+	var permanent *permanentInsertError
+	return errors.As(err, &permanent)
 }

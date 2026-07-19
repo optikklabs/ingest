@@ -24,7 +24,7 @@ const (
 )
 
 type cacheEntry struct {
-	tenantID    int64
+	tenantID  int64
 	err       error
 	expiresAt time.Time
 }
