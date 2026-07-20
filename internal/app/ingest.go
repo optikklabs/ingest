@@ -93,7 +93,7 @@ func wireSpans(in signalWireInput) (registry.Module, ConsumerRunner) {
 
 	writer := core.NewRetryWriter(spansignal.NewClickHouseWriter(in.ch), kafkainfra.SignalSpans, in.insertMaxRetries)
 	dlq := core.NewDLQ(in.producerBase, in.dlqTopic, kafkainfra.SignalSpans)
-	consumer := spansignal.NewConsumer(in.consumer, writer, dlq)
+	consumer := core.NewInsertConsumer(in.consumer, kafkainfra.SignalSpans, writer, dlq, func() *spansschema.Row { return &spansschema.Row{} })
 
 	handler := spansignal.NewHandler(producer, tracegraphPublisher, resourcePublisher, in.spansResourceCache, in.stats)
 	mod := spansignal.NewModule(spansignal.Deps{Handler: handler})
@@ -103,7 +103,7 @@ func wireSpans(in signalWireInput) (registry.Module, ConsumerRunner) {
 func wireSpansResource(in signalWireInput) (registry.Module, ConsumerRunner) {
 	writer := core.NewRetryWriter(spansresource.NewClickHouseWriter(in.ch), kafkainfra.SignalSpansResource, in.insertMaxRetries)
 	dlq := core.NewDLQ(in.producerBase, in.dlqTopic, kafkainfra.SignalSpansResource)
-	consumer := spansresource.NewConsumer(in.consumer, writer, dlq)
+	consumer := core.NewInsertConsumer(in.consumer, kafkainfra.SignalSpansResource, writer, dlq, func() *spansresourceschema.ResourceRow { return &spansresourceschema.ResourceRow{} })
 	return nil, consumer
 }
 
@@ -116,7 +116,7 @@ func wireLogs(in signalWireInput) (registry.Module, ConsumerRunner) {
 
 	dataWriter := core.NewRetryWriter(logsignal.NewDataWriter(in.ch), kafkainfra.SignalLogs, in.insertMaxRetries)
 	dlq := core.NewDLQ(in.producerBase, in.dlqTopic, kafkainfra.SignalLogs)
-	consumer := logsignal.NewConsumer(in.consumer, dataWriter, dlq)
+	consumer := core.NewInsertConsumer(in.consumer, kafkainfra.SignalLogs, dataWriter, dlq, func() *logsschema.Row { return &logsschema.Row{} })
 
 	handler := logsignal.NewHandler(producer, resourcePublisher, in.logsResourceCache, in.stats)
 	mod := logsignal.NewModule(logsignal.Deps{Handler: handler})
@@ -126,7 +126,7 @@ func wireLogs(in signalWireInput) (registry.Module, ConsumerRunner) {
 func wireLogsResource(in signalWireInput) (registry.Module, ConsumerRunner) {
 	writer := core.NewRetryWriter(logsresource.NewClickHouseWriter(in.ch), kafkainfra.SignalLogsResource, in.insertMaxRetries)
 	dlq := core.NewDLQ(in.producerBase, in.dlqTopic, kafkainfra.SignalLogsResource)
-	consumer := logsresource.NewConsumer(in.consumer, writer, dlq)
+	consumer := core.NewInsertConsumer(in.consumer, kafkainfra.SignalLogsResource, writer, dlq, func() *logsresourceschema.ResourceRow { return &logsresourceschema.ResourceRow{} })
 	return nil, consumer
 }
 
@@ -137,7 +137,7 @@ func wireMetrics(in signalWireInput) (registry.Module, ConsumerRunner) {
 
 	writer := core.NewRetryWriter(metricsignal.NewMetricsClickHouseWriter(in.ch), kafkainfra.SignalMetrics, in.insertMaxRetries)
 	dlq := core.NewDLQ(in.producerBase, in.dlqTopic, kafkainfra.SignalMetrics)
-	consumer := metricsignal.NewConsumer(in.consumer, writer, dlq)
+	consumer := core.NewInsertConsumer(in.consumer, kafkainfra.SignalMetrics, writer, dlq, func() *metricsschema.Row { return &metricsschema.Row{} })
 	mod := metricsignal.NewModule(metricsignal.Deps{
 		Handler: metricsignal.NewHandler(metricsProducer, seriesProducer, in.stats),
 	})
@@ -147,14 +147,14 @@ func wireMetrics(in signalWireInput) (registry.Module, ConsumerRunner) {
 func wireIngestionStats(in signalWireInput) (registry.Module, ConsumerRunner) {
 	writer := core.NewRetryWriter(ingestionstats.NewClickHouseWriter(in.ch), kafkainfra.SignalIngestionStats, in.insertMaxRetries)
 	dlq := core.NewDLQ(in.producerBase, in.dlqTopic, kafkainfra.SignalIngestionStats)
-	consumer := ingestionstats.NewConsumer(in.consumer, writer, dlq)
+	consumer := core.NewInsertConsumer(in.consumer, kafkainfra.SignalIngestionStats, writer, dlq, func() *statsschema.StatRow { return &statsschema.StatRow{} })
 	return nil, consumer
 }
 
 func wireMetricSeries(in signalWireInput) (registry.Module, ConsumerRunner) {
 	writer := core.NewRetryWriter(metricseries.NewClickHouseWriter(in.ch), kafkainfra.SignalMetricSeries, in.insertMaxRetries)
 	dlq := core.NewDLQ(in.producerBase, in.dlqTopic, kafkainfra.SignalMetricSeries)
-	consumer := metricseries.NewConsumer(in.consumer, writer, dlq)
+	consumer := core.NewInsertConsumer(in.consumer, kafkainfra.SignalMetricSeries, writer, dlq, func() *metricseriesschema.SeriesRow { return &metricseriesschema.SeriesRow{} })
 	return nil, consumer
 }
 
