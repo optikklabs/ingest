@@ -2,6 +2,7 @@ package database
 
 import (
 	"context"
+	"database/sql"
 	"log/slog"
 	"time"
 
@@ -21,6 +22,22 @@ func GetSQL(ctx context.Context, db *sqlx.DB, op string, dest any, query string,
 	return err
 }
 
+func SelectSQL(ctx context.Context, db *sqlx.DB, op string, dest any, query string, args ...any) error {
+	done := startSQLOp(ctx)
+	start := time.Now()
+	err := db.SelectContext(ctx, dest, query, args...)
+	done(err, start, op)
+	return err
+}
+
+func ExecSQL(ctx context.Context, db *sqlx.DB, op, query string, args ...any) (sql.Result, error) {
+	done := startSQLOp(ctx)
+	start := time.Now()
+	res, err := db.ExecContext(ctx, query, args...)
+	done(err, start, op)
+	return res, err
+}
+
 func startSQLOp(ctx context.Context) func(error, time.Time, string) {
 	return func(err error, start time.Time, op string) {
 		dur := time.Since(start).Seconds()
@@ -35,3 +52,4 @@ func startSQLOp(ctx context.Context) func(error, time.Time, string) {
 		}
 	}
 }
+
