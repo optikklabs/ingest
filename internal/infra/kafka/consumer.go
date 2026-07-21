@@ -82,7 +82,7 @@ func (c *Consumer) Run(ctx context.Context, handle RecordHandler) {
 
 	// Fetch on the calling goroutine.
 	c.fetchLoop(ctx, workerChan, committerChan)
-	
+
 	close(workerChan)
 	close(committerChan)
 	wg.Wait()

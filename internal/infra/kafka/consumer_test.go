@@ -20,7 +20,7 @@ func batch(n int) []*kgo.Record {
 // TestWorkerAndCommitter asserts the commit fires only on success.
 func TestWorkerAndCommitter(t *testing.T) {
 	c := &Consumer{signal: "test"}
-	
+
 	// 1. Success case
 	job := batchJob{recs: batch(3), done: make(chan error, 1)}
 	workerIn := make(chan batchJob, 1)
@@ -64,11 +64,11 @@ func TestWorkerAndCommitter(t *testing.T) {
 // TestParallelWorkers proves multiple workers can drain the channel concurrently.
 func TestParallelWorkers(t *testing.T) {
 	c := &Consumer{signal: "test", workers: 2}
-	
+
 	const numJobs = 10
 	workerIn := make(chan batchJob, numJobs)
 	committerIn := make(chan batchJob, numJobs)
-	
+
 	for i := 0; i < numJobs; i++ {
 		job := batchJob{recs: batch(1), done: make(chan error, 1)}
 		workerIn <- job
