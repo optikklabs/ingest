@@ -6,12 +6,10 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
-	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/twmb/franz-go/pkg/kgo"
 
-	chembed "github.com/optikklabs/ingest/db/clickhouse"
 	"github.com/optikklabs/ingest/internal/app/registry"
 	"github.com/optikklabs/ingest/internal/auth"
 	"github.com/optikklabs/ingest/internal/authrepo"
@@ -106,28 +104,7 @@ func openClickHouse(cfg config.Config) (clickhouse.Conn, error) {
 		slog.String("addr", net.JoinHostPort(cfg.ClickHouse.Host, cfg.ClickHouse.Port)),
 		slog.String("database", cfg.ClickHouse.Database),
 	)
-	if err := runMigrate(chConn, cfg.ClickHouse.Database); err != nil {
-		_ = chConn.Close()
-		return nil, fmt.Errorf("clickhouse migrate: %w", err)
-	}
 	return chConn, nil
-}
-
-func runMigrate(conn clickhouse.Conn, database string) error {
-	m := &dbutil.Migrator{
-		DB:       conn,
-		FS:       chembed.FS,
-		Database: database,
-		Logger:   func(format string, args ...any) { slog.Info(fmt.Sprintf("chmigrate: "+format, args...)) },
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
-	defer cancel()
-	applied, skipped, err := m.Up(ctx)
-	if err != nil {
-		return err
-	}
-	slog.Info("chmigrate: complete", slog.Int("applied", applied), slog.Int("skipped", skipped))
-	return nil
 }
 
 func (i *Infra) Close() error {
