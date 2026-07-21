@@ -20,20 +20,17 @@ func NewMetricsClickHouseWriter(ch clickhouse.Conn) core.Writer[*schema.Row] {
 	return core.NewClickHouseWriter(ch, "optikk.metrics", metricsColumns, metricsRowValues)
 }
 
-func metricsRowValues(r *schema.Row) []any {
-	return []any{
-		r.GetTenantId(),
-		r.GetMetricName(),
-		r.GetTemporality(),
-		r.GetFingerprint(),
-		time.Unix(0, r.GetTimestampNs()),
-
-		r.GetValue(),
-		r.GetHistSum(),
-		r.GetHistCount(),
-		r.GetHistBuckets(),
-		r.GetHistCounts(),
-		r.GetSummaryQuantiles(),
-		r.GetSummaryValues(),
-	}
+func metricsRowValues(r *schema.Row, dst []any) {
+	dst[0] = r.GetTenantId()
+	dst[1] = r.GetMetricName()
+	dst[2] = r.GetTemporality()
+	dst[3] = r.GetFingerprint()
+	dst[4] = time.Unix(0, r.GetTimestampNs())
+	dst[5] = r.GetValue()
+	dst[6] = r.GetHistSum()
+	dst[7] = r.GetHistCount()
+	dst[8] = r.GetHistBuckets()
+	dst[9] = r.GetHistCounts()
+	dst[10] = r.GetSummaryQuantiles()
+	dst[11] = r.GetSummaryValues()
 }

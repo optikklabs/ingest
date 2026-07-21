@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS optikk.spans (
     http_route                            LowCardinality(String) CODEC(ZSTD(1)),
     http_status_bucket                    LowCardinality(String) CODEC(ZSTD(1)),
 
-    attributes                            JSON(max_dynamic_paths = 100) CODEC(ZSTD(1)),
+    attributes                            Map(LowCardinality(String), String) CODEC(ZSTD(1)),
 
     gen_ai_system                         LowCardinality(String) CODEC(ZSTD(1)),
     gen_ai_operation                      LowCardinality(String) CODEC(ZSTD(1)),
@@ -44,8 +44,8 @@ CREATE TABLE IF NOT EXISTS optikk.spans (
     is_gen_ai                             Bool                   CODEC(T64, ZSTD(1)),
 
     fingerprint                           UInt64          CODEC(ZSTD(1)),
-    events                                Array(String)   CODEC(ZSTD(2)),
-    links                                 String          CODEC(ZSTD(1)),
+    events                                Array(Tuple(name LowCardinality(String), time_unix_nano UInt64, attributes Map(LowCardinality(String), String))) CODEC(ZSTD(2)),
+    links                                 Array(Tuple(trace_id String, span_id String, trace_state String, attributes Map(LowCardinality(String), String))) CODEC(ZSTD(1)),
 
     exception_type                        LowCardinality(String) CODEC(ZSTD(1)),
     exception_message                     String          CODEC(ZSTD(1)),
@@ -74,5 +74,6 @@ TTL
 SETTINGS
     storage_policy = 'tiered',
     index_granularity = 8192,
+    min_bytes_for_wide_part = 10485760,
     non_replicated_deduplication_window = 100000,
     ttl_only_drop_parts = 1;

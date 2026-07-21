@@ -23,31 +23,29 @@ func NewDataWriter(ch clickhouse.Conn) *core.ClickHouseWriter[*schema.Row] {
 	return core.NewClickHouseWriter(ch, chTableData, chColumnsData, rowDataValues)
 }
 
-func rowDataValues(r *schema.Row) []any {
-	return []any{
-		r.GetTenantId(),
-		r.GetFingerprint(),
-		r.GetTsBucket(),
-		r.GetTraceId(),
-		r.GetLogId(),
-		time.Unix(0, r.GetTimestampNs()),
-		r.GetService(),
-		r.GetEnvironment(),
-		r.GetHost(),
-		r.GetPod(),
-		r.GetContainer(),
-		r.GetSeverityText(),
-		uint8(r.GetSeverityNumber()),
-		severityBucketFor(r.GetSeverityNumber()),
-		r.GetAttributesString(),
-		r.GetAttributesNumber(),
-		r.GetAttributesBool(),
-		r.GetObservedTimestampNs(),
-		r.GetSpanId(),
-		r.GetTraceFlags(),
-		r.GetBody(),
-		r.GetResource(),
-		r.GetScopeName(),
-		r.GetScopeVersion(),
-	}
+func rowDataValues(r *schema.Row, dst []any) {
+	dst[0] = r.GetTenantId()
+	dst[1] = r.GetFingerprint()
+	dst[2] = r.GetTsBucket()
+	dst[3] = r.GetTraceId()
+	dst[4] = r.GetLogId()
+	dst[5] = time.Unix(0, r.GetTimestampNs())
+	dst[6] = r.GetService()
+	dst[7] = r.GetEnvironment()
+	dst[8] = r.GetHost()
+	dst[9] = r.GetPod()
+	dst[10] = r.GetContainer()
+	dst[11] = r.GetSeverityText()
+	dst[12] = uint8(r.GetSeverityNumber())
+	dst[13] = severityBucketFor(r.GetSeverityNumber())
+	dst[14] = r.GetAttributesString()
+	dst[15] = r.GetAttributesNumber()
+	dst[16] = r.GetAttributesBool()
+	dst[17] = r.GetObservedTimestampNs()
+	dst[18] = r.GetSpanId()
+	dst[19] = r.GetTraceFlags()
+	dst[20] = r.GetBody()
+	dst[21] = r.GetResource()
+	dst[22] = r.GetScopeName()
+	dst[23] = r.GetScopeVersion()
 }

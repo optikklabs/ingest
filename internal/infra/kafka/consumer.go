@@ -20,14 +20,18 @@ const (
 type Consumer struct {
 	client         *kgo.Client
 	maxPollRecords int
+	workers        int
 	signal         string
 }
 
-func NewConsumer(client *kgo.Client, maxPollRecords int, signal string) *Consumer {
+func NewConsumer(client *kgo.Client, maxPollRecords, workers int, signal string) *Consumer {
 	if maxPollRecords <= 0 {
 		maxPollRecords = 5_000
 	}
-	return &Consumer{client: client, maxPollRecords: maxPollRecords, signal: signal}
+	if workers <= 0 {
+		workers = 1
+	}
+	return &Consumer{client: client, maxPollRecords: maxPollRecords, workers: workers, signal: signal}
 }
 
 func (c *Consumer) Client() *kgo.Client { return c.client }
@@ -42,31 +46,51 @@ type RecordHandler func(ctx context.Context, recs []*kgo.Record) error
 // without a live broker.
 type commitFunc func(ctx context.Context, recs []*kgo.Record) error
 
-// Run double-buffers the consume loop: a fetcher polls the next batch while a
-// single worker inserts + commits the current one, connected by a depth-1
-// channel. Depth-1 bounds in-flight work to two batches (one fetching, one
-// inserting) and gives natural backpressure — the fetcher blocks on a full
-// channel instead of buffering unbounded.
+type batchJob struct {
+	recs []*kgo.Record
+	done chan error
+}
+
+// Run double-buffers the consume loop with a configurable number of parallel
+// worker goroutines. The fetcher polls batches and routes them to available
+// workers. A single committer goroutine awaits each batch's completion in strict
+// poll order to guarantee offset progression correctness without data loss.
 func (c *Consumer) Run(ctx context.Context, handle RecordHandler) {
-	batches := make(chan []*kgo.Record, 1)
+	// Worker channel depth limits in-flight batches when all workers are busy.
+	workerChan := make(chan batchJob, c.workers*2)
+	// Committer channel must be unbounded enough to not block the fetcher,
+	// or similarly bounded since the fetcher blocks on workerChan anyway.
+	committerChan := make(chan batchJob, c.workers*2)
 
 	var wg sync.WaitGroup
+
+	// Start parallel workers for inserting
+	for i := 0; i < c.workers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			c.workerLoop(ctx, workerChan, handle)
+		}()
+	}
+
+	// Start single ordered committer
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		processBatches(ctx, batches, handle, c.commit, c.signal)
+		c.committerLoop(ctx, committerChan, c.commit)
 	}()
 
-	// Fetch on the calling goroutine; on exit, close the channel so the
-	// worker drains the last buffered batch and returns, then join.
-	c.fetchLoop(ctx, batches)
-	close(batches)
+	// Fetch on the calling goroutine.
+	c.fetchLoop(ctx, workerChan, committerChan)
+	
+	close(workerChan)
+	close(committerChan)
 	wg.Wait()
 }
 
-// fetchLoop polls Kafka and hands each non-empty batch to the worker. It owns
-// fetch-error backoff and blocks on a full channel (backpressure).
-func (c *Consumer) fetchLoop(ctx context.Context, out chan<- []*kgo.Record) {
+// fetchLoop polls Kafka and hands each non-empty batch to both the workers
+// and the committer. It blocks (backpressure) if workerChan is full.
+func (c *Consumer) fetchLoop(ctx context.Context, workerChan chan<- batchJob, committerChan chan<- batchJob) {
 	backoff := fetchBackoffMin
 	for {
 		fetches := c.client.PollRecords(ctx, c.maxPollRecords)
@@ -74,8 +98,6 @@ func (c *Consumer) fetchLoop(ctx context.Context, out chan<- []*kgo.Record) {
 			return
 		}
 
-		// Franz-go reconnects internally, but avoid a tight retry loop while a
-		// broker or partition is returning only errors.
 		hadFetchErr := false
 		fetches.EachError(func(t string, p int32, err error) {
 			hadFetchErr = true
@@ -101,41 +123,54 @@ func (c *Consumer) fetchLoop(ctx context.Context, out chan<- []*kgo.Record) {
 		}
 		backoff = fetchBackoffMin
 
+		job := batchJob{
+			recs: recs,
+			done: make(chan error, 1),
+		}
+
+		metrics.ConsumerInflightBatches.WithLabelValues(c.signal).Inc()
+
+		// Route to both worker and committer
 		select {
-		case out <- recs:
-			metrics.ConsumerInflightBatches.WithLabelValues(c.signal).Inc()
+		case committerChan <- job:
+		case <-ctx.Done():
+			return
+		}
+
+		select {
+		case workerChan <- job:
 		case <-ctx.Done():
 			return
 		}
 	}
 }
 
+func (c *Consumer) workerLoop(ctx context.Context, in <-chan batchJob, handle RecordHandler) {
+	for job := range in {
+		start := time.Now()
+		err := handle(ctx, job.recs)
+		if err != nil {
+			slog.ErrorContext(ctx, "kafka handler error", slog.Any("error", err), slog.Int("records", len(job.recs)))
+		} else {
+			metrics.ConsumerBatchInsertDuration.WithLabelValues(c.signal).Observe(time.Since(start).Seconds())
+		}
+		job.done <- err
+	}
+}
+
+func (c *Consumer) committerLoop(ctx context.Context, in <-chan batchJob, commit commitFunc) {
+	for job := range in {
+		err := <-job.done
+		if err == nil {
+			if cerr := commit(ctx, job.recs); cerr != nil {
+				slog.ErrorContext(ctx, "kafka commit error", slog.Any("error", cerr))
+			}
+		}
+		metrics.ConsumerInflightBatches.WithLabelValues(c.signal).Dec()
+	}
+}
+
 // commit wraps CommitRecords so the worker can be tested against a fake.
 func (c *Consumer) commit(ctx context.Context, recs []*kgo.Record) error {
 	return c.client.CommitRecords(ctx, recs...)
-}
-
-// processBatches drains the fetcher's channel FIFO, keeping commits strictly
-// ordered under a single worker. It returns once the channel is closed and
-// drained (clean shutdown).
-func processBatches(ctx context.Context, in <-chan []*kgo.Record, handle RecordHandler, commit commitFunc, signal string) {
-	for recs := range in {
-		processBatch(ctx, recs, handle, commit, signal)
-		metrics.ConsumerInflightBatches.WithLabelValues(signal).Dec()
-	}
-}
-
-// processBatch handles one batch then commits only on success. A handler error
-// skips the commit so the batch is redelivered rather than silently dropped.
-func processBatch(ctx context.Context, recs []*kgo.Record, handle RecordHandler, commit commitFunc, signal string) {
-	start := time.Now()
-	if err := handle(ctx, recs); err != nil {
-		slog.ErrorContext(ctx, "kafka handler error", slog.Any("error", err), slog.Int("records", len(recs)))
-		return
-	}
-	metrics.ConsumerBatchInsertDuration.WithLabelValues(signal).Observe(time.Since(start).Seconds())
-
-	if err := commit(ctx, recs); err != nil {
-		slog.ErrorContext(ctx, "kafka commit error", slog.Any("error", err))
-	}
 }

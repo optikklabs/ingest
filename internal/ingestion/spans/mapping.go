@@ -34,54 +34,52 @@ func NewClickHouseWriter(ch clickhouse.Conn) *core.ClickHouseWriter[*schema.Row]
 	return core.NewClickHouseWriter(ch, chTable, chColumns, rowValues)
 }
 
-func rowValues(r *schema.Row) []any {
-	return []any{
-		r.GetTenantId(),
-		time.Unix(0, r.GetTimestampNs()),
-		r.GetTraceId(),
-		r.GetSpanId(),
-		r.GetParentSpanId(),
-		r.GetTraceState(),
-		r.GetFlags(),
-		r.GetName(),
-		int8(r.GetKind()),
-		r.GetKindString(),
-		r.GetDurationNano(),
-		r.GetHasError(),
-		int16(r.GetStatusCode()),
-		r.GetStatusCodeString(),
-		r.GetStatusMessage(),
-		r.GetHttpUrl(),
-		r.GetHttpMethod(),
-		r.GetHttpHost(),
-		r.GetResponseStatusCode(),
-		r.GetService(),
-		r.GetHost(),
-		r.GetPod(),
-		r.GetServiceVersion(),
-		r.GetEnvironment(),
-		r.GetPeerService(),
-		r.GetDbSystem(),
-		r.GetDbName(),
-		r.GetDbStatement(),
-		r.GetHttpRoute(),
-		r.GetHttpStatusBucket(),
-		r.GetAttributes(),
-		r.GetFingerprint(),
-		r.GetEvents(),
-		r.GetLinks(),
-		r.GetExceptionType(),
-		r.GetExceptionMessage(),
-		r.GetExceptionStacktrace(),
-		r.GetExceptionEscaped(),
-		r.GetGenAiSystem(),
-		r.GetGenAiOperation(),
-		r.GetGenAiRequestModel(),
-		r.GetGenAiResponseModel(),
-		r.GetGenAiInputTokens(),
-		r.GetGenAiOutputTokens(),
-		r.GetIsGenAi(),
-		r.GetGenAiPrompt(),
-		r.GetGenAiCompletion(),
-	}
+func rowValues(r *schema.Row, dst []any) {
+	dst[0] = r.GetTenantId()
+	dst[1] = time.Unix(0, r.GetTimestampNs())
+	dst[2] = r.GetTraceId()
+	dst[3] = r.GetSpanId()
+	dst[4] = r.GetParentSpanId()
+	dst[5] = r.GetTraceState()
+	dst[6] = r.GetFlags()
+	dst[7] = r.GetName()
+	dst[8] = int8(r.GetKind())
+	dst[9] = r.GetKindString()
+	dst[10] = r.GetDurationNano()
+	dst[11] = r.GetHasError()
+	dst[12] = int16(r.GetStatusCode())
+	dst[13] = r.GetStatusCodeString()
+	dst[14] = r.GetStatusMessage()
+	dst[15] = r.GetHttpUrl()
+	dst[16] = r.GetHttpMethod()
+	dst[17] = r.GetHttpHost()
+	dst[18] = r.GetResponseStatusCode()
+	dst[19] = r.GetService()
+	dst[20] = r.GetHost()
+	dst[21] = r.GetPod()
+	dst[22] = r.GetServiceVersion()
+	dst[23] = r.GetEnvironment()
+	dst[24] = r.GetPeerService()
+	dst[25] = r.GetDbSystem()
+	dst[26] = r.GetDbName()
+	dst[27] = r.GetDbStatement()
+	dst[28] = r.GetHttpRoute()
+	dst[29] = r.GetHttpStatusBucket()
+	dst[30] = r.GetAttributes()
+	dst[31] = r.GetFingerprint()
+	dst[32] = r.GetEvents()
+	dst[33] = r.GetLinks()
+	dst[34] = r.GetExceptionType()
+	dst[35] = r.GetExceptionMessage()
+	dst[36] = r.GetExceptionStacktrace()
+	dst[37] = r.GetExceptionEscaped()
+	dst[38] = r.GetGenAiSystem()
+	dst[39] = r.GetGenAiOperation()
+	dst[40] = r.GetGenAiRequestModel()
+	dst[41] = r.GetGenAiResponseModel()
+	dst[42] = r.GetGenAiInputTokens()
+	dst[43] = r.GetGenAiOutputTokens()
+	dst[44] = r.GetIsGenAi()
+	dst[45] = r.GetGenAiPrompt()
+	dst[46] = r.GetGenAiCompletion()
 }

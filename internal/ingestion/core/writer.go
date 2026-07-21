@@ -4,9 +4,17 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
+
+	"github.com/optikklabs/ingest/internal/infra/metrics"
 )
+
+// RowMapper fills dst with column values for one row. The caller
+// allocates dst once per batch and reuses it across rows, avoiding a
+// per-row []any heap allocation.
+type RowMapper[T Row] func(r T, dst []any)
 
 // Writer defines how a batch of rows is inserted into the destination.
 type Writer[T Row] interface {
@@ -23,13 +31,22 @@ func (e *permanentInsertError) Unwrap() error { return e.err }
 type ClickHouseWriter[T Row] struct {
 	ch        clickhouse.Conn
 	query     string
-	rowMapper func(T) []any
+	signal    string
+	colCount  int
+	rowMapper RowMapper[T]
 }
 
-func NewClickHouseWriter[T Row](ch clickhouse.Conn, table string, columns []string, rowMapper func(T) []any) *ClickHouseWriter[T] {
+func NewClickHouseWriter[T Row](ch clickhouse.Conn, table string, columns []string, rowMapper RowMapper[T]) *ClickHouseWriter[T] {
+	// Derive a short signal name from the table for metrics labeling.
+	signal := table
+	if i := strings.LastIndex(table, "."); i >= 0 {
+		signal = table[i+1:]
+	}
 	return &ClickHouseWriter[T]{
 		ch:        ch,
 		query:     "INSERT INTO " + table + " (" + strings.Join(columns, ", ") + ")",
+		signal:    signal,
+		colCount:  len(columns),
 		rowMapper: rowMapper,
 	}
 }
@@ -38,21 +55,27 @@ func (w *ClickHouseWriter[T]) Insert(ctx context.Context, rows []T) error {
 	if len(rows) == 0 {
 		return nil
 	}
-	ctx = clickhouse.Context(ctx, clickhouse.WithSettings(clickhouse.Settings{
-		"async_insert":          uint8(1),
-		"wait_for_async_insert": uint8(1),
-	}))
+	// PrepareBatch already assembles a columnar block client-side;
+	// async_insert adds server-side re-buffering with no benefit when
+	// the caller batches via Kafka. Removed per audit Issue #1.
 	batch, err := w.ch.PrepareBatch(ctx, w.query)
 	if err != nil {
 		return fmt.Errorf("core writer: prepare: %w", err)
 	}
+	// Allocate the column-value slice once per batch; the mapper fills
+	// it in-place so each row costs zero heap allocations (Issue #5).
+	vals := make([]any, w.colCount)
 	for _, r := range rows {
-		if err := batch.Append(w.rowMapper(r)...); err != nil {
+		w.rowMapper(r, vals)
+		if err := batch.Append(vals...); err != nil {
 			return &permanentInsertError{err: fmt.Errorf("core writer: append: %w", err)}
 		}
 	}
+	sendStart := time.Now()
 	if err := batch.Send(); err != nil {
+		metrics.CHInsertDuration.WithLabelValues(w.signal, "err").Observe(time.Since(sendStart).Seconds())
 		return fmt.Errorf("core writer: send: %w", err)
 	}
+	metrics.CHInsertDuration.WithLabelValues(w.signal, "ok").Observe(time.Since(sendStart).Seconds())
 	return nil
 }

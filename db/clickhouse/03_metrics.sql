@@ -19,6 +19,7 @@ TTL timestamp + INTERVAL 2 DAY DELETE
 SETTINGS
     storage_policy = 'tiered',
     index_granularity = 8192,
+    min_bytes_for_wide_part = 10485760,
     enable_mixed_granularity_parts = 1,
     non_replicated_deduplication_window = 100000,
     ttl_only_drop_parts = 1;

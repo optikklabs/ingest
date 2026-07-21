@@ -18,14 +18,12 @@ func NewClickHouseWriter(ch clickhouse.Conn) core.Writer[*schema.StatRow] {
 	return core.NewClickHouseWriter(ch, chStatsTable, chStatsColumns, statRowValues)
 }
 
-func statRowValues(r *schema.StatRow) []any {
-	return []any{
-		r.GetTenantId(),
-		time.Unix(r.GetBucketUnix(), 0).UTC(),
-		r.GetSignal(),
-		r.GetService(),
-		r.GetEnvironment(),
-		r.GetRecordCount(),
-		r.GetByteCount(),
-	}
+func statRowValues(r *schema.StatRow, dst []any) {
+	dst[0] = r.GetTenantId()
+	dst[1] = time.Unix(r.GetBucketUnix(), 0).UTC()
+	dst[2] = r.GetSignal()
+	dst[3] = r.GetService()
+	dst[4] = r.GetEnvironment()
+	dst[5] = r.GetRecordCount()
+	dst[6] = r.GetByteCount()
 }

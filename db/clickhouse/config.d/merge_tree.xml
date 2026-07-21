@@ -1,0 +1,22 @@
+<clickhouse>
+    <!-- Merge-tree global settings for TB/day ingest workloads. These
+         raise the default part limits and merge parallelism to prevent
+         "too many parts" rejections under sustained high-throughput. -->
+    <merge_tree>
+        <!-- Max active parts across all partitions before hard reject. -->
+        <max_parts_in_total>300000</max_parts_in_total>
+        <!-- Delay new inserts when active parts exceed this threshold. -->
+        <parts_to_delay_insert>500</parts_to_delay_insert>
+        <!-- Hard reject inserts above this per-partition part count. -->
+        <parts_to_throw_insert>1000</parts_to_throw_insert>
+        <!-- Target rows per insert block; aligns with consumer batch. -->
+        <max_insert_block_size>1048576</max_insert_block_size>
+        <!-- Prefer compact parts below 10MB for fewer files and faster merge. -->
+        <min_bytes_for_wide_part>10485760</min_bytes_for_wide_part>
+    </merge_tree>
+
+    <!-- Background merge pool — increase from default 16 to handle the
+         higher part-creation rate of a multi-signal ingest pipeline. -->
+    <background_pool_size>32</background_pool_size>
+    <background_merges_mutations_concurrency_ratio>4</background_merges_mutations_concurrency_ratio>
+</clickhouse>

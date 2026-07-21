@@ -277,7 +277,7 @@ func buildIngest(cfg config.Config, ch clickhouse.Conn) (ingestBundle, error) {
 			group:                w.cfg.ConsumerGroup,
 			sc:                   w.cfg,
 			producerBase:         producerBase,
-			consumer:             kafkainfra.NewConsumer(client, cfg.KafkaConsumerMaxPollRecords(), w.signal),
+			consumer:             kafkainfra.NewConsumer(client, cfg.KafkaConsumerMaxPollRecords(), cfg.KafkaConsumerInsertWorkers(), w.signal),
 			ch:                   ch,
 			spansResourceCache:   spansResourceCache,
 			logsResourceCache:    logsResourceCache,

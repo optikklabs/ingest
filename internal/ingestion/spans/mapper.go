@@ -1,7 +1,6 @@
 package spans
 
 import (
-	"encoding/json"
 	"strconv"
 
 	"github.com/optikklabs/ingest/internal/infra/fingerprint"
@@ -145,39 +144,35 @@ func spanDuration(s *trace.Span) uint64 {
 	return 0
 }
 
-func serializeEvents(events []*trace.Span_Event) []string {
-	out := make([]string, 0, len(events))
+func serializeEvents(events []*trace.Span_Event) []*schema.Row_SpanEvent {
+	if len(events) == 0 {
+		return nil
+	}
+	out := make([]*schema.Row_SpanEvent, 0, len(events))
 	for _, e := range events {
-		ev := map[string]any{"name": e.Name}
-		if e.TimeUnixNano > 0 {
-			ev["timeUnixNano"] = strconv.FormatUint(e.TimeUnixNano, 10)
-		}
-		if len(e.Attributes) > 0 {
-			ev["attributes"] = otlp.AttrsToMap(e.Attributes)
-		}
-		b, err := json.Marshal(ev)
-		if err != nil {
-			continue
-		}
-		out = append(out, string(b))
+		out = append(out, &schema.Row_SpanEvent{
+			Name:         e.Name,
+			TimeUnixNano: e.TimeUnixNano,
+			Attributes:   otlp.AttrsToMap(e.Attributes),
+		})
 	}
 	return out
 }
 
-func serializeLinks(links []*trace.Span_Link) string {
-	data := make([]map[string]any, 0, len(links))
-	for _, lk := range links {
-		link := map[string]any{
-			"traceId": otlp.BytesToHex(lk.TraceId),
-			"spanId":  otlp.BytesToHex(lk.SpanId),
-		}
-		if len(lk.Attributes) > 0 {
-			link["attributes"] = otlp.AttrsToMap(lk.Attributes)
-		}
-		data = append(data, link)
+func serializeLinks(links []*trace.Span_Link) []*schema.Row_SpanLink {
+	if len(links) == 0 {
+		return nil
 	}
-	b, _ := json.Marshal(data)
-	return string(b)
+	out := make([]*schema.Row_SpanLink, 0, len(links))
+	for _, lk := range links {
+		out = append(out, &schema.Row_SpanLink{
+			TraceId:    otlp.BytesToHex(lk.TraceId),
+			SpanId:     otlp.BytesToHex(lk.SpanId),
+			TraceState: lk.TraceState,
+			Attributes: otlp.AttrsToMap(lk.Attributes),
+		})
+	}
+	return out
 }
 
 func spanKindString(k trace.Span_SpanKind) string {

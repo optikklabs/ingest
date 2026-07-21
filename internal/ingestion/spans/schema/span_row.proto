@@ -30,9 +30,21 @@ message Row {
   reserved 21, 22;               
   reserved "external_http_url", "external_http_method";
   string response_status_code = 23;
+  message SpanEvent {
+    string name = 1;
+    uint64 time_unix_nano = 2;
+    map<string, string> attributes = 3;
+  }
+  message SpanLink {
+    string trace_id = 1;
+    string span_id = 2;
+    string trace_state = 3;
+    map<string, string> attributes = 4;
+  }
+
   map<string, string> attributes = 24;
-  repeated string events = 25;
-  string links = 26;
+  repeated SpanEvent events = 25;
+  repeated SpanLink links = 26;
   string exception_type = 27;
   string exception_message = 28;
   string exception_stacktrace = 29;

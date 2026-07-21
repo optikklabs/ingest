@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS optikk.metrics_series (
     k8s_namespace    LowCardinality(String) CODEC(ZSTD(1)),
     pod              LowCardinality(String) CODEC(ZSTD(1)),
     container        LowCardinality(String) CODEC(ZSTD(1)),
-    attributes       JSON(max_dynamic_paths=100) CODEC(ZSTD(1))
+    attributes       Map(LowCardinality(String), String) CODEC(ZSTD(1))
 ) ENGINE = ReplicatedReplacingMergeTree('/clickhouse/tables/{shard}/optikk/metrics_series_v2', '{replica}')
 PARTITION BY toYYYYMMDD(timestamp)
 ORDER BY (tenant_id, metric_name, toStartOfInterval(timestamp, INTERVAL 6 HOUR), service, fingerprint)

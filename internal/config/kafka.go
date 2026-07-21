@@ -27,6 +27,8 @@ type KafkaConfig struct {
 	ConsumerMaxPollRecords int `yaml:"consumer_max_poll_records"`
 
 	ConsumerMaxRetries int `yaml:"consumer_max_retries"`
+
+	ConsumerInsertWorkers int `yaml:"consumer_insert_workers"`
 }
 
 func (c Config) KafkaBrokers() []string {
@@ -102,4 +104,13 @@ func (c Config) KafkaConsumerMaxRetries() int {
 		return n
 	}
 	return 2
+}
+
+// KafkaConsumerInsertWorkers controls how many parallel goroutines insert
+// fetched batches into ClickHouse per signal. Values <= 0 default to 1.
+func (c Config) KafkaConsumerInsertWorkers() int {
+	if n := c.Kafka.ConsumerInsertWorkers; n > 0 {
+		return n
+	}
+	return 1
 }

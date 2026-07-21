@@ -19,14 +19,14 @@ func (c Config) ClickHouseMaxOpenConns() int {
 	if n := c.ClickHouse.MaxOpenConns; n > 0 {
 		return n
 	}
-	return 20
+	return 5
 }
 
 func (c Config) ClickHouseMaxIdleConns() int {
 	if n := c.ClickHouse.MaxIdleConns; n > 0 {
 		return n
 	}
-	return 10
+	return 3
 }
 
 func (c Config) ClickHouseDSN() string {

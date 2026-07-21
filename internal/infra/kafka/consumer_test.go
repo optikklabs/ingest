@@ -17,66 +17,69 @@ func batch(n int) []*kgo.Record {
 	return recs
 }
 
-// TestProcessBatchCommitsOnlyOnSuccess asserts the commit fires exactly once
-// after a nil handler, and never when the handler errors.
-func TestProcessBatchCommitsOnlyOnSuccess(t *testing.T) {
-	tests := []struct {
-		name        string
-		handleErr   error
-		wantCommits int
-	}{
-		{"success commits", nil, 1},
-		{"handler error skips commit", errors.New("insert failed"), 0},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			var commits int
-			handle := func(context.Context, []*kgo.Record) error { return tt.handleErr }
-			commit := func(context.Context, []*kgo.Record) error { commits++; return nil }
+// TestWorkerAndCommitter asserts the commit fires only on success.
+func TestWorkerAndCommitter(t *testing.T) {
+	c := &Consumer{signal: "test"}
+	
+	// 1. Success case
+	job := batchJob{recs: batch(3), done: make(chan error, 1)}
+	workerIn := make(chan batchJob, 1)
+	committerIn := make(chan batchJob, 1)
+	workerIn <- job
+	committerIn <- job
+	close(workerIn)
+	close(committerIn)
 
-			processBatch(context.Background(), batch(3), handle, commit, "test")
+	var commits int
+	commit := func(context.Context, []*kgo.Record) error { commits++; return nil }
+	handleOk := func(context.Context, []*kgo.Record) error { return nil }
 
-			if commits != tt.wantCommits {
-				t.Errorf("commits = %d, want %d", commits, tt.wantCommits)
-			}
-		})
-	}
-}
+	c.workerLoop(context.Background(), workerIn, handleOk)
+	c.committerLoop(context.Background(), committerIn, commit)
 
-// TestProcessBatchRedeliversOnError proves an errored batch is not committed,
-// so the same offsets are re-handed on redelivery and eventually commit.
-func TestProcessBatchRedeliversOnError(t *testing.T) {
-	recs := batch(2)
-	var committed [][]*kgo.Record
-	commit := func(_ context.Context, r []*kgo.Record) error {
-		committed = append(committed, r)
-		return nil
+	if commits != 1 {
+		t.Errorf("commits = %d, want 1", commits)
 	}
 
-	// First delivery fails → no commit.
-	processBatch(context.Background(), recs, func(context.Context, []*kgo.Record) error {
-		return errors.New("down")
-	}, commit, "test")
-	// Redelivery succeeds → commit.
-	processBatch(context.Background(), recs, func(context.Context, []*kgo.Record) error {
-		return nil
-	}, commit, "test")
+	// 2. Error case
+	job2 := batchJob{recs: batch(3), done: make(chan error, 1)}
+	workerIn2 := make(chan batchJob, 1)
+	committerIn2 := make(chan batchJob, 1)
+	workerIn2 <- job2
+	committerIn2 <- job2
+	close(workerIn2)
+	close(committerIn2)
 
-	if len(committed) != 1 {
-		t.Fatalf("commit count = %d, want 1 (only the redelivery)", len(committed))
-	}
-	if len(committed[0]) != len(recs) {
-		t.Errorf("committed %d records, want %d", len(committed[0]), len(recs))
+	commits = 0
+	handleErr := func(context.Context, []*kgo.Record) error { return errors.New("err") }
+
+	c.workerLoop(context.Background(), workerIn2, handleErr)
+	c.committerLoop(context.Background(), committerIn2, commit)
+
+	if commits != 0 {
+		t.Errorf("commits = %d, want 0", commits)
 	}
 }
 
-// TestProcessBatchesDrainsAndReturns feeds batches through the worker channel
-// and asserts a clean shutdown: closing the channel drains the buffer and the
-// worker returns. Run with -race to exercise the goroutine handoff.
-func TestProcessBatchesDrainsAndReturns(t *testing.T) {
-	in := make(chan []*kgo.Record, 1)
+// TestParallelWorkers proves multiple workers can drain the channel concurrently.
+func TestParallelWorkers(t *testing.T) {
+	c := &Consumer{signal: "test", workers: 2}
+	
+	const numJobs = 10
+	workerIn := make(chan batchJob, numJobs)
+	committerIn := make(chan batchJob, numJobs)
+	
+	for i := 0; i < numJobs; i++ {
+		job := batchJob{recs: batch(1), done: make(chan error, 1)}
+		workerIn <- job
+		committerIn <- job
+	}
+	close(workerIn)
+	close(committerIn)
+
 	var mu sync.Mutex
 	var handled, committed int
+
 	handle := func(context.Context, []*kgo.Record) error {
 		mu.Lock()
 		handled++
@@ -84,26 +87,23 @@ func TestProcessBatchesDrainsAndReturns(t *testing.T) {
 		return nil
 	}
 	commit := func(context.Context, []*kgo.Record) error {
-		mu.Lock()
 		committed++
-		mu.Unlock()
 		return nil
 	}
 
-	done := make(chan struct{})
-	go func() {
-		processBatches(context.Background(), in, handle, commit, "test")
-		close(done)
-	}()
-
-	const n = 5
-	for i := 0; i < n; i++ {
-		in <- batch(1)
+	var wg sync.WaitGroup
+	for i := 0; i < c.workers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			c.workerLoop(context.Background(), workerIn, handle)
+		}()
 	}
-	close(in)
-	<-done
+	wg.Wait()
 
-	if handled != n || committed != n {
-		t.Errorf("handled=%d committed=%d, want %d each", handled, committed, n)
+	c.committerLoop(context.Background(), committerIn, commit)
+
+	if handled != numJobs || committed != numJobs {
+		t.Errorf("handled=%d committed=%d, want %d each", handled, committed, numJobs)
 	}
 }

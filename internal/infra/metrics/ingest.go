@@ -80,6 +80,18 @@ var (
 		Help:      "ClickHouse insert retry attempts after a failed write, by signal.",
 	}, []string{"signal"})
 
+	// CHInsertDuration isolates the ClickHouse batch.Send() latency
+	// from the overall consumer batch duration, by signal and result.
+	CHInsertDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace: "optikk",
+		Subsystem: "ingest",
+		Name:      "ch_insert_duration_seconds",
+		Help:      "ClickHouse batch.Send() round-trip latency, by table and result (ok/err).",
+		Buckets: []float64{
+			0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10,
+		},
+	}, []string{"table", "result"})
+
 	RecordsLost = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "optikk",
 		Subsystem: "ingest",

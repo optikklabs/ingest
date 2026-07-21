@@ -20,9 +20,10 @@ clickhouse:
   user: default
   password: "localdev" # Overridable by OPTIKK_CLICKHOUSE_PASSWORD environment variable
   secure: false
-  # Insert pool; batched writes need few connections. 0 falls back to 20/10.
-  max_open_conns: 20
-  max_idle_conns: 10
+  # Insert pool; batched writes need few connections. One insert
+  # is in-flight per signal consumer, so a small pool suffices.
+  max_open_conns: 5
+  max_idle_conns: 3
 
 otlp:
   grpc_port: "18317"
@@ -80,11 +81,17 @@ kafka:
   compression: zstd
   linger_ms: 20
   batch_max_bytes: 1048576
-  # Consumer fetch ceilings. Keep defaults until a production load test picks
-  # a larger value for the expected signal mix.
-  fetch_max_bytes: 8388608
-  fetch_max_partition_bytes: 1048576
+  # Consumer fetch ceilings — sized for TB/day: each poll should fill
+  # a ClickHouse insert block (~50K rows). Larger fetches amortize the
+  # per-insert TCP round-trip and reduce CH part proliferation.
+  fetch_max_bytes: 52428800
+  fetch_max_partition_bytes: 8388608
   # CH insert retries before a batch falls back to the DLQ (default 2)
   consumer_max_retries: 2
   # One Kafka poll maps directly to one ClickHouse insert batch.
-  consumer_max_poll_records: 5000
+  # 50K rows at ~1KB/row ≈ 50MB per batch — verify pod memory limits
+  # can absorb 2× this (double-buffered consumer).
+  consumer_max_poll_records: 50000
+  # Number of parallel workers per consumer to process inserts.
+  # 4 is a good default for high-throughput single-replica setups.
+  consumer_insert_workers: 4

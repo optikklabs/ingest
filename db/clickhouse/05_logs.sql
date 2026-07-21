@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS optikk.logs (
     span_id              String CODEC(ZSTD(1)),
     trace_flags          UInt32 DEFAULT 0,
     body                 String CODEC(ZSTD(2)),
-    resource             JSON(max_dynamic_paths=100) CODEC(ZSTD(1)),
+    resource             Map(LowCardinality(String), String) CODEC(ZSTD(1)),
     scope_name           String CODEC(ZSTD(1)),
     scope_version        String CODEC(ZSTD(1)),
 
@@ -39,5 +39,6 @@ TTL
 SETTINGS
     storage_policy = 'tiered',
     index_granularity = 8192,
+    min_bytes_for_wide_part = 10485760,
     non_replicated_deduplication_window = 100000,
     ttl_only_drop_parts = 1;
