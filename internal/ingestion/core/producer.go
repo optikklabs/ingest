@@ -44,6 +44,8 @@ func (p *Producer[T]) WithKeyFunc(f func(T) []byte) *Producer[T] {
 	return p
 }
 
+const maxPooledBufCap = 512 * 1024 // 512 KB threshold
+
 func (p *Producer[T]) Publish(ctx context.Context, rows []T) error {
 	if len(rows) == 0 {
 		return nil
@@ -51,18 +53,25 @@ func (p *Producer[T]) Publish(ctx context.Context, rows []T) error {
 	bufp := marshalBufPool.Get().(*[]byte)
 	records, buf, err := p.marshalBatch(rows, time.Now(), (*bufp)[:0])
 	if err != nil {
-		*bufp = buf
-		marshalBufPool.Put(bufp)
+		p.recycleBuf(bufp, buf)
 		return fmt.Errorf("core producer: marshal: %w", err)
 	}
 
 	pubErr := p.base.PublishBatch(ctx, records)
-	*bufp = buf
-	marshalBufPool.Put(bufp)
+	p.recycleBuf(bufp, buf)
 	if pubErr != nil {
 		return fmt.Errorf("core producer: publish batch: %w", pubErr)
 	}
 	return nil
+}
+
+func (p *Producer[T]) recycleBuf(bufp *[]byte, buf []byte) {
+	if cap(buf) > maxPooledBufCap {
+		// Oversized buffer during traffic spike: let GC collect it
+		return
+	}
+	*bufp = buf
+	marshalBufPool.Put(bufp)
 }
 
 // marshalBatch packs every row into one pre-sized buffer and returns records

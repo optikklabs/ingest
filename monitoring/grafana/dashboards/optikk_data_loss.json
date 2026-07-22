@@ -1,0 +1,115 @@
+{
+  "annotations": {"list": []},
+  "description": "Optikk Ingestion Data Loss & Offset Commit Integrity Monitor — tracking uncommitted batches, CH insert retries, DLQ sent rates, and unrecoverable record drops.",
+  "editable": false,
+  "graphTooltip": 1,
+  "liveNow": false,
+  "refresh": "5s",
+  "schemaVersion": 39,
+  "tags": ["optikk", "ingest", "reliability", "data-loss"],
+  "templating": {
+    "list": [
+      {
+        "name": "service",
+        "label": "Service",
+        "type": "query",
+        "datasource": {"type": "prometheus", "uid": "prometheus"},
+        "definition": "label_values(go_goroutines, job)",
+        "query": "label_values(go_goroutines, job)",
+        "regex": "/optikk-.*/",
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": true,
+        "refresh": 2,
+        "current": {"selected": true, "text": ["All"], "value": ["$__all"]}
+      },
+      {
+        "name": "signal",
+        "label": "Signal",
+        "type": "query",
+        "datasource": {"type": "prometheus", "uid": "prometheus"},
+        "definition": "label_values(optikk_ingest_records_total, signal)",
+        "query": "label_values(optikk_ingest_records_total, signal)",
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": true,
+        "refresh": 2,
+        "current": {"selected": true, "text": ["All"], "value": ["$__all"]}
+      }
+    ]
+  },
+  "time": {"from": "now-1h", "to": "now"},
+  "timepicker": {},
+  "title": "Optikk Ingest Data Loss & Offset Health",
+  "uid": "optikk-ingest-data-loss",
+  "version": 1,
+  "panels": [
+    {
+      "title": "Unrecoverable Records Lost (5m rate)",
+      "type": "stat",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 6, "w": 12, "x": 0, "y": 0},
+      "targets": [
+        {
+          "expr": "sum(rate(optikk_ingest_records_lost_total{job=~\"$service\",signal=~\"$signal\"}[5m]))",
+          "legendFormat": "Lost Records",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "red", "value": 0.001}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "Inflight Uncommitted Consumer Batches",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 6, "w": 12, "x": 12, "y": 0},
+      "targets": [
+        {
+          "expr": "sum by (signal, job) (optikk_ingest_consumer_inflight_batches{job=~\"$service\",signal=~\"$signal\"})",
+          "legendFormat": "{{job}} {{signal}} inflight",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "short"}}
+    },
+    {
+      "title": "ClickHouse Batch Insert Retries (5m rate)",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 6},
+      "targets": [
+        {
+          "expr": "sum by (signal, job) (rate(optikk_ingest_insert_retries_total{job=~\"$service\",signal=~\"$signal\"}[5m]))",
+          "legendFormat": "{{job}} {{signal}} retries",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "ops"}}
+    },
+    {
+      "title": "Side-Publish Dropped Records (5m rate)",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 6},
+      "targets": [
+        {
+          "expr": "sum by (signal, topic, job) (rate(optikk_ingest_sidepublish_dropped_total{job=~\"$service\",signal=~\"$signal\"}[5m]))",
+          "legendFormat": "{{job}} {{signal}} -> {{topic}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "ops"}}
+    }
+  ]
+}
