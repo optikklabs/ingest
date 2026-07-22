@@ -1,0 +1,67 @@
+-- Root-span index — a narrow copy of every root span, powering the traces
+-- explorer list / facets / trend. Those queries page and aggregate one row per
+-- trace, so scanning the full spans table (root + child) decoded ~N× the rows
+-- it needed. Reading root-only spans here removes that fan-out.
+--
+-- Carries only the columns the explorer scan reads; resource dims and any-span
+-- predicates still resolve against spans / spans_resource. is_error mirrors the
+-- spans ALIAS so trend error counts stay identical.
+
+CREATE TABLE IF NOT EXISTS optikk.spans_root (
+    tenant_id            UInt32                 CODEC(T64, ZSTD(1)),
+    timestamp            DateTime64(9)          CODEC(DoubleDelta, LZ4),
+    trace_id             String                 CODEC(ZSTD(1)),
+    span_id              String                 CODEC(ZSTD(1)),
+    fingerprint          UInt64                 CODEC(ZSTD(1)),
+    duration_nano        UInt64                 CODEC(T64, ZSTD(1)),
+    service              LowCardinality(String) CODEC(ZSTD(1)),
+    name                 LowCardinality(String) CODEC(ZSTD(1)),
+    kind_string          LowCardinality(String) CODEC(ZSTD(1)),
+    status_code_string   LowCardinality(String) CODEC(ZSTD(1)),
+    http_method          LowCardinality(String) CODEC(ZSTD(1)),
+    response_status_code LowCardinality(String) CODEC(ZSTD(1)),
+    has_error            Bool                   CODEC(T64, ZSTD(1)),
+
+    is_error UInt8 ALIAS if(has_error OR (kind_string = 'CLIENT' AND toUInt16OrZero(response_status_code) >= 400) OR toUInt16OrZero(response_status_code) >= 500, 1, 0)
+) ENGINE = ReplicatedMergeTree('/clickhouse/tables/{shard}/optikk/spans_root', '{replica}')
+PARTITION BY toYYYYMMDD(timestamp)
+ORDER BY (tenant_id, timestamp, fingerprint, trace_id, span_id)
+TTL
+    timestamp + INTERVAL 3 DAY TO VOLUME 'main',
+    timestamp + INTERVAL 15 DAY DELETE
+SETTINGS
+    storage_policy = 'tiered',
+    index_granularity = 8192,
+    ttl_only_drop_parts = 1;
+
+CREATE MATERIALIZED VIEW IF NOT EXISTS optikk.spans_to_root
+TO optikk.spans_root AS
+SELECT
+    tenant_id,
+    timestamp,
+    trace_id,
+    span_id,
+    fingerprint,
+    duration_nano,
+    service,
+    name,
+    kind_string,
+    status_code_string,
+    http_method,
+    response_status_code,
+    has_error
+FROM optikk.spans
+WHERE is_root = 1;
+
+-- One-time backfill for spans that predate the MV. Run AFTER the statements
+-- above. The upper bound must be the MV creation time so rows the MV already
+-- captured are not double-inserted (spans_root is a plain MergeTree):
+--
+--   INSERT INTO optikk.spans_root
+--   SELECT tenant_id, timestamp, trace_id, span_id, fingerprint, duration_nano,
+--          service, name, kind_string, status_code_string, http_method,
+--          response_status_code, has_error
+--   FROM optikk.spans
+--   WHERE is_root = 1
+--     AND timestamp >= now() - INTERVAL 15 DAY
+--     AND timestamp <  '<MV_CREATION_UTC>';
