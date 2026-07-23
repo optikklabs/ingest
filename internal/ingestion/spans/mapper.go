@@ -67,7 +67,7 @@ func buildSpanRow(tenantID int64, resMap map[string]string, dims fingerprint.Res
 	httpURL := firstNonEmpty(spanMap, "http.url", "url.full")
 	httpHost := firstNonEmpty(spanMap, "http.host", "net.host.name")
 	httpStatus := firstNonEmpty(spanMap, "http.status_code", "http.response.status_code")
-	gen := extractGenAI(spanMap)
+	gen := extractGenAI(spanMap, spanDuration(s))
 
 	stripPromotedKeys(merged)
 
@@ -120,6 +120,13 @@ func buildSpanRow(tenantID int64, resMap map[string]string, dims fingerprint.Res
 		GenAiInputTokens:    gen.InputTokens,
 		GenAiOutputTokens:   gen.OutputTokens,
 		IsGenAi:             gen.Present,
+		LlmUserId:           gen.UserID,
+		LlmSessionId:        gen.SessionID,
+		LlmTags:             gen.Tags,
+		LlmRelease:          gen.Release,
+		LlmPromptName:       gen.PromptName,
+		LlmPromptVersion:    gen.PromptVersion,
+		GenAiSpanKind:       gen.SpanKind,
 	}
 }
 
@@ -253,6 +260,12 @@ var promotedSpanKeys = []string{
 	"gen_ai.usage.prompt_tokens", "gen_ai.usage.completion_tokens",
 	"gen_ai.prompt", "gen_ai.completion",
 	"gen_ai.input.messages", "gen_ai.output.messages",
+	"gen_ai.request.user", "user.id", "enduser.id", "langfuse.user.id",
+	"gen_ai.conversation.id", "session.id", "langfuse.session.id",
+	"langfuse.release", "langfuse.trace.tags", "optikk.llm.tags",
+	"langfuse.prompt.name", "optikk.prompt.name",
+	"langfuse.prompt.version", "optikk.prompt.version",
+	"langfuse.observation.type", "gen_ai.observation.type", "optikk.eval",
 }
 
 func stripPromotedKeys(m map[string]string) {

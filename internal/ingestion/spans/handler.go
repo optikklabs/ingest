@@ -9,6 +9,8 @@ import (
 	"github.com/optikklabs/ingest/internal/infra/metrics"
 	"github.com/optikklabs/ingest/internal/ingestion/core"
 	"github.com/optikklabs/ingest/internal/ingestion/ingestionstats"
+	"github.com/optikklabs/ingest/internal/ingestion/llmscores"
+	llmscoresschema "github.com/optikklabs/ingest/internal/ingestion/llmscores/schema"
 	"github.com/optikklabs/ingest/internal/ingestion/spans/schema"
 	spansresourceschema "github.com/optikklabs/ingest/internal/ingestion/spansresource/schema"
 	tracepb "go.opentelemetry.io/proto/otlp/collector/trace/v1"
@@ -21,15 +23,17 @@ type Handler struct {
 	producer            *core.Producer[*schema.Row]
 	tracegraphPublisher *core.AsyncPublisher[*schema.Row]
 	resourcePublisher   *core.AsyncPublisher[*spansresourceschema.ResourceRow]
+	scoresPublisher     *core.AsyncPublisher[*llmscoresschema.ScoreRow]
 	resourceCache       *core.ResourceCache
 	stats               ingestionstats.Recorder
 }
 
-func NewHandler(p *core.Producer[*schema.Row], tp *core.AsyncPublisher[*schema.Row], rp *core.AsyncPublisher[*spansresourceschema.ResourceRow], cache *core.ResourceCache, stats ingestionstats.Recorder) *Handler {
+func NewHandler(p *core.Producer[*schema.Row], tp *core.AsyncPublisher[*schema.Row], rp *core.AsyncPublisher[*spansresourceschema.ResourceRow], sp *core.AsyncPublisher[*llmscoresschema.ScoreRow], cache *core.ResourceCache, stats ingestionstats.Recorder) *Handler {
 	return &Handler{
 		producer:            p,
 		tracegraphPublisher: tp,
 		resourcePublisher:   rp,
+		scoresPublisher:     sp,
 		resourceCache:       cache,
 		stats:               stats,
 	}
@@ -93,6 +97,11 @@ func (h *Handler) Export(ctx context.Context, req *tracepb.ExportTraceServiceReq
 	metrics.TracegraphRowsFiltered.Add(float64(len(rows) - len(tgRows)))
 	// Tracegraph is best-effort with no cache state, so no rollback hook.
 	h.tracegraphPublisher.Enqueue(tgRows, nil)
+
+	// Evaluation scores carried on span events, off the request path.
+	if scores := llmscores.ExtractFromSpans(rows); len(scores) > 0 {
+		h.scoresPublisher.Enqueue(scores, nil)
+	}
 
 	return &tracepb.ExportTraceServiceResponse{}, nil
 }

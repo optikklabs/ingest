@@ -22,6 +22,7 @@ const (
 	SignalMetrics         = "metrics"
 	SignalMetricSeries    = "metric_series"
 	SignalIngestionStats  = "ingestion_stats"
+	SignalLLMScores       = "llm_scores"
 )
 
 type TopicSpec struct {

@@ -34,7 +34,7 @@ func TestExtractGenAIMessagesFallback(t *testing.T) {
 		"gen_ai.system":          "anthropic",
 		"gen_ai.input.messages":  `[{"role":"user","content":"hi"}]`,
 		"gen_ai.output.messages": `[{"role":"assistant","content":"hello"}]`,
-	})
+	}, 0)
 	if g.Prompt != `[{"role":"user","content":"hi"}]` {
 		t.Errorf("prompt fallback = %q", g.Prompt)
 	}
@@ -45,7 +45,7 @@ func TestExtractGenAIMessagesFallback(t *testing.T) {
 
 func TestExtractGenAICapsContent(t *testing.T) {
 	long := strings.Repeat("é", maxGenAIContentBytes) // 2 bytes per rune
-	g := extractGenAI(map[string]string{"gen_ai.prompt": long})
+	g := extractGenAI(map[string]string{"gen_ai.prompt": long}, 0)
 	if len(g.Prompt) > maxGenAIContentBytes {
 		t.Errorf("prompt length = %d, want <= %d", len(g.Prompt), maxGenAIContentBytes)
 	}

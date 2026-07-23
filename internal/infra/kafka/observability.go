@@ -90,6 +90,7 @@ var knownSignals = map[string]struct{}{
 	SignalMetrics:         {},
 	SignalMetricSeries:    {},
 	SignalIngestionStats:  {},
+	SignalLLMScores:       {},
 }
 
 func signalFromTopic(topic string) string {

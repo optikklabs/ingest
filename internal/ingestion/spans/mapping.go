@@ -28,6 +28,8 @@ var chColumns = []string{
 	"gen_ai_system", "gen_ai_operation", "gen_ai_request_model", "gen_ai_response_model",
 	"gen_ai_input_tokens", "gen_ai_output_tokens", "is_gen_ai",
 	"gen_ai_prompt", "gen_ai_completion",
+	"llm_user_id", "llm_session_id", "llm_tags", "llm_release",
+	"llm_prompt_name", "llm_prompt_version", "gen_ai_span_kind",
 }
 
 func NewClickHouseWriter(ch clickhouse.Conn) *core.ClickHouseWriter[*schema.Row] {
@@ -82,4 +84,11 @@ func rowValues(r *schema.Row, dst []any) {
 	dst[44] = r.GetIsGenAi()
 	dst[45] = r.GetGenAiPrompt()
 	dst[46] = r.GetGenAiCompletion()
+	dst[47] = r.GetLlmUserId()
+	dst[48] = r.GetLlmSessionId()
+	dst[49] = r.GetLlmTags()
+	dst[50] = r.GetLlmRelease()
+	dst[51] = r.GetLlmPromptName()
+	dst[52] = r.GetLlmPromptVersion()
+	dst[53] = r.GetGenAiSpanKind()
 }

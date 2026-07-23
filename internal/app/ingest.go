@@ -16,6 +16,8 @@ import (
 	"github.com/optikklabs/ingest/internal/ingestion/core"
 	ingestionstats "github.com/optikklabs/ingest/internal/ingestion/ingestionstats"
 	statsschema "github.com/optikklabs/ingest/internal/ingestion/ingestionstats/schema"
+	llmscores "github.com/optikklabs/ingest/internal/ingestion/llmscores"
+	llmscoresschema "github.com/optikklabs/ingest/internal/ingestion/llmscores/schema"
 	logsignal "github.com/optikklabs/ingest/internal/ingestion/logs"
 	logsschema "github.com/optikklabs/ingest/internal/ingestion/logs/schema"
 	logsresource "github.com/optikklabs/ingest/internal/ingestion/logsresource"
@@ -86,16 +88,23 @@ func wireSpans(in signalWireInput) (registry.Module, ConsumerRunner) {
 	tracegraphProducer := core.NewProducer[*spansschema.Row](tracegraphTopic, in.producerBase).WithKeyFunc(func(r *spansschema.Row) []byte {
 		return []byte(r.GetTraceId())
 	})
+	scoresTopic := kafkainfra.IngestTopic(in.topicPrefix, kafkainfra.SignalLLMScores)
+	scoresProducer := core.NewProducer[*llmscoresschema.ScoreRow](scoresTopic, in.producerBase).WithKeyFunc(func(r *llmscoresschema.ScoreRow) []byte {
+		return []byte(r.GetTraceId())
+	})
+
 	tracegraphPublisher := core.NewAsyncPublisher[*spansschema.Row](tracegraphProducer, kafkainfra.SignalSpans, kafkainfra.SignalSpansTracegraph, in.sidePublishQueueSize, in.sidePublishWorkers)
 	resourcePublisher := core.NewAsyncPublisher[*spansresourceschema.ResourceRow](resourceProducer, kafkainfra.SignalSpans, kafkainfra.SignalSpansResource, in.sidePublishQueueSize, in.sidePublishWorkers)
+	scoresPublisher := core.NewAsyncPublisher[*llmscoresschema.ScoreRow](scoresProducer, kafkainfra.SignalSpans, kafkainfra.SignalLLMScores, in.sidePublishQueueSize, in.sidePublishWorkers)
 	in.registerCloser(tracegraphPublisher.Close)
 	in.registerCloser(resourcePublisher.Close)
+	in.registerCloser(scoresPublisher.Close)
 
 	writer := core.NewRetryWriter(spansignal.NewClickHouseWriter(in.ch), kafkainfra.SignalSpans, in.insertMaxRetries)
 	dlq := core.NewDLQ(in.producerBase, in.dlqTopic, kafkainfra.SignalSpans)
 	consumer := core.NewInsertConsumer(in.consumer, kafkainfra.SignalSpans, writer, dlq, func() *spansschema.Row { return &spansschema.Row{} })
 
-	handler := spansignal.NewHandler(producer, tracegraphPublisher, resourcePublisher, in.spansResourceCache, in.stats)
+	handler := spansignal.NewHandler(producer, tracegraphPublisher, resourcePublisher, scoresPublisher, in.spansResourceCache, in.stats)
 	mod := spansignal.NewModule(spansignal.Deps{Handler: handler})
 	return mod, consumer
 }
@@ -148,6 +157,13 @@ func wireIngestionStats(in signalWireInput) (registry.Module, ConsumerRunner) {
 	writer := core.NewRetryWriter(ingestionstats.NewClickHouseWriter(in.ch), kafkainfra.SignalIngestionStats, in.insertMaxRetries)
 	dlq := core.NewDLQ(in.producerBase, in.dlqTopic, kafkainfra.SignalIngestionStats)
 	consumer := core.NewInsertConsumer(in.consumer, kafkainfra.SignalIngestionStats, writer, dlq, func() *statsschema.StatRow { return &statsschema.StatRow{} })
+	return nil, consumer
+}
+
+func wireLLMScores(in signalWireInput) (registry.Module, ConsumerRunner) {
+	writer := core.NewRetryWriter(llmscores.NewClickHouseWriter(in.ch), kafkainfra.SignalLLMScores, in.insertMaxRetries)
+	dlq := core.NewDLQ(in.producerBase, in.dlqTopic, kafkainfra.SignalLLMScores)
+	consumer := core.NewInsertConsumer(in.consumer, kafkainfra.SignalLLMScores, writer, dlq, func() *llmscoresschema.ScoreRow { return &llmscoresschema.ScoreRow{} })
 	return nil, consumer
 }
 
@@ -207,6 +223,7 @@ func buildIngest(cfg config.Config, ch clickhouse.Conn) (ingestBundle, error) {
 		{signal: kafkainfra.SignalMetrics, cfg: cfg.IngestSignal("metrics"), wire: wireMetrics},
 		{signal: kafkainfra.SignalMetricSeries, cfg: cfg.IngestSignal("metric_series"), wire: wireMetricSeries},
 		{signal: kafkainfra.SignalIngestionStats, cfg: cfg.IngestSignal("ingestion_stats"), wire: wireIngestionStats},
+		{signal: kafkainfra.SignalLLMScores, cfg: cfg.IngestSignal("llm_scores"), wire: wireLLMScores},
 
 		{signal: kafkainfra.SignalSpans, cfg: config.SignalConfig{
 			Partitions:     cfg.IngestSignal("spans").Partitions,

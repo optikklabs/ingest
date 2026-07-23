@@ -72,4 +72,13 @@ message Row {
   bool   is_gen_ai = 49;
   string gen_ai_prompt = 50;
   string gen_ai_completion = 51;
+
+  // LLM Observability context promoted from gen_ai / langfuse attributes.
+  string          llm_user_id = 52;
+  string          llm_session_id = 53;
+  repeated string llm_tags = 54;
+  string          llm_release = 55;
+  string          llm_prompt_name = 56;
+  uint32          llm_prompt_version = 57;
+  string          gen_ai_span_kind = 58;
 }
