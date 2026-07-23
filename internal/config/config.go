@@ -142,7 +142,7 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("otlp.grpc_max_concurrent_streams", 10000)
 	v.SetDefault("otlp.grpc_max_recv_msg_size", 16*1024*1024)
 
-	for _, signal := range []string{"spans", "spans_tracegraph", "spans_resource", "logs", "logs_resource", "metrics", "metric_series", "ingestion_stats"} {
+	for _, signal := range []string{"spans", "spans_tracegraph", "logs", "metrics", "metric_series", "ingestion_stats"} {
 		def := SignalDefaults(signal)
 		prefix := "ingestion." + signal + "."
 		v.SetDefault(prefix+"partitions", def.Partitions)

@@ -1,6 +1,5 @@
 CREATE TABLE IF NOT EXISTS optikk.logs (
     tenant_id              UInt32 CODEC(T64, ZSTD(1)),
-    fingerprint          UInt64 CODEC(ZSTD(1)),
     ts_bucket            UInt32 CODEC(DoubleDelta, LZ4),
     trace_id             String CODEC(ZSTD(1)),
     log_id               String CODEC(ZSTD(1)),
@@ -30,9 +29,9 @@ CREATE TABLE IF NOT EXISTS optikk.logs (
     INDEX idx_trace_id     trace_id     TYPE bloom_filter(0.01)        GRANULARITY 1,
     INDEX idx_log_id       log_id       TYPE bloom_filter(0.01)        GRANULARITY 4,
     INDEX idx_body_text    body TYPE text(tokenizer = 'splitByNonAlpha', preprocessor = lowerUTF8(body)) GRANULARITY 1
-) ENGINE = ReplicatedMergeTree('/clickhouse/tables/{shard}/optikk/logs', '{replica}')
+) ENGINE = ReplicatedMergeTree('/clickhouse/tables/{shard}/optikk/logs_v2', '{replica}')
 PARTITION BY toYYYYMMDD(timestamp)
-ORDER BY (tenant_id, ts_bucket, timestamp, fingerprint)
+ORDER BY (tenant_id, ts_bucket, timestamp)
 TTL
     timestamp + INTERVAL 3 DAY TO VOLUME 'main',
     timestamp + INTERVAL 15 DAY DELETE

@@ -32,8 +32,8 @@ func NewProducer[T Row](topic string, base *kafkainfra.Producer) *Producer[T] {
 		topic: topic,
 		base:  base,
 		keyFunc: func(r T) []byte {
-			b := make([]byte, 8)
-			binary.BigEndian.PutUint64(b, r.GetFingerprint())
+			b := make([]byte, 4)
+			binary.BigEndian.PutUint32(b, r.GetTenantId())
 			return b
 		},
 	}

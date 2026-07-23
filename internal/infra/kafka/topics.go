@@ -16,9 +16,7 @@ import (
 const (
 	SignalSpans           = "spans"
 	SignalSpansTracegraph = "spans_tracegraph"
-	SignalSpansResource   = "spans_resource"
 	SignalLogs            = "logs"
-	SignalLogsResource    = "logs_resource"
 	SignalMetrics         = "metrics"
 	SignalMetricSeries    = "metric_series"
 	SignalIngestionStats  = "ingestion_stats"

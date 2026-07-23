@@ -7,7 +7,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	spansresourceschema "github.com/optikklabs/ingest/internal/ingestion/spansresource/schema"
+	spansschema "github.com/optikklabs/ingest/internal/ingestion/spans/schema"
 )
 
 type fakeAsyncPublisher struct {
@@ -17,7 +17,7 @@ type fakeAsyncPublisher struct {
 	block     chan struct{} // if non-nil, Publish blocks until closed
 }
 
-func (f *fakeAsyncPublisher) Publish(_ context.Context, rows []*spansresourceschema.ResourceRow) error {
+func (f *fakeAsyncPublisher) Publish(_ context.Context, rows []*spansschema.Row) error {
 	if f.block != nil {
 		<-f.block
 	}
@@ -30,10 +30,10 @@ func (f *fakeAsyncPublisher) Publish(_ context.Context, rows []*spansresourcesch
 	return nil
 }
 
-func resourceRows(n int) []*spansresourceschema.ResourceRow {
-	rows := make([]*spansresourceschema.ResourceRow, n)
+func resourceRows(n int) []*spansschema.Row {
+	rows := make([]*spansschema.Row, n)
 	for i := range rows {
-		rows[i] = &spansresourceschema.ResourceRow{Fingerprint: uint64(i + 1)}
+		rows[i] = &spansschema.Row{TenantId: uint32(i + 1)}
 	}
 	return rows
 }
@@ -41,7 +41,7 @@ func resourceRows(n int) []*spansresourceschema.ResourceRow {
 // TestAsyncPublisherSuccessKeepsState: a successful publish never runs onFail.
 func TestAsyncPublisherSuccessKeepsState(t *testing.T) {
 	pub := &fakeAsyncPublisher{}
-	ap := NewAsyncPublisher[*spansresourceschema.ResourceRow](pub, "spans", "spans_resource", 16, 1)
+	ap := NewAsyncPublisher[*spansschema.Row](pub, "spans", "side_topic", 16, 1)
 
 	var rolledBack atomic.Bool
 	ap.Enqueue(resourceRows(3), func() { rolledBack.Store(true) })
@@ -59,7 +59,7 @@ func TestAsyncPublisherSuccessKeepsState(t *testing.T) {
 // caller can re-emit next window.
 func TestAsyncPublisherFailureRollsBack(t *testing.T) {
 	pub := &fakeAsyncPublisher{err: errors.New("kafka down")}
-	ap := NewAsyncPublisher[*spansresourceschema.ResourceRow](pub, "spans", "spans_resource", 16, 1)
+	ap := NewAsyncPublisher[*spansschema.Row](pub, "spans", "side_topic", 16, 1)
 
 	var rolledBack atomic.Bool
 	ap.Enqueue(resourceRows(2), func() { rolledBack.Store(true) })
@@ -74,7 +74,7 @@ func TestAsyncPublisherFailureRollsBack(t *testing.T) {
 // and runs the caller's rollback inline.
 func TestAsyncPublisherQueueFullDrops(t *testing.T) {
 	pub := &fakeAsyncPublisher{block: make(chan struct{})}
-	ap := NewAsyncPublisher[*spansresourceschema.ResourceRow](pub, "spans", "spans_resource", 1, 1)
+	ap := NewAsyncPublisher[*spansschema.Row](pub, "spans", "side_topic", 1, 1)
 
 	var drops int
 	var accepted int
@@ -97,7 +97,7 @@ func TestAsyncPublisherQueueFullDrops(t *testing.T) {
 // TestAsyncPublisherEnqueueEmptyNoop: an empty batch is a no-op success.
 func TestAsyncPublisherEnqueueEmptyNoop(t *testing.T) {
 	pub := &fakeAsyncPublisher{}
-	ap := NewAsyncPublisher[*spansresourceschema.ResourceRow](pub, "spans", "spans_resource", 16, 1)
+	ap := NewAsyncPublisher[*spansschema.Row](pub, "spans", "side_topic", 16, 1)
 	defer ap.Close()
 
 	if !ap.Enqueue(nil, func() { t.Error("onFail ran for empty batch") }) {

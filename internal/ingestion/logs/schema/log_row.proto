@@ -20,7 +20,8 @@ message Row {
   map<string, double> attributes_number = 12;
   map<string, bool>   attributes_bool = 13;
   map<string, string> resource = 14;
-  uint64 fingerprint = 15;
+  reserved 15;
+  reserved "fingerprint";
   string scope_name = 16;
   string scope_version = 17;
   

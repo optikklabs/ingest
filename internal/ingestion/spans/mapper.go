@@ -33,11 +33,10 @@ func mapRequest(tenantID int64, req *tracepb.ExportTraceServiceRequest) []*schem
 		// row's fields/merged map — free to pool once the inner loop ends.
 		resMap := otlp.GetAttrMap()
 		otlp.AttrsToMapInto(resMap, resAttrs)
-		fp := fingerprint.CalculateHash(resMap)
 		dims := fingerprint.ResolveResource(resMap)
 		for _, ss := range rs.GetScopeSpans() {
 			for _, s := range ss.GetSpans() {
-				rows = append(rows, buildSpanRow(tenantID, resMap, dims, fp, s))
+				rows = append(rows, buildSpanRow(tenantID, resMap, dims, s))
 			}
 		}
 		otlp.PutAttrMap(resMap)
@@ -45,7 +44,7 @@ func mapRequest(tenantID int64, req *tracepb.ExportTraceServiceRequest) []*schem
 	return rows
 }
 
-func buildSpanRow(tenantID int64, resMap map[string]string, dims fingerprint.ResourceDimensions, fp uint64, s *trace.Span) *schema.Row {
+func buildSpanRow(tenantID int64, resMap map[string]string, dims fingerprint.ResourceDimensions, s *trace.Span) *schema.Row {
 	timestampNs := s.GetStartTimeUnixNano()
 	tsBucket := timebucket.BucketStart(int64(timestampNs / nsPerSecond))
 
@@ -104,7 +103,6 @@ func buildSpanRow(tenantID int64, resMap map[string]string, dims fingerprint.Res
 		DbStatement:         spanMap["db.statement"],
 		HttpRoute:           spanMap["http.route"],
 		Attributes:          merged,
-		Fingerprint:         fp,
 		Events:              serializeEvents(s.GetEvents()),
 		Links:               serializeLinks(s.GetLinks()),
 		ExceptionType:       spanMap["exception.type"],

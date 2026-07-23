@@ -4,7 +4,7 @@
 -- it needed. Reading root-only spans here removes that fan-out.
 --
 -- Carries only the columns the explorer scan reads; resource dims and any-span
--- predicates still resolve against spans / spans_resource. is_error mirrors the
+-- predicates resolve against spans. is_error mirrors the
 -- spans ALIAS so trend error counts stay identical.
 
 CREATE TABLE IF NOT EXISTS optikk.spans_root (
@@ -12,7 +12,6 @@ CREATE TABLE IF NOT EXISTS optikk.spans_root (
     timestamp            DateTime64(9)          CODEC(DoubleDelta, LZ4),
     trace_id             String                 CODEC(ZSTD(1)),
     span_id              String                 CODEC(ZSTD(1)),
-    fingerprint          UInt64                 CODEC(ZSTD(1)),
     duration_nano        UInt64                 CODEC(T64, ZSTD(1)),
     service              LowCardinality(String) CODEC(ZSTD(1)),
     name                 LowCardinality(String) CODEC(ZSTD(1)),
@@ -23,9 +22,9 @@ CREATE TABLE IF NOT EXISTS optikk.spans_root (
     has_error            Bool                   CODEC(T64, ZSTD(1)),
 
     is_error UInt8 ALIAS if(has_error OR (kind_string = 'CLIENT' AND toUInt16OrZero(response_status_code) >= 400) OR toUInt16OrZero(response_status_code) >= 500, 1, 0)
-) ENGINE = ReplicatedMergeTree('/clickhouse/tables/{shard}/optikk/spans_root', '{replica}')
+) ENGINE = ReplicatedMergeTree('/clickhouse/tables/{shard}/optikk/spans_root_v2', '{replica}')
 PARTITION BY toYYYYMMDD(timestamp)
-ORDER BY (tenant_id, timestamp, fingerprint, trace_id, span_id)
+ORDER BY (tenant_id, timestamp, trace_id, span_id)
 TTL
     timestamp + INTERVAL 3 DAY TO VOLUME 'main',
     timestamp + INTERVAL 15 DAY DELETE
@@ -41,7 +40,6 @@ SELECT
     timestamp,
     trace_id,
     span_id,
-    fingerprint,
     duration_nano,
     service,
     name,
@@ -58,7 +56,7 @@ WHERE is_root = 1;
 -- captured are not double-inserted (spans_root is a plain MergeTree):
 --
 --   INSERT INTO optikk.spans_root
---   SELECT tenant_id, timestamp, trace_id, span_id, fingerprint, duration_nano,
+--   SELECT tenant_id, timestamp, trace_id, span_id, duration_nano,
 --          service, name, kind_string, status_code_string, http_method,
 --          response_status_code, has_error
 --   FROM optikk.spans

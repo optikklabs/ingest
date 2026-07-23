@@ -30,7 +30,7 @@ func TestDecidePartitionAction(t *testing.T) {
 }
 
 func TestPartitionsRespError(t *testing.T) {
-	const topic = "optikk.ingest.spans_resource"
+	const topic = "optikk.ingest.spans"
 
 	tests := []struct {
 		name string

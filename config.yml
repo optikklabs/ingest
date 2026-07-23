@@ -50,14 +50,6 @@ ingestion:
     partitions: 32
     replicas: 1
     retention_hours: 24
-  spans_resource:
-    partitions: 32
-    replicas: 1
-    retention_hours: 24
-  logs_resource:
-    partitions: 32
-    replicas: 1
-    retention_hours: 24
   ingestion_stats:
     partitions: 32
     replicas: 1

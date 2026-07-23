@@ -7,9 +7,7 @@ import "fmt"
 type IngestionConfig struct {
 	Spans           SignalConfig `yaml:"spans"`
 	SpansTracegraph SignalConfig `yaml:"spans_tracegraph"`
-	SpansResource   SignalConfig `yaml:"spans_resource"`
 	Logs            SignalConfig `yaml:"logs"`
-	LogsResource    SignalConfig `yaml:"logs_resource"`
 	Metrics         SignalConfig `yaml:"metrics"`
 	MetricSeries    SignalConfig `yaml:"metric_series"`
 	IngestionStats  SignalConfig `yaml:"ingestion_stats"`
@@ -55,12 +53,8 @@ func (c Config) IngestSignal(signal string) SignalConfig {
 		raw = c.Ingestion.Spans
 	case "spans_tracegraph":
 		raw = c.Ingestion.SpansTracegraph
-	case "spans_resource":
-		raw = c.Ingestion.SpansResource
 	case "logs":
 		raw = c.Ingestion.Logs
-	case "logs_resource":
-		raw = c.Ingestion.LogsResource
 	case "metrics":
 		raw = c.Ingestion.Metrics
 	case "metric_series":

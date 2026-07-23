@@ -6,9 +6,7 @@ func TestSignalFromTopic(t *testing.T) {
 	cases := map[string]string{
 		"optikk.ingest.spans":            SignalSpans,
 		"optikk.ingest.spans_tracegraph": SignalSpansTracegraph,
-		"optikk.ingest.spans_resource":   SignalSpansResource,
 		"optikk.ingest.logs":             SignalLogs,
-		"optikk.ingest.logs_resource":    SignalLogsResource,
 		"optikk.ingest.metrics":          SignalMetrics,
 		"optikk.ingest.metric_series":    SignalMetricSeries,
 		"optikk.ingest.ingestion_stats":  SignalIngestionStats,

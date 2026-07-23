@@ -78,7 +78,6 @@ func buildLogRow(tenantID int64, resource map[string]string, scopeName, scopeVer
 
 	return &schema.Row{
 		TenantId:            uint32(tenantID),
-		Fingerprint:         fingerprint.CalculateHash(res),
 		TsBucket:            tsBucket,
 		TimestampNs:         int64(tsNs),
 		ObservedTimestampNs: observedNs,

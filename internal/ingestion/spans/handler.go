@@ -12,7 +12,6 @@ import (
 	"github.com/optikklabs/ingest/internal/ingestion/llmscores"
 	llmscoresschema "github.com/optikklabs/ingest/internal/ingestion/llmscores/schema"
 	"github.com/optikklabs/ingest/internal/ingestion/spans/schema"
-	spansresourceschema "github.com/optikklabs/ingest/internal/ingestion/spansresource/schema"
 	tracepb "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -22,19 +21,15 @@ type Handler struct {
 	tracepb.UnimplementedTraceServiceServer
 	producer            *core.Producer[*schema.Row]
 	tracegraphPublisher *core.AsyncPublisher[*schema.Row]
-	resourcePublisher   *core.AsyncPublisher[*spansresourceschema.ResourceRow]
 	scoresPublisher     *core.AsyncPublisher[*llmscoresschema.ScoreRow]
-	resourceCache       *core.ResourceCache
 	stats               ingestionstats.Recorder
 }
 
-func NewHandler(p *core.Producer[*schema.Row], tp *core.AsyncPublisher[*schema.Row], rp *core.AsyncPublisher[*spansresourceschema.ResourceRow], sp *core.AsyncPublisher[*llmscoresschema.ScoreRow], cache *core.ResourceCache, stats ingestionstats.Recorder) *Handler {
+func NewHandler(p *core.Producer[*schema.Row], tp *core.AsyncPublisher[*schema.Row], sp *core.AsyncPublisher[*llmscoresschema.ScoreRow], stats ingestionstats.Recorder) *Handler {
 	return &Handler{
 		producer:            p,
 		tracegraphPublisher: tp,
-		resourcePublisher:   rp,
 		scoresPublisher:     sp,
-		resourceCache:       cache,
 		stats:               stats,
 	}
 }
@@ -51,37 +46,6 @@ func (h *Handler) Export(ctx context.Context, req *tracepb.ExportTraceServiceReq
 	if len(rows) == 0 {
 		return &tracepb.ExportTraceServiceResponse{}, nil
 	}
-
-	// Re-publish active resources once per day so the resource TTL stays aligned
-	// with the raw-span retention window.
-	var resourceRows []*spansresourceschema.ResourceRow
-	var newKeys []core.ResourceKey
-	resourceDay := uint32(time.Now().Unix() / 86_400)
-	for _, row := range rows {
-		if row.GetFingerprint() == 0 {
-			continue
-		}
-		key := core.ResourceKey{TenantID: row.GetTenantId(), Fingerprint: row.GetFingerprint()}
-		if h.resourceCache.CheckAndUpdateBucket(key, resourceDay) {
-			newKeys = append(newKeys, key)
-			resourceRows = append(resourceRows, &spansresourceschema.ResourceRow{
-				TenantId:    row.GetTenantId(),
-				Fingerprint: row.GetFingerprint(),
-				Service:     row.GetService(),
-				Host:        row.GetHost(),
-				Pod:         row.GetPod(),
-				Environment: row.GetEnvironment(),
-			})
-		}
-	}
-	// Resource re-publish is best-effort and off the request path. The cache
-	// key was written synchronously above (dedup); roll it back only if the
-	// async publish is dropped or fails, so a later window re-emits.
-	h.resourcePublisher.Enqueue(resourceRows, func() {
-		for _, k := range newKeys {
-			h.resourceCache.Remove(k)
-		}
-	})
 
 	pubStart := time.Now()
 	if err := h.producer.Publish(ctx, rows); err != nil {

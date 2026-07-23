@@ -10,7 +10,6 @@ import (
 	"github.com/optikklabs/ingest/internal/ingestion/core"
 	"github.com/optikklabs/ingest/internal/ingestion/ingestionstats"
 	"github.com/optikklabs/ingest/internal/ingestion/logs/schema"
-	logsresourceschema "github.com/optikklabs/ingest/internal/ingestion/logsresource/schema"
 	logspb "go.opentelemetry.io/proto/otlp/collector/logs/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -18,18 +17,14 @@ import (
 
 type Handler struct {
 	logspb.UnimplementedLogsServiceServer
-	producer          *core.Producer[*schema.Row]
-	resourcePublisher *core.AsyncPublisher[*logsresourceschema.ResourceRow]
-	resourceCache     *core.ResourceCache
-	stats             ingestionstats.Recorder
+	producer *core.Producer[*schema.Row]
+	stats    ingestionstats.Recorder
 }
 
-func NewHandler(p *core.Producer[*schema.Row], rp *core.AsyncPublisher[*logsresourceschema.ResourceRow], cache *core.ResourceCache, stats ingestionstats.Recorder) *Handler {
+func NewHandler(p *core.Producer[*schema.Row], stats ingestionstats.Recorder) *Handler {
 	return &Handler{
-		producer:          p,
-		resourcePublisher: rp,
-		resourceCache:     cache,
-		stats:             stats,
+		producer: p,
+		stats:    stats,
 	}
 }
 
@@ -45,36 +40,6 @@ func (h *Handler) Export(ctx context.Context, req *logspb.ExportLogsServiceReque
 	if len(rows) == 0 {
 		return &logspb.ExportLogsServiceResponse{}, nil
 	}
-
-	// Extract unique resources and filter using rolling cache
-	var resourceRows []*logsresourceschema.ResourceRow
-	var newKeys []core.ResourceKey
-	for _, row := range rows {
-		if row.GetFingerprint() == 0 {
-			continue
-		}
-		key := core.ResourceKey{TenantID: row.GetTenantId(), Fingerprint: row.GetFingerprint()}
-		if h.resourceCache.CheckAndUpdateBucket(key, row.GetTsBucket()) {
-			newKeys = append(newKeys, key)
-			resourceRows = append(resourceRows, &logsresourceschema.ResourceRow{
-				TenantId:    row.GetTenantId(),
-				Fingerprint: row.GetFingerprint(),
-				TsBucket:    row.GetTsBucket(),
-				Service:     row.GetService(),
-				Host:        row.GetHost(),
-				Pod:         row.GetPod(),
-				Container:   row.GetContainer(),
-				Environment: row.GetEnvironment(),
-			})
-		}
-	}
-	// Resource re-publish is best-effort and off the request path. Roll the
-	// cache key back only if the async publish is dropped or fails.
-	h.resourcePublisher.Enqueue(resourceRows, func() {
-		for _, k := range newKeys {
-			h.resourceCache.Remove(k)
-		}
-	})
 
 	pubStart := time.Now()
 	if err := h.producer.Publish(ctx, rows); err != nil {

@@ -46,7 +46,6 @@ CREATE TABLE IF NOT EXISTS optikk.spans (
     gen_ai_prompt                         String                 CODEC(ZSTD(2)),
     gen_ai_completion                     String                 CODEC(ZSTD(2)),
 
-    fingerprint                           UInt64          CODEC(ZSTD(1)),
     events                                Array(Tuple(name LowCardinality(String), time_unix_nano UInt64, attributes Map(LowCardinality(String), String))) CODEC(ZSTD(2)),
     links                                 Array(Tuple(trace_id String, span_id String, trace_state String, attributes Map(LowCardinality(String), String))) CODEC(ZSTD(1)),
 
@@ -69,9 +68,9 @@ CREATE TABLE IF NOT EXISTS optikk.spans (
     INDEX idx_trace_id trace_id TYPE bloom_filter(0.01) GRANULARITY 1,
     INDEX idx_error_group_id error_group_id TYPE bloom_filter GRANULARITY 1,
     INDEX idx_query_hash query_hash TYPE bloom_filter GRANULARITY 1
-) ENGINE = ReplicatedMergeTree('/clickhouse/tables/{shard}/optikk/spans', '{replica}')
+) ENGINE = ReplicatedMergeTree('/clickhouse/tables/{shard}/optikk/spans_v2', '{replica}')
 PARTITION BY toYYYYMMDD(timestamp)
-ORDER BY (tenant_id, timestamp, fingerprint, trace_id, span_id)
+ORDER BY (tenant_id, timestamp, trace_id, span_id)
 TTL
     timestamp + INTERVAL 3 DAY TO VOLUME 'main',
     timestamp + INTERVAL 15 DAY DELETE

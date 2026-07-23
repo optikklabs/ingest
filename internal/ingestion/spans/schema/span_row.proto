@@ -49,7 +49,8 @@ message Row {
   string exception_message = 28;
   string exception_stacktrace = 29;
   bool   exception_escaped = 30;
-  uint64 fingerprint = 31;
+  reserved 31;
+  reserved "fingerprint";
   
   string service = 32;
   string host = 33;

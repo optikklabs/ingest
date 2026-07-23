@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	spansresourceschema "github.com/optikklabs/ingest/internal/ingestion/spansresource/schema"
+	spansschema "github.com/optikklabs/ingest/internal/ingestion/spans/schema"
 	"github.com/twmb/franz-go/pkg/kgo"
 	"google.golang.org/protobuf/proto"
 )
@@ -14,12 +14,12 @@ import (
 // exactly the same bytes as a fresh proto.Marshal per row (guards the subslice
 // + three-index logic against contamination).
 func TestMarshalBatchByteIdentical(t *testing.T) {
-	p := NewProducer[*spansresourceschema.ResourceRow]("topic", nil)
+	p := NewProducer[*spansschema.Row]("topic", nil)
 
-	rows := []*spansresourceschema.ResourceRow{
-		{TenantId: 1, Fingerprint: 100, Service: "checkout"},
-		{TenantId: 2, Fingerprint: 200, Service: "orders", Host: "h1"},
-		{TenantId: 3, Fingerprint: 300, Service: "payments", Pod: "p9", Environment: "prod"},
+	rows := []*spansschema.Row{
+		{TenantId: 1, Service: "checkout"},
+		{TenantId: 2, Service: "orders", Host: "h1"},
+		{TenantId: 3, Service: "payments", Pod: "p9", Environment: "prod"},
 	}
 
 	records, _, err := p.marshalBatch(rows, time.Unix(0, 0), nil)
@@ -44,10 +44,10 @@ func TestMarshalBatchByteIdentical(t *testing.T) {
 }
 
 func BenchmarkMarshalBatch(b *testing.B) {
-	p := NewProducer[*spansresourceschema.ResourceRow]("topic", nil)
-	rows := make([]*spansresourceschema.ResourceRow, 256)
+	p := NewProducer[*spansschema.Row]("topic", nil)
+	rows := make([]*spansschema.Row, 256)
 	for i := range rows {
-		rows[i] = &spansresourceschema.ResourceRow{TenantId: 1, Fingerprint: uint64(i), Service: "svc"}
+		rows[i] = &spansschema.Row{TenantId: 1, Service: "svc"}
 	}
 	now := time.Unix(0, 0)
 	var buf []byte
