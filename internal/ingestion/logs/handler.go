@@ -33,6 +33,10 @@ func (h *Handler) Export(ctx context.Context, req *logspb.ExportLogsServiceReque
 	if !ok {
 		return nil, status.Error(codes.Unauthenticated, "team id missing from context")
 	}
+	if !auth.RateLimiter.Allow(tenantID) {
+		metrics.OTLPRateLimitedTotal.WithLabelValues("logs").Inc()
+		return nil, status.Error(codes.ResourceExhausted, "tenant rate limit exceeded")
+	}
 	mapStart := time.Now()
 	rows := mapRequest(tenantID, req)
 	metrics.MapperDuration.WithLabelValues("logs").Observe(time.Since(mapStart).Seconds())

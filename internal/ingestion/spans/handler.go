@@ -39,6 +39,10 @@ func (h *Handler) Export(ctx context.Context, req *tracepb.ExportTraceServiceReq
 	if !ok {
 		return nil, status.Error(codes.Unauthenticated, "team id missing from context")
 	}
+	if !auth.RateLimiter.Allow(tenantID) {
+		metrics.OTLPRateLimitedTotal.WithLabelValues("spans").Inc()
+		return nil, status.Error(codes.ResourceExhausted, "tenant rate limit exceeded")
+	}
 	mapStart := time.Now()
 	rows := mapRequest(tenantID, req)
 	metrics.MapperDuration.WithLabelValues("spans").Observe(time.Since(mapStart).Seconds())

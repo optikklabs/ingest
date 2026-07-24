@@ -38,6 +38,10 @@ func (h *Handler) Export(ctx context.Context, req *metricspb.ExportMetricsServic
 	if !ok {
 		return nil, status.Error(codes.Unauthenticated, "team id missing from context")
 	}
+	if !auth.RateLimiter.Allow(tenantID) {
+		obsmetrics.OTLPRateLimitedTotal.WithLabelValues("metrics").Inc()
+		return nil, status.Error(codes.ResourceExhausted, "tenant rate limit exceeded")
+	}
 	mapStart := time.Now()
 	rows, seriesRows := mapRequest(tenantID, req)
 	obsmetrics.MapperDuration.WithLabelValues("metrics").Observe(time.Since(mapStart).Seconds())
