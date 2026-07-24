@@ -64,15 +64,17 @@ func (a *AsyncPublisher[T]) Enqueue(rows []T, onFail func()) bool {
 		return true
 	}
 	a.mu.RLock()
-	defer a.mu.RUnlock()
 	if a.closed {
+		a.mu.RUnlock()
 		a.drop(len(rows), onFail)
 		return false
 	}
 	select {
 	case a.queue <- asyncJob[T]{rows: rows, onFail: onFail}:
+		a.mu.RUnlock()
 		return true
 	default:
+		a.mu.RUnlock()
 		a.drop(len(rows), onFail)
 		return false
 	}

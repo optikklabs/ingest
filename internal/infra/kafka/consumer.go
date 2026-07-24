@@ -2,6 +2,7 @@ package kafka
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"sync"
 	"time"
@@ -147,14 +148,23 @@ func (c *Consumer) fetchLoop(ctx context.Context, workerChan chan<- batchJob, co
 
 func (c *Consumer) workerLoop(ctx context.Context, in <-chan batchJob, handle RecordHandler) {
 	for job := range in {
-		start := time.Now()
-		err := handle(ctx, job.recs)
-		if err != nil {
-			slog.ErrorContext(ctx, "kafka handler error", slog.Any("error", err), slog.Int("records", len(job.recs)))
-		} else {
-			metrics.ConsumerBatchInsertDuration.WithLabelValues(c.signal).Observe(time.Since(start).Seconds())
-		}
-		job.done <- err
+		(func(j batchJob) {
+			var err error
+			defer func() {
+				if r := recover(); r != nil {
+					err = fmt.Errorf("worker panic: %v", r)
+					slog.ErrorContext(ctx, "kafka worker panic recovered", slog.Any("panic", r))
+				}
+				j.done <- err
+			}()
+			start := time.Now()
+			err = handle(ctx, j.recs)
+			if err != nil {
+				slog.ErrorContext(ctx, "kafka handler error", slog.Any("error", err), slog.Int("records", len(j.recs)))
+			} else {
+				metrics.ConsumerBatchInsertDuration.WithLabelValues(c.signal).Observe(time.Since(start).Seconds())
+			}
+		})(job)
 	}
 }
 

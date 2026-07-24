@@ -22,8 +22,8 @@ clickhouse:
   secure: false
   # Insert pool; batched writes need few connections. One insert
   # is in-flight per signal consumer, so a small pool suffices.
-  max_open_conns: 5
-  max_idle_conns: 3
+  max_open_conns: 30
+  max_idle_conns: 10
 
 otlp:
   grpc_port: "18317"

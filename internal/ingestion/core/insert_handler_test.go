@@ -14,7 +14,9 @@ type recordingWriter struct {
 }
 
 func (w *recordingWriter) Insert(_ context.Context, rows []*metricsschema.Row) error {
-	w.rows = append(w.rows, rows...)
+	for _, r := range rows {
+		w.rows = append(w.rows, proto.Clone(r).(*metricsschema.Row))
+	}
 	return nil
 }
 

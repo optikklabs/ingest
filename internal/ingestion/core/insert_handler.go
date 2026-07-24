@@ -3,19 +3,27 @@ package core
 import (
 	"context"
 	"log/slog"
+	"sync"
 
 	kafkainfra "github.com/optikklabs/ingest/internal/infra/kafka"
 	"github.com/twmb/franz-go/pkg/kgo"
 	"google.golang.org/protobuf/proto"
 )
 
-// NewInsertHandler is the common durable Kafka-to-ClickHouse path. Signal
-// packages only supply their row constructor and table-specific writer.
+// NewInsertHandler is the common durable Kafka-to-ClickHouse path with sync.Pool row recycling.
 func NewInsertHandler[T Row](signal string, writer Writer[T], dlq *DLQ, newRow func() T) kafkainfra.RecordHandler {
+	rowPool := sync.Pool{
+		New: func() any { return newRow() },
+	}
+
 	return func(ctx context.Context, recs []*kgo.Record) error {
 		rows := make([]T, 0, len(recs))
+
 		for _, rec := range recs {
-			row := newRow()
+			row := rowPool.Get().(T)
+			if msg, ok := any(row).(proto.Message); ok {
+				proto.Reset(msg)
+			}
 			if err := proto.Unmarshal(rec.Value, row); err != nil {
 				slog.WarnContext(ctx, "ingest consumer: dropped malformed record",
 					slog.String("signal", signal),
@@ -23,6 +31,7 @@ func NewInsertHandler[T Row](signal string, writer Writer[T], dlq *DLQ, newRow f
 					slog.Int64("offset", rec.Offset),
 					slog.Any("error", err),
 				)
+				rowPool.Put(row)
 				continue
 			}
 			rows = append(rows, row)
@@ -37,6 +46,9 @@ func NewInsertHandler[T Row](signal string, writer Writer[T], dlq *DLQ, newRow f
 				slog.Any("error", err),
 			)
 			dlq.PublishAll(ctx, recs, err)
+		}
+		for _, r := range rows {
+			rowPool.Put(r)
 		}
 		return nil
 	}
