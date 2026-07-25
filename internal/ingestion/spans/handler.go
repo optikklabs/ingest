@@ -19,18 +19,16 @@ import (
 
 type Handler struct {
 	tracepb.UnimplementedTraceServiceServer
-	producer            *core.Producer[*schema.Row]
-	tracegraphPublisher *core.AsyncPublisher[*schema.Row]
-	scoresPublisher     *core.AsyncPublisher[*llmscoresschema.ScoreRow]
-	stats               ingestionstats.Recorder
+	producer        *core.Producer[*schema.Row]
+	scoresPublisher *core.AsyncPublisher[*llmscoresschema.ScoreRow]
+	stats           ingestionstats.Recorder
 }
 
-func NewHandler(p *core.Producer[*schema.Row], tp *core.AsyncPublisher[*schema.Row], sp *core.AsyncPublisher[*llmscoresschema.ScoreRow], stats ingestionstats.Recorder) *Handler {
+func NewHandler(p *core.Producer[*schema.Row], sp *core.AsyncPublisher[*llmscoresschema.ScoreRow], stats ingestionstats.Recorder) *Handler {
 	return &Handler{
-		producer:            p,
-		tracegraphPublisher: tp,
-		scoresPublisher:     sp,
-		stats:               stats,
+		producer:        p,
+		scoresPublisher: sp,
+		stats:           stats,
 	}
 }
 
@@ -60,30 +58,10 @@ func (h *Handler) Export(ctx context.Context, req *tracepb.ExportTraceServiceReq
 	metrics.HandlerPublishDuration.WithLabelValues("spans", "ok").Observe(time.Since(pubStart).Seconds())
 	ingestionstats.Emit(h.stats, statRows(uint32(tenantID), req))
 
-	tgRows := tracegraphRows(rows)
-	metrics.TracegraphRowsPublished.Add(float64(len(tgRows)))
-	metrics.TracegraphRowsFiltered.Add(float64(len(rows) - len(tgRows)))
-	// Tracegraph is best-effort with no cache state, so no rollback hook.
-	h.tracegraphPublisher.Enqueue(tgRows, nil)
-
 	// Evaluation scores carried on span events, off the request path.
 	if scores := llmscores.ExtractFromSpans(rows); len(scores) > 0 {
 		h.scoresPublisher.Enqueue(scores, nil)
 	}
 
 	return &tracepb.ExportTraceServiceResponse{}, nil
-}
-
-// tracegraphRows keeps only spans that can form a service-graph edge,
-// mirroring the servicegraph pairer's kind filter so INTERNAL spans never
-// ship over the tracegraph topic.
-func tracegraphRows(rows []*schema.Row) []*schema.Row {
-	out := make([]*schema.Row, 0, len(rows))
-	for _, row := range rows {
-		switch row.GetKindString() {
-		case "CLIENT", "SERVER", "PRODUCER", "CONSUMER":
-			out = append(out, row)
-		}
-	}
-	return out
 }

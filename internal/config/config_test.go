@@ -6,18 +6,35 @@ import (
 	"testing"
 )
 
-func TestSpanmetricsConsumerGroupEnvironmentOverride(t *testing.T) {
+// baseConfig writes the minimum config Load accepts.
+func baseConfig(t *testing.T) string {
+	t.Helper()
 	path := filepath.Join(t.TempDir(), "config.yml")
-	if err := os.WriteFile(path, []byte("mysql:\n  password: mysql\nclickhouse:\n  password: clickhouse\n"), 0o600); err != nil {
+	body := "mysql:\n  password: mysql\nclickhouse:\n  password: clickhouse\n"
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("OPTIKK_INGESTION_SPANMETRICS_CONSUMER_GROUP", "spanmetrics-workers")
+	return path
+}
 
-	cfg, err := Load(path)
+func TestResourceCacheSizeEnvironmentOverride(t *testing.T) {
+	t.Setenv("OPTIKK_INGESTION_RESOURCE_CACHE_SIZE", "1234")
+
+	cfg, err := Load(baseConfig(t))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := cfg.SpanmetricsConsumerGroup(); got != "spanmetrics-workers" {
-		t.Errorf("spanmetrics group = %q, want environment override", got)
+	if got := cfg.ResourceCacheSize(); got != 1234 {
+		t.Errorf("ResourceCacheSize = %d, want environment override 1234", got)
+	}
+}
+
+func TestResourceCacheSizeDefault(t *testing.T) {
+	cfg, err := Load(baseConfig(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := cfg.ResourceCacheSize(); got != 500_000 {
+		t.Errorf("ResourceCacheSize = %d, want default 500000", got)
 	}
 }

@@ -106,20 +106,6 @@ var (
 		Help:      "Records dropped after both CH insert retries and the DLQ publish failed, by signal.",
 	}, []string{"signal"})
 
-	TracegraphRowsPublished = promauto.NewCounter(prometheus.CounterOpts{
-		Namespace: "optikk",
-		Subsystem: "ingest",
-		Name:      "tracegraph_rows_published_total",
-		Help:      "Span rows published to the tracegraph topic (client/server/producer/consumer kinds).",
-	})
-
-	TracegraphRowsFiltered = promauto.NewCounter(prometheus.CounterOpts{
-		Namespace: "optikk",
-		Subsystem: "ingest",
-		Name:      "tracegraph_rows_filtered_total",
-		Help:      "Span rows excluded from the tracegraph topic because their kind cannot form a service-graph edge.",
-	})
-
 	// ResourceCacheHits counts CheckAndUpdateBucket calls served without a
 	// resource re-publish, by signal.
 	ResourceCacheHits = promauto.NewCounterVec(prometheus.CounterOpts{
@@ -202,19 +188,5 @@ var (
 		Subsystem: "ingest",
 		Name:      "ingestion_stats_publish_dropped_total",
 		Help:      "Hourly ingestion-stat rows discarded only after bounded shutdown retries.",
-	})
-
-	ServicegraphPendingSpans = promauto.NewGauge(prometheus.GaugeOpts{
-		Namespace: "optikk",
-		Subsystem: "ingest",
-		Name:      "servicegraph_pending_spans",
-		Help:      "Unique unpaired spans currently retained for service-graph matching.",
-	})
-
-	ServicegraphPendingSpansDropped = promauto.NewCounter(prometheus.CounterOpts{
-		Namespace: "optikk",
-		Subsystem: "ingest",
-		Name:      "servicegraph_pending_spans_dropped_total",
-		Help:      "Unique unpaired spans rejected because the service-graph pairing store is full.",
 	})
 )

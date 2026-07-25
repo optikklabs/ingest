@@ -31,7 +31,13 @@ CREATE TABLE IF NOT EXISTS optikk.spans (
     db_statement_normalized               String                 MATERIALIZED if(db_statement = '', '', normalizeQuery(db_statement)) CODEC(ZSTD(1)),
     query_hash                            String                 MATERIALIZED if(db_statement = '', '', lower(hex(normalizedQueryHash(db_statement)))) CODEC(ZSTD(1)),
     http_route                            LowCardinality(String) CODEC(ZSTD(1)),
-    http_status_bucket                    LowCardinality(String) CODEC(ZSTD(1)),
+    http_status_bucket                    LowCardinality(String) MATERIALIZED multiIf(
+                                              toUInt16OrZero(response_status_code) >= 500, '5xx',
+                                              toUInt16OrZero(response_status_code) >= 400, '4xx',
+                                              toUInt16OrZero(response_status_code) >= 300, '3xx',
+                                              toUInt16OrZero(response_status_code) >= 200, '2xx',
+                                              has_error, 'err',
+                                              'other') CODEC(ZSTD(1)),
 
     attributes                            Map(LowCardinality(String), String) CODEC(ZSTD(1)),
 
@@ -78,5 +84,8 @@ SETTINGS
     storage_policy = 'tiered',
     index_granularity = 8192,
     min_bytes_for_wide_part = 10485760,
-    non_replicated_deduplication_window = 100000,
+    -- Insert-block dedup for Kafka redelivery. The non_replicated_* variant
+    -- is a no-op on Replicated engines; live cluster: ALTER ... MODIFY SETTING.
+    replicated_deduplication_window = 10000,
+    replicated_deduplication_window_seconds = 3600,
     ttl_only_drop_parts = 1;

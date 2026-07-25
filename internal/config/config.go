@@ -142,7 +142,7 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("otlp.grpc_max_concurrent_streams", 10000)
 	v.SetDefault("otlp.grpc_max_recv_msg_size", 16*1024*1024)
 
-	for _, signal := range []string{"spans", "spans_tracegraph", "logs", "metrics", "metric_series", "ingestion_stats"} {
+	for _, signal := range []string{"spans", "logs", "metrics", "metric_series", "ingestion_stats"} {
 		def := SignalDefaults(signal)
 		prefix := "ingestion." + signal + "."
 		v.SetDefault(prefix+"partitions", def.Partitions)
@@ -153,6 +153,4 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("ingestion.side_publish.queue_size", 4096)
 	v.SetDefault("ingestion.side_publish.workers", 2)
 	v.SetDefault("ingestion.resource_cache_size", 500000)
-	v.SetDefault("ingestion.spanmetrics.consumer_group", "optikk-ingest.spanaggregator.spanmetrics.consumer")
-
 }

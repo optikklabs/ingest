@@ -5,29 +5,21 @@ import "fmt"
 // IngestionConfig owns per-signal Kafka topology (topic partitions, replicas,
 // retention) and the consumer-group identity.
 type IngestionConfig struct {
-	Spans           SignalConfig `yaml:"spans"`
-	SpansTracegraph SignalConfig `yaml:"spans_tracegraph"`
-	Logs            SignalConfig `yaml:"logs"`
-	Metrics         SignalConfig `yaml:"metrics"`
-	MetricSeries    SignalConfig `yaml:"metric_series"`
-	IngestionStats  SignalConfig `yaml:"ingestion_stats"`
+	Spans          SignalConfig `yaml:"spans"`
+	Logs           SignalConfig `yaml:"logs"`
+	Metrics        SignalConfig `yaml:"metrics"`
+	MetricSeries   SignalConfig `yaml:"metric_series"`
+	IngestionStats SignalConfig `yaml:"ingestion_stats"`
 
 	SidePublish       SidePublishConfig `yaml:"side_publish"`
 	ResourceCacheSize int               `yaml:"resource_cache_size"`
-	Spanmetrics       SpanmetricsConfig `yaml:"spanmetrics"`
 }
 
 // SidePublishConfig tunes the async best-effort publisher used for the
-// tracegraph and resource side-topics (off the OTLP request path).
+// resource and llm-scores side-topics (off the OTLP request path).
 type SidePublishConfig struct {
 	QueueSize int `yaml:"queue_size"`
 	Workers   int `yaml:"workers"`
-}
-
-// SpanmetricsConfig holds the consumer identity for the aggregate pipeline.
-// It reads the spans topic, so topic topology remains owned by spans.
-type SpanmetricsConfig struct {
-	ConsumerGroup string `yaml:"consumer_group"`
 }
 
 type SignalConfig struct {
@@ -51,8 +43,6 @@ func (c Config) IngestSignal(signal string) SignalConfig {
 	switch signal {
 	case "spans":
 		raw = c.Ingestion.Spans
-	case "spans_tracegraph":
-		raw = c.Ingestion.SpansTracegraph
 	case "logs":
 		raw = c.Ingestion.Logs
 	case "metrics":
@@ -104,11 +94,4 @@ func (c Config) ResourceCacheSize() int {
 		return n
 	}
 	return 500_000
-}
-
-func (c Config) SpanmetricsConsumerGroup() string {
-	if group := c.Ingestion.Spanmetrics.ConsumerGroup; group != "" {
-		return group
-	}
-	return "optikk-ingest.spanaggregator.spanmetrics.consumer"
 }

@@ -28,7 +28,10 @@ CREATE TABLE IF NOT EXISTS optikk.logs (
 
     INDEX idx_trace_id     trace_id     TYPE bloom_filter(0.01)        GRANULARITY 1,
     INDEX idx_log_id       log_id       TYPE bloom_filter(0.01)        GRANULARITY 4,
-    INDEX idx_body_text    body TYPE text(tokenizer = 'splitByNonAlpha', preprocessor = lowerUTF8(body)) GRANULARITY 1
+    INDEX idx_body_text    body TYPE text(tokenizer = 'splitByNonAlpha', preprocessor = lowerUTF8(body)) GRANULARITY 1,
+    -- Prunes the explorer's case-insensitive substring search
+    -- (lowerUTF8(body) LIKE '%term%'); position* functions cannot use it.
+    INDEX idx_body_ngram   lowerUTF8(body) TYPE ngrambf_v1(4, 1024, 3, 7) GRANULARITY 4
 ) ENGINE = ReplicatedMergeTree('/clickhouse/tables/{shard}/optikk/logs_v2', '{replica}')
 PARTITION BY toYYYYMMDD(timestamp)
 ORDER BY (tenant_id, ts_bucket, timestamp)
@@ -39,5 +42,8 @@ SETTINGS
     storage_policy = 'tiered',
     index_granularity = 8192,
     min_bytes_for_wide_part = 10485760,
-    non_replicated_deduplication_window = 100000,
+    -- Insert-block dedup for Kafka redelivery. The non_replicated_* variant
+    -- is a no-op on Replicated engines; live cluster: ALTER ... MODIFY SETTING.
+    replicated_deduplication_window = 10000,
+    replicated_deduplication_window_seconds = 3600,
     ttl_only_drop_parts = 1;

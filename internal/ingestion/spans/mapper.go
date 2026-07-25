@@ -1,8 +1,6 @@
 package spans
 
 import (
-	"strconv"
-
 	"github.com/optikklabs/ingest/internal/infra/fingerprint"
 	obsmetrics "github.com/optikklabs/ingest/internal/infra/metrics"
 	"github.com/optikklabs/ingest/internal/infra/otlp"
@@ -91,7 +89,6 @@ func buildSpanRow(tenantID int64, resMap map[string]string, dims fingerprint.Res
 		HttpMethod:          httpMethod,
 		HttpHost:            httpHost,
 		ResponseStatusCode:  httpStatus,
-		HttpStatusBucket:    httpStatusBucket(httpStatus, statusCode == trace.Status_STATUS_CODE_ERROR),
 		Service:             dims.Service,
 		Host:                dims.Host,
 		Pod:                 dims.Pod,
@@ -206,27 +203,6 @@ func statusCodeString(c trace.Status_StatusCode) string {
 	default:
 		return "UNSET"
 	}
-}
-
-func httpStatusBucket(statusCode string, hasError bool) string {
-	if statusCode != "" {
-		if n, err := strconv.ParseUint(statusCode, 10, 16); err == nil {
-			switch {
-			case n >= 500:
-				return "5xx"
-			case n >= 400:
-				return "4xx"
-			case n >= 300:
-				return "3xx"
-			case n >= 200:
-				return "2xx"
-			}
-		}
-	}
-	if hasError {
-		return "err"
-	}
-	return "other"
 }
 
 func zeroOut(id, zero string) string {

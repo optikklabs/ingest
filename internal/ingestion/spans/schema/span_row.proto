@@ -62,6 +62,8 @@ message Row {
   string db_name = 39;
   string db_statement = 40;
   string http_route = 41;
+  // Unused since http_status_bucket became a MATERIALIZED CH column; kept so
+  // in-flight Kafka messages from older producers still decode.
   string http_status_bucket = 42;
 
   string gen_ai_system = 43;

@@ -27,8 +27,6 @@ import (
 	metricseriesschema "github.com/optikklabs/ingest/internal/ingestion/metricseries/schema"
 	spansignal "github.com/optikklabs/ingest/internal/ingestion/spans"
 	spansschema "github.com/optikklabs/ingest/internal/ingestion/spans/schema"
-	"github.com/optikklabs/ingest/internal/modules/spanaggregator/servicegraph"
-	"github.com/optikklabs/ingest/internal/modules/spanaggregator/spanmetrics"
 )
 
 // ingestBundle is everything buildIngest produces for the Infra.
@@ -76,25 +74,19 @@ func newStatsProducer(in signalWireInput) *core.Producer[*statsschema.StatRow] {
 func wireSpans(in signalWireInput) (registry.Module, ConsumerRunner) {
 	producer := core.NewProducer[*spansschema.Row](in.ingestTopic, in.producerBase)
 
-	tracegraphTopic := kafkainfra.IngestTopic(in.topicPrefix, kafkainfra.SignalSpansTracegraph)
-	tracegraphProducer := core.NewProducer[*spansschema.Row](tracegraphTopic, in.producerBase).WithKeyFunc(func(r *spansschema.Row) []byte {
-		return []byte(r.GetTraceId())
-	})
 	scoresTopic := kafkainfra.IngestTopic(in.topicPrefix, kafkainfra.SignalLLMScores)
 	scoresProducer := core.NewProducer[*llmscoresschema.ScoreRow](scoresTopic, in.producerBase).WithKeyFunc(func(r *llmscoresschema.ScoreRow) []byte {
 		return []byte(r.GetTraceId())
 	})
 
-	tracegraphPublisher := core.NewAsyncPublisher[*spansschema.Row](tracegraphProducer, kafkainfra.SignalSpans, kafkainfra.SignalSpansTracegraph, in.sidePublishQueueSize, in.sidePublishWorkers)
 	scoresPublisher := core.NewAsyncPublisher[*llmscoresschema.ScoreRow](scoresProducer, kafkainfra.SignalSpans, kafkainfra.SignalLLMScores, in.sidePublishQueueSize, in.sidePublishWorkers)
-	in.registerCloser(tracegraphPublisher.Close)
 	in.registerCloser(scoresPublisher.Close)
 
 	writer := core.NewRetryWriter(spansignal.NewClickHouseWriter(in.ch), kafkainfra.SignalSpans, in.insertMaxRetries)
 	dlq := core.NewDLQ(in.producerBase, in.dlqTopic, kafkainfra.SignalSpans)
 	consumer := core.NewInsertConsumer(in.consumer, kafkainfra.SignalSpans, writer, dlq, func() *spansschema.Row { return &spansschema.Row{} })
 
-	handler := spansignal.NewHandler(producer, tracegraphPublisher, scoresPublisher, in.stats)
+	handler := spansignal.NewHandler(producer, scoresPublisher, in.stats)
 	mod := spansignal.NewModule(spansignal.Deps{Handler: handler})
 	return mod, consumer
 }
@@ -146,26 +138,6 @@ func wireMetricSeries(in signalWireInput) (registry.Module, ConsumerRunner) {
 	return nil, consumer
 }
 
-func wireSpanmetrics(in signalWireInput) (registry.Module, ConsumerRunner) {
-	metricsTopic := kafkainfra.IngestTopic(in.topicPrefix, kafkainfra.SignalMetrics)
-	seriesTopic := kafkainfra.IngestTopic(in.topicPrefix, kafkainfra.SignalMetricSeries)
-	metricsPub := core.NewProducer[*metricsschema.Row](metricsTopic, in.producerBase)
-	seriesPub := core.NewProducer[*metricseriesschema.SeriesRow](seriesTopic, in.producerBase)
-
-	consumer := spanmetrics.NewConsumer(in.consumer, metricsPub, seriesPub)
-	return nil, consumer
-}
-
-func wireServicegraph(in signalWireInput) (registry.Module, ConsumerRunner) {
-	metricsTopic := kafkainfra.IngestTopic(in.topicPrefix, kafkainfra.SignalMetrics)
-	seriesTopic := kafkainfra.IngestTopic(in.topicPrefix, kafkainfra.SignalMetricSeries)
-	metricsPub := core.NewProducer[*metricsschema.Row](metricsTopic, in.producerBase)
-	seriesPub := core.NewProducer[*metricseriesschema.SeriesRow](seriesTopic, in.producerBase)
-
-	consumer := servicegraph.NewConsumer(in.consumer, metricsPub, seriesPub)
-	return nil, consumer
-}
-
 func ingestTopicSpecs(wirings []signalWiring, topicPrefix, dlqPrefix string) []kafkainfra.TopicSpec {
 	specs := make([]kafkainfra.TopicSpec, 0, len(wirings)*2)
 	seen := make(map[string]struct{}, len(wirings)*2)
@@ -194,15 +166,6 @@ func buildIngest(cfg config.Config, ch clickhouse.Conn) (ingestBundle, error) {
 		{signal: kafkainfra.SignalMetricSeries, cfg: cfg.IngestSignal("metric_series"), wire: wireMetricSeries},
 		{signal: kafkainfra.SignalIngestionStats, cfg: cfg.IngestSignal("ingestion_stats"), wire: wireIngestionStats},
 		{signal: kafkainfra.SignalLLMScores, cfg: cfg.IngestSignal("llm_scores"), wire: wireLLMScores},
-
-		{signal: kafkainfra.SignalSpans, cfg: config.SignalConfig{
-			Partitions:     cfg.IngestSignal("spans").Partitions,
-			Replicas:       cfg.IngestSignal("spans").Replicas,
-			RetentionHours: cfg.IngestSignal("spans").RetentionHours,
-			ConsumerGroup:  cfg.SpanmetricsConsumerGroup(),
-		}, wire: wireSpanmetrics},
-
-		{signal: kafkainfra.SignalSpansTracegraph, cfg: cfg.IngestSignal("spans_tracegraph"), wire: wireServicegraph},
 	}
 
 	ensureCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
