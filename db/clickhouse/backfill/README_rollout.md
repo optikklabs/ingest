@@ -50,6 +50,39 @@ Verify: `peer_name` non-empty on CLIENT/PRODUCER rows and empty elsewhere; daily
 `count()` within a few percent of the pre-change value; 1m→5m→1h
 `sum(request_count)` parity for one overlapping hour.
 
+## 2b. Adding http_method/rpc_system to a live cluster
+
+Endpoint readers label a call by its protocol verb, which `span_name` only
+carries when the instrumentation knew the route. Per tier:
+
+```sql
+ALTER TABLE optikk.span_stats_1m
+  ADD COLUMN IF NOT EXISTS http_method LowCardinality(String) CODEC(ZSTD(1)) AFTER http_route,
+  ADD COLUMN IF NOT EXISTS rpc_system  LowCardinality(String) CODEC(ZSTD(1)) AFTER http_method;
+
+-- Same rule as peer_*: both MUST join the sorting key or AggregatingMergeTree
+-- merges rows differing only by verb. MODIFY ORDER BY can only append, so the
+-- key ends peer_name, peer_type, http_method, rpc_system.
+ALTER TABLE optikk.span_stats_1m MODIFY ORDER BY (
+  tenant_id, timestamp, service, span_name, kind_string, status_code_string,
+  http_status_bucket, http_route, db_system, messaging_system,
+  messaging_destination, messaging_consumer_group, environment, host, pod,
+  cloud_provider, cloud_platform, cloud_region, k8s_node, peer_name, peer_type,
+  http_method, rpc_system);
+```
+
+`AFTER` keeps the live column order identical to `14_span_stats.sql`, so a
+positional insert (the backfill script) stays valid.
+
+Then point the MVs at the new columns with `ALTER TABLE <mv> MODIFY QUERY`
+(the bodies from `14_span_stats.sql`) rather than DROP + CREATE — MODIFY QUERY
+is atomic, so no spans are missed and no backfill is needed. Run every ALTER in
+one `clickhouse-client -mn` batch to keep the window where the target has the
+columns but the MV does not down to milliseconds.
+
+Verify: `http_method` non-empty on HTTP spans, `rpc_system = 'grpc'` on gRPC
+spans, and 1m→5m→1h `sum(request_count)` parity for one overlapping hour.
+
 ## 3. Parity gate — RED (must pass before trusting new dashboards)
 
 Run `parity_check_span_stats.sql` (bind tenantID/start/end) for several windows

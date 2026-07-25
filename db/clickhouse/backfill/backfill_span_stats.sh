@@ -34,7 +34,9 @@ CH --query "
       toStartOfMinute(timestamp)                   AS timestamp,
       service, environment, host, pod,
       name                                         AS span_name,
-      kind_string, status_code_string, http_status_bucket, http_route, db_system,
+      kind_string, status_code_string, http_status_bucket, http_route, http_method,
+      attributes['rpc.system']                     AS rpc_system,
+      db_system,
       attributes['messaging.system']               AS messaging_system,
       attributes['messaging.destination.name']     AS messaging_destination,
       attributes['messaging.consumer.group.name']  AS messaging_consumer_group,
@@ -64,7 +66,8 @@ CH --query "
     AND timestamp <  '${MV_CREATED}'
   GROUP BY tenant_id, timestamp, service, environment, host, pod, span_name,
            kind_string, status_code_string, http_status_bucket, http_route,
-           db_system, messaging_system, messaging_destination, messaging_consumer_group,
+           http_method, rpc_system, db_system, messaging_system,
+           messaging_destination, messaging_consumer_group,
            cloud_provider, cloud_platform, cloud_region, k8s_node,
            peer_name, peer_type"
 

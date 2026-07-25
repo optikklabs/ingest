@@ -8,6 +8,10 @@
 -- Like the Go aggregator it replaces, the MV aggregates every span (no kind
 -- filter); readers narrow by kind_string where needed.
 --
+-- http_method/rpc_system carry the call's protocol verb so readers can label an
+-- endpoint without parsing span_name, which only encodes the method when the
+-- instrumentation knew the route.
+--
 -- peer_name/peer_type carry the client-side call target, which makes this
 -- cascade the sole source for the service graph (topology.GetEdges) and
 -- replaces the paired CLIENT/SERVER service_graph_edges_1m table. Edge latency
@@ -25,6 +29,8 @@ CREATE TABLE IF NOT EXISTS optikk.span_stats_1m (
     status_code_string       LowCardinality(String) CODEC(ZSTD(1)),
     http_status_bucket       LowCardinality(String) CODEC(ZSTD(1)),
     http_route               LowCardinality(String) CODEC(ZSTD(1)),
+    http_method              LowCardinality(String) CODEC(ZSTD(1)),
+    rpc_system               LowCardinality(String) CODEC(ZSTD(1)),
     db_system                LowCardinality(String) CODEC(ZSTD(1)),
     messaging_system         LowCardinality(String) CODEC(ZSTD(1)),
     messaging_destination    LowCardinality(String) CODEC(ZSTD(1)),
@@ -44,7 +50,7 @@ ORDER BY (tenant_id, timestamp, service, span_name, kind_string, status_code_str
           http_status_bucket, http_route, db_system, messaging_system,
           messaging_destination, messaging_consumer_group, environment, host, pod,
           cloud_provider, cloud_platform, cloud_region, k8s_node,
-          peer_name, peer_type)
+          peer_name, peer_type, http_method, rpc_system)
 TTL
     timestamp + INTERVAL 3 DAY TO VOLUME 'main',
     timestamp + INTERVAL 7 DAY DELETE
@@ -67,6 +73,8 @@ SELECT
     status_code_string,
     http_status_bucket,
     http_route,
+    http_method,
+    attributes['rpc.system']                    AS rpc_system,
     db_system,
     attributes['messaging.system']              AS messaging_system,
     attributes['messaging.destination.name']    AS messaging_destination,
@@ -97,6 +105,7 @@ SELECT
 FROM optikk.spans
 GROUP BY tenant_id, timestamp, service, environment, host, pod, span_name,
          kind_string, status_code_string, http_status_bucket, http_route,
+         http_method, rpc_system,
          db_system, messaging_system, messaging_destination, messaging_consumer_group,
          cloud_provider, cloud_platform, cloud_region, k8s_node, peer_name, peer_type;
 
@@ -112,6 +121,8 @@ CREATE TABLE IF NOT EXISTS optikk.span_stats_5m (
     status_code_string       LowCardinality(String) CODEC(ZSTD(1)),
     http_status_bucket       LowCardinality(String) CODEC(ZSTD(1)),
     http_route               LowCardinality(String) CODEC(ZSTD(1)),
+    http_method              LowCardinality(String) CODEC(ZSTD(1)),
+    rpc_system               LowCardinality(String) CODEC(ZSTD(1)),
     db_system                LowCardinality(String) CODEC(ZSTD(1)),
     messaging_system         LowCardinality(String) CODEC(ZSTD(1)),
     messaging_destination    LowCardinality(String) CODEC(ZSTD(1)),
@@ -131,7 +142,7 @@ ORDER BY (tenant_id, timestamp, service, span_name, kind_string, status_code_str
           http_status_bucket, http_route, db_system, messaging_system,
           messaging_destination, messaging_consumer_group, environment, host, pod,
           cloud_provider, cloud_platform, cloud_region, k8s_node,
-          peer_name, peer_type)
+          peer_name, peer_type, http_method, rpc_system)
 TTL
     timestamp + INTERVAL 3 DAY TO VOLUME 'main',
     timestamp + INTERVAL 14 DAY DELETE
@@ -146,7 +157,7 @@ SELECT
     tenant_id,
     toStartOfFiveMinutes(timestamp) AS timestamp,
     service, environment, host, pod, span_name, kind_string, status_code_string,
-    http_status_bucket, http_route, db_system, messaging_system,
+    http_status_bucket, http_route, http_method, rpc_system, db_system, messaging_system,
     messaging_destination, messaging_consumer_group,
     cloud_provider, cloud_platform, cloud_region, k8s_node, peer_name, peer_type,
     sum(request_count)   AS request_count,
@@ -155,6 +166,7 @@ SELECT
 FROM optikk.span_stats_1m
 GROUP BY tenant_id, timestamp, service, environment, host, pod, span_name,
          kind_string, status_code_string, http_status_bucket, http_route,
+         http_method, rpc_system,
          db_system, messaging_system, messaging_destination, messaging_consumer_group,
          cloud_provider, cloud_platform, cloud_region, k8s_node, peer_name, peer_type;
 
@@ -170,6 +182,8 @@ CREATE TABLE IF NOT EXISTS optikk.span_stats_1h (
     status_code_string       LowCardinality(String) CODEC(ZSTD(1)),
     http_status_bucket       LowCardinality(String) CODEC(ZSTD(1)),
     http_route               LowCardinality(String) CODEC(ZSTD(1)),
+    http_method              LowCardinality(String) CODEC(ZSTD(1)),
+    rpc_system               LowCardinality(String) CODEC(ZSTD(1)),
     db_system                LowCardinality(String) CODEC(ZSTD(1)),
     messaging_system         LowCardinality(String) CODEC(ZSTD(1)),
     messaging_destination    LowCardinality(String) CODEC(ZSTD(1)),
@@ -189,7 +203,7 @@ ORDER BY (tenant_id, timestamp, service, span_name, kind_string, status_code_str
           http_status_bucket, http_route, db_system, messaging_system,
           messaging_destination, messaging_consumer_group, environment, host, pod,
           cloud_provider, cloud_platform, cloud_region, k8s_node,
-          peer_name, peer_type)
+          peer_name, peer_type, http_method, rpc_system)
 TTL
     timestamp + INTERVAL 3 DAY TO VOLUME 'main',
     timestamp + INTERVAL 30 DAY DELETE
@@ -204,7 +218,7 @@ SELECT
     tenant_id,
     toStartOfHour(timestamp) AS timestamp,
     service, environment, host, pod, span_name, kind_string, status_code_string,
-    http_status_bucket, http_route, db_system, messaging_system,
+    http_status_bucket, http_route, http_method, rpc_system, db_system, messaging_system,
     messaging_destination, messaging_consumer_group,
     cloud_provider, cloud_platform, cloud_region, k8s_node, peer_name, peer_type,
     sum(request_count)   AS request_count,
@@ -213,6 +227,7 @@ SELECT
 FROM optikk.span_stats_5m
 GROUP BY tenant_id, timestamp, service, environment, host, pod, span_name,
          kind_string, status_code_string, http_status_bucket, http_route,
+         http_method, rpc_system,
          db_system, messaging_system, messaging_destination, messaging_consumer_group,
          cloud_provider, cloud_platform, cloud_region, k8s_node, peer_name, peer_type;
 
