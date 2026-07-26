@@ -63,16 +63,18 @@ type Row struct {
 	DbName              string            `protobuf:"bytes,39,opt,name=db_name,json=dbName,proto3" json:"db_name,omitempty"`
 	DbStatement         string            `protobuf:"bytes,40,opt,name=db_statement,json=dbStatement,proto3" json:"db_statement,omitempty"`
 	HttpRoute           string            `protobuf:"bytes,41,opt,name=http_route,json=httpRoute,proto3" json:"http_route,omitempty"`
-	HttpStatusBucket    string            `protobuf:"bytes,42,opt,name=http_status_bucket,json=httpStatusBucket,proto3" json:"http_status_bucket,omitempty"`
-	GenAiSystem         string            `protobuf:"bytes,43,opt,name=gen_ai_system,json=genAiSystem,proto3" json:"gen_ai_system,omitempty"`
-	GenAiOperation      string            `protobuf:"bytes,44,opt,name=gen_ai_operation,json=genAiOperation,proto3" json:"gen_ai_operation,omitempty"`
-	GenAiRequestModel   string            `protobuf:"bytes,45,opt,name=gen_ai_request_model,json=genAiRequestModel,proto3" json:"gen_ai_request_model,omitempty"`
-	GenAiResponseModel  string            `protobuf:"bytes,46,opt,name=gen_ai_response_model,json=genAiResponseModel,proto3" json:"gen_ai_response_model,omitempty"`
-	GenAiInputTokens    uint64            `protobuf:"varint,47,opt,name=gen_ai_input_tokens,json=genAiInputTokens,proto3" json:"gen_ai_input_tokens,omitempty"`
-	GenAiOutputTokens   uint64            `protobuf:"varint,48,opt,name=gen_ai_output_tokens,json=genAiOutputTokens,proto3" json:"gen_ai_output_tokens,omitempty"`
-	IsGenAi             bool              `protobuf:"varint,49,opt,name=is_gen_ai,json=isGenAi,proto3" json:"is_gen_ai,omitempty"`
-	GenAiPrompt         string            `protobuf:"bytes,50,opt,name=gen_ai_prompt,json=genAiPrompt,proto3" json:"gen_ai_prompt,omitempty"`
-	GenAiCompletion     string            `protobuf:"bytes,51,opt,name=gen_ai_completion,json=genAiCompletion,proto3" json:"gen_ai_completion,omitempty"`
+	// Unused since http_status_bucket became a MATERIALIZED CH column; kept so
+	// in-flight Kafka messages from older producers still decode.
+	HttpStatusBucket   string `protobuf:"bytes,42,opt,name=http_status_bucket,json=httpStatusBucket,proto3" json:"http_status_bucket,omitempty"`
+	GenAiSystem        string `protobuf:"bytes,43,opt,name=gen_ai_system,json=genAiSystem,proto3" json:"gen_ai_system,omitempty"`
+	GenAiOperation     string `protobuf:"bytes,44,opt,name=gen_ai_operation,json=genAiOperation,proto3" json:"gen_ai_operation,omitempty"`
+	GenAiRequestModel  string `protobuf:"bytes,45,opt,name=gen_ai_request_model,json=genAiRequestModel,proto3" json:"gen_ai_request_model,omitempty"`
+	GenAiResponseModel string `protobuf:"bytes,46,opt,name=gen_ai_response_model,json=genAiResponseModel,proto3" json:"gen_ai_response_model,omitempty"`
+	GenAiInputTokens   uint64 `protobuf:"varint,47,opt,name=gen_ai_input_tokens,json=genAiInputTokens,proto3" json:"gen_ai_input_tokens,omitempty"`
+	GenAiOutputTokens  uint64 `protobuf:"varint,48,opt,name=gen_ai_output_tokens,json=genAiOutputTokens,proto3" json:"gen_ai_output_tokens,omitempty"`
+	IsGenAi            bool   `protobuf:"varint,49,opt,name=is_gen_ai,json=isGenAi,proto3" json:"is_gen_ai,omitempty"`
+	GenAiPrompt        string `protobuf:"bytes,50,opt,name=gen_ai_prompt,json=genAiPrompt,proto3" json:"gen_ai_prompt,omitempty"`
+	GenAiCompletion    string `protobuf:"bytes,51,opt,name=gen_ai_completion,json=genAiCompletion,proto3" json:"gen_ai_completion,omitempty"`
 	// LLM Observability context promoted from gen_ai / langfuse attributes.
 	LlmUserId        string   `protobuf:"bytes,52,opt,name=llm_user_id,json=llmUserId,proto3" json:"llm_user_id,omitempty"`
 	LlmSessionId     string   `protobuf:"bytes,53,opt,name=llm_session_id,json=llmSessionId,proto3" json:"llm_session_id,omitempty"`

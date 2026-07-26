@@ -10,7 +10,7 @@ import (
 
 const chTable = "optikk.llm_scores"
 
-// chColumns mirrors the column order in db/clickhouse/12_llm_scores.sql.
+// chColumns mirrors the column order in db/12_llm_scores.sql.
 var chColumns = []string{
 	"tenant_id", "timestamp", "trace_id", "span_id", "session_id", "user_id",
 	"service", "environment", "name", "source", "data_type",

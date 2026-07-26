@@ -4,11 +4,11 @@ Hand-applied, numbered DDL. Every statement is `IF NOT EXISTS` / additive, so
 the whole set is safe to re-apply:
 
 ```sh
-for f in db/clickhouse/*.sql; do clickhouse-client -mn < "$f"; done
+for f in db/*.sql; do clickhouse-client -mn < "$f"; done
 ```
 
 On the live cluster add `-n optikk` where the client is not already scoped to
-the database. Files in `backfill/` are **not** idempotent — see below.
+the database.
 
 ## Files
 
@@ -32,13 +32,3 @@ the database. Files in `backfill/` are **not** idempotent — see below.
 aggregates, database and Kafka RED, and the service-graph edges. There is no
 separate edge table — edges are the client-side rows
 (`kind_string IN ('CLIENT','PRODUCER')`, non-empty `peer_name`).
-
-## backfill/
-
-One-time, **not** idempotent — kept out of the `*.sql` glob on purpose.
-
-- `backfill_span_stats.sh` — fills `span_stats_1m` from historical `spans`,
-  bounded at the MV creation time; cascades to the 5m/1h tiers.
-- `parity_check_span_stats.sql` — old-vs-new RED parity gate.
-- `README_rollout.md` — ordered runbook, including how to add the peer columns
-  to a cluster that already has the cascade.

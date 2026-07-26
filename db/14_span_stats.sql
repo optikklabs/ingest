@@ -231,7 +231,5 @@ GROUP BY tenant_id, timestamp, service, environment, host, pod, span_name,
          db_system, messaging_system, messaging_destination, messaging_consumer_group,
          cloud_provider, cloud_platform, cloud_region, k8s_node, peer_name, peer_type;
 
--- Spans that predate the MVs (or a window missed while the MVs were being
--- recreated) are backfilled by db/clickhouse/backfill/backfill_span_stats.sh,
--- which bounds the insert at the MV creation time so nothing double-counts.
--- Inserting into span_stats_1m cascades to the 5m and 1h tiers.
+-- A historical repair inserts bounded rows into span_stats_1m; the 5m and 1h
+-- tiers then populate through their materialized views.

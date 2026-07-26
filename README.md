@@ -6,7 +6,7 @@ HTTP), processes telemetry through Kafka, and writes spans/logs/metrics to
 
 ## Schema
 
-The ClickHouse DDL lives in [`db/clickhouse`](db/clickhouse) as numbered `.sql`
+The ClickHouse DDL lives in [`db`](db) as numbered `.sql`
 files. It is **applied by hand** — the service does not migrate on boot. Apply
 it (in lexical order) at least once before starting ingest or query against a
 fresh cluster, or they will fail against missing tables. The DDL is idempotent
@@ -15,13 +15,13 @@ fresh cluster, or they will fail against missing tables. The DDL is idempotent
 Local (ClickHouse on `localhost`):
 
 ```bash
-for f in db/clickhouse/*.sql; do clickhouse-client -mn < "$f"; done
+for f in db/*.sql; do clickhouse-client -mn < "$f"; done
 ```
 
 In-cluster (e.g. AKS):
 
 ```bash
-for f in db/clickhouse/*.sql; do
+for f in db/*.sql; do
   kubectl -n optikk exec -i chi-optikk-cluster-0-0-0 -c clickhouse -- \
     clickhouse-client -mn < "$f"
 done
