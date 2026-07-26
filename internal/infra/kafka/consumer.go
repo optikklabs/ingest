@@ -57,6 +57,11 @@ type batchJob struct {
 // workers. A single committer goroutine awaits each batch's completion in strict
 // poll order to guarantee offset progression correctness without data loss.
 func (c *Consumer) Run(ctx context.Context, handle RecordHandler) {
+	// Cancelled by the committer when a handler fails, so the fetch loop stops
+	// pulling records that can no longer be committed.
+	ctx, halt := context.WithCancel(ctx)
+	defer halt()
+
 	// Worker channel depth limits in-flight batches when all workers are busy.
 	workerChan := make(chan batchJob, c.workers*2)
 	// Committer channel must be unbounded enough to not block the fetcher,
@@ -78,7 +83,7 @@ func (c *Consumer) Run(ctx context.Context, handle RecordHandler) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		c.committerLoop(ctx, committerChan, c.commit)
+		c.committerLoop(ctx, committerChan, c.commit, halt)
 	}()
 
 	// Fetch on the calling goroutine.
@@ -168,10 +173,36 @@ func (c *Consumer) workerLoop(ctx context.Context, in <-chan batchJob, handle Re
 	}
 }
 
-func (c *Consumer) committerLoop(ctx context.Context, in <-chan batchJob, commit commitFunc) {
+// committerLoop commits each batch's offsets in strict poll order, and stops
+// committing for good once any batch's handler has failed.
+//
+// A Kafka offset commit is a high-water mark: committing batch N+1 also
+// commits N. So with parallel workers, committing a later success after an
+// earlier failure would silently discard the failed batch's records. Halting
+// instead leaves the offset where it is; the process exits, and Kafka
+// redelivers from the last committed point.
+//
+// It keeps draining after halting so in-flight workers never block on send.
+// halt unwinds the fetch loop and may be nil in tests.
+func (c *Consumer) committerLoop(ctx context.Context, in <-chan batchJob, commit commitFunc, halt context.CancelFunc) {
+	halted := false
 	for job := range in {
 		err := <-job.done
-		if err == nil {
+		switch {
+		case halted:
+			// Draining only. Committing now would advance past the failure.
+		case err != nil:
+			halted = true
+			metrics.ConsumerHalts.WithLabelValues(c.signal).Inc()
+			slog.ErrorContext(ctx, "kafka: handler failed, halting commits to avoid losing the batch",
+				slog.String("signal", c.signal),
+				slog.Int("records", len(job.recs)),
+				slog.Any("error", err),
+			)
+			if halt != nil {
+				halt()
+			}
+		default:
 			if cerr := commit(ctx, job.recs); cerr != nil {
 				slog.ErrorContext(ctx, "kafka commit error", slog.Any("error", cerr))
 			}

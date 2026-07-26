@@ -35,7 +35,7 @@ func TestWorkerAndCommitter(t *testing.T) {
 	handleOk := func(context.Context, []*kgo.Record) error { return nil }
 
 	c.workerLoop(context.Background(), workerIn, handleOk)
-	c.committerLoop(context.Background(), committerIn, commit)
+	c.committerLoop(context.Background(), committerIn, commit, nil)
 
 	if commits != 1 {
 		t.Errorf("commits = %d, want 1", commits)
@@ -54,10 +54,41 @@ func TestWorkerAndCommitter(t *testing.T) {
 	handleErr := func(context.Context, []*kgo.Record) error { return errors.New("err") }
 
 	c.workerLoop(context.Background(), workerIn2, handleErr)
-	c.committerLoop(context.Background(), committerIn2, commit)
+	c.committerLoop(context.Background(), committerIn2, commit, nil)
 
 	if commits != 0 {
 		t.Errorf("commits = %d, want 0", commits)
+	}
+}
+
+// TestCommitterStopsAfterFailedBatch pins the durability rule that makes
+// parallel workers safe: a Kafka offset commit is a high-water mark, so
+// committing batch N+1 also commits everything in N. If N's handler failed,
+// committing N+1 would silently discard N's records. The committer must stop
+// instead, letting the process restart and Kafka redeliver from the last good
+// offset.
+func TestCommitterStopsAfterFailedBatch(t *testing.T) {
+	c := &Consumer{signal: "test"}
+
+	failed := batchJob{recs: batch(3), done: make(chan error, 1)}
+	failed.done <- errors.New("insert failed")
+
+	succeeded := batchJob{recs: batch(3), done: make(chan error, 1)}
+	succeeded.done <- nil
+
+	committerIn := make(chan batchJob, 2)
+	committerIn <- failed
+	committerIn <- succeeded
+	close(committerIn)
+
+	var commits int
+	commit := func(context.Context, []*kgo.Record) error { commits++; return nil }
+
+	c.committerLoop(context.Background(), committerIn, commit, nil)
+
+	if commits != 0 {
+		t.Errorf("commits = %d, want 0: committing the later batch would advance "+
+			"the offset past the failed one and lose its records", commits)
 	}
 }
 
@@ -101,7 +132,7 @@ func TestParallelWorkers(t *testing.T) {
 	}
 	wg.Wait()
 
-	c.committerLoop(context.Background(), committerIn, commit)
+	c.committerLoop(context.Background(), committerIn, commit, nil)
 
 	if handled != numJobs || committed != numJobs {
 		t.Errorf("handled=%d committed=%d, want %d each", handled, committed, numJobs)

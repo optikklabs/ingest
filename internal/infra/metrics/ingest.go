@@ -106,6 +106,16 @@ var (
 		Help:      "Records dropped after both CH insert retries and the DLQ publish failed, by signal.",
 	}, []string{"signal"})
 
+	// ConsumerHalts counts consume loops stopped because a batch handler
+	// failed. Not a loss counter: the batch is redelivered on restart. Any
+	// non-zero value means a signal has stopped consuming and needs a look.
+	ConsumerHalts = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "optikk",
+		Subsystem: "ingest",
+		Name:      "consumer_halts_total",
+		Help:      "Consume loops halted after a handler failure to avoid committing past it, by signal.",
+	}, []string{"signal"})
+
 	// ResourceCacheHits counts CheckAndUpdateBucket calls served without a
 	// resource re-publish, by signal.
 	ResourceCacheHits = promauto.NewCounterVec(prometheus.CounterOpts{
