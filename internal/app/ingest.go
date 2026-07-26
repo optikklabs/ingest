@@ -46,6 +46,7 @@ type signalWiring struct {
 }
 
 type signalWireInput struct {
+	signal                       string
 	topicPrefix                  string
 	ingestTopic, dlqTopic, group string
 	sc                           config.SignalConfig
@@ -117,26 +118,23 @@ func wireMetrics(in signalWireInput) (registry.Module, ConsumerRunner) {
 	return mod, consumer
 }
 
-func wireIngestionStats(in signalWireInput) (registry.Module, ConsumerRunner) {
-	writer := core.NewRetryWriter(ingestionstats.NewClickHouseWriter(in.ch), kafkainfra.SignalIngestionStats, in.insertMaxRetries)
-	dlq := core.NewDLQ(in.producerBase, in.dlqTopic, kafkainfra.SignalIngestionStats)
-	consumer := core.NewInsertConsumer(in.consumer, kafkainfra.SignalIngestionStats, writer, dlq, func() *statsschema.StatRow { return &statsschema.StatRow{} })
-	return nil, consumer
+// insertOnly wires a signal that only consumes: no OTLP handler and no
+// producer, just the durable Kafka-to-ClickHouse path. Signals that also
+// ingest over OTLP (spans, logs, metrics) have their own wire func.
+func insertOnly[T core.Row](
+	newWriter func(clickhouse.Conn) core.Writer[T],
+	newRow func() T,
+) func(signalWireInput) (registry.Module, ConsumerRunner) {
+	return func(in signalWireInput) (registry.Module, ConsumerRunner) {
+		writer := core.NewRetryWriter(newWriter(in.ch), in.signal, in.insertMaxRetries)
+		dlq := core.NewDLQ(in.producerBase, in.dlqTopic, in.signal)
+		return nil, core.NewInsertConsumer(in.consumer, in.signal, writer, dlq, newRow)
+	}
 }
 
-func wireLLMScores(in signalWireInput) (registry.Module, ConsumerRunner) {
-	writer := core.NewRetryWriter(llmscores.NewClickHouseWriter(in.ch), kafkainfra.SignalLLMScores, in.insertMaxRetries)
-	dlq := core.NewDLQ(in.producerBase, in.dlqTopic, kafkainfra.SignalLLMScores)
-	consumer := core.NewInsertConsumer(in.consumer, kafkainfra.SignalLLMScores, writer, dlq, func() *llmscoresschema.ScoreRow { return &llmscoresschema.ScoreRow{} })
-	return nil, consumer
-}
-
-func wireMetricSeries(in signalWireInput) (registry.Module, ConsumerRunner) {
-	writer := core.NewRetryWriter(metricseries.NewClickHouseWriter(in.ch), kafkainfra.SignalMetricSeries, in.insertMaxRetries)
-	dlq := core.NewDLQ(in.producerBase, in.dlqTopic, kafkainfra.SignalMetricSeries)
-	consumer := core.NewInsertConsumer(in.consumer, kafkainfra.SignalMetricSeries, writer, dlq, func() *metricseriesschema.SeriesRow { return &metricseriesschema.SeriesRow{} })
-	return nil, consumer
-}
+// newRow allocates a zero row of T; the consumer's sync.Pool seeds itself
+// with it.
+func newRow[T any]() *T { return new(T) }
 
 func ingestTopicSpecs(wirings []signalWiring, topicPrefix, dlqPrefix string) []kafkainfra.TopicSpec {
 	specs := make([]kafkainfra.TopicSpec, 0, len(wirings)*2)
@@ -163,9 +161,9 @@ func buildIngest(cfg config.Config, ch clickhouse.Conn) (ingestBundle, error) {
 		{signal: kafkainfra.SignalLogs, cfg: cfg.IngestSignal("logs"), wire: wireLogs},
 
 		{signal: kafkainfra.SignalMetrics, cfg: cfg.IngestSignal("metrics"), wire: wireMetrics},
-		{signal: kafkainfra.SignalMetricSeries, cfg: cfg.IngestSignal("metric_series"), wire: wireMetricSeries},
-		{signal: kafkainfra.SignalIngestionStats, cfg: cfg.IngestSignal("ingestion_stats"), wire: wireIngestionStats},
-		{signal: kafkainfra.SignalLLMScores, cfg: cfg.IngestSignal("llm_scores"), wire: wireLLMScores},
+		{signal: kafkainfra.SignalMetricSeries, cfg: cfg.IngestSignal("metric_series"), wire: insertOnly(metricseries.NewClickHouseWriter, newRow[metricseriesschema.SeriesRow])},
+		{signal: kafkainfra.SignalIngestionStats, cfg: cfg.IngestSignal("ingestion_stats"), wire: insertOnly(ingestionstats.NewClickHouseWriter, newRow[statsschema.StatRow])},
+		{signal: kafkainfra.SignalLLMScores, cfg: cfg.IngestSignal("llm_scores"), wire: insertOnly(llmscores.NewClickHouseWriter, newRow[llmscoresschema.ScoreRow])},
 	}
 
 	ensureCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -218,6 +216,7 @@ func buildIngest(cfg config.Config, ch clickhouse.Conn) (ingestBundle, error) {
 		b.lagPollers = append(b.lagPollers, kafkainfra.NewLagPoller(client, w.cfg.ConsumerGroup, ingestTopic))
 
 		mod, consumer := w.wire(signalWireInput{
+			signal:               w.signal,
 			topicPrefix:          topicPrefix,
 			ingestTopic:          ingestTopic,
 			dlqTopic:             kafkainfra.DLQTopic(dlqPrefix, w.signal),
