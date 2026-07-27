@@ -58,6 +58,9 @@ func resolveFromContext(ctx context.Context, resolver TeamResolver) (int64, erro
 		if errors.Is(err, ErrMissingAPIKey) || errors.Is(err, ErrInvalidAPIKey) {
 			return 0, status.Error(codes.Unauthenticated, err.Error())
 		}
+		if errors.Is(err, ErrAuthRateLimited) {
+			return 0, status.Error(codes.ResourceExhausted, err.Error())
+		}
 		return 0, status.Error(codes.Internal, err.Error())
 	}
 	return tenantID, nil

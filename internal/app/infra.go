@@ -66,7 +66,7 @@ func newInfra(cfg config.Config) (_ *Infra, err error) {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	authenticator := auth.NewAuthenticator(ctx, authrepo.New(dbConn))
+	authenticator := auth.NewAuthenticator(authrepo.New(dbConn), cfg.APIKeyCacheTTL(), cfg.APIKeyCacheSize())
 
 	return &Infra{
 		DB:              dbConn,

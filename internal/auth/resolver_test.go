@@ -7,6 +7,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"golang.org/x/time/rate"
 )
 
 // blockingFinder holds the first lookup open until released, so concurrent
@@ -25,7 +27,7 @@ func (b *blockingFinder) FindTenantIDByAPIKey(_ context.Context, _ string) (int6
 // Concurrent lookups for the same cold key collapse into one finder call.
 func TestResolveCollapsesConcurrentLookups(t *testing.T) {
 	f := &blockingFinder{release: make(chan struct{})}
-	a := &Authenticator{finder: f}
+	a := newAuthenticator(f, 0, 0, rate.NewLimiter(rate.Inf, 1))
 
 	const n = 20
 	var wg sync.WaitGroup
@@ -61,7 +63,7 @@ func (f *fakeFinder) FindTenantIDByAPIKey(_ context.Context, _ string) (int64, e
 // Genuine not-found is negative-cached: only one finder call across two lookups.
 func TestResolveCachesInvalidKey(t *testing.T) {
 	f := &fakeFinder{err: ErrInvalidAPIKey}
-	a := &Authenticator{finder: f}
+	a := newAuthenticator(f, 0, 0, rate.NewLimiter(rate.Inf, 1))
 
 	for i := 0; i < 2; i++ {
 		if _, err := a.ResolveTenantID(context.Background(), "k"); !errors.Is(err, ErrInvalidAPIKey) {
@@ -76,17 +78,17 @@ func TestResolveCachesInvalidKey(t *testing.T) {
 // Not-found uses the short TTL so a key tried before its team exists recovers
 // quickly; a valid key keeps the long TTL.
 func TestNegativeCacheUsesShortTTL(t *testing.T) {
-	a := &Authenticator{finder: &fakeFinder{err: ErrInvalidAPIKey}}
+	a := newAuthenticator(&fakeFinder{err: ErrInvalidAPIKey}, 0, 0, rate.NewLimiter(rate.Inf, 1))
 	_, _ = a.ResolveTenantID(context.Background(), "bad")
 	a.finder = &fakeFinder{id: 42}
 	_, _ = a.ResolveTenantID(context.Background(), "good")
 
-	for key, wantTTL := range map[string]time.Duration{"bad": negativeCacheTTL, "good": cacheTTL} {
-		val, ok := a.cache.Load(apiKeyCacheKey(key))
+	for key, wantTTL := range map[string]time.Duration{"bad": negativeCacheTTL, "good": defaultCacheTTL} {
+		val, ok := a.cache.Peek(apiKeyCacheKey(key))
 		if !ok {
 			t.Fatalf("%q not cached", key)
 		}
-		ttl := time.Until(val.(cacheEntry).expiresAt)
+		ttl := time.Until(val.expiresAt)
 		if ttl > wantTTL || ttl < wantTTL-time.Second {
 			t.Errorf("%q ttl = %v, want ~%v", key, ttl, wantTTL)
 		}
@@ -96,7 +98,7 @@ func TestNegativeCacheUsesShortTTL(t *testing.T) {
 // Transient errors must NOT be cached, or a blip locks the tenant out for the TTL.
 func TestResolveDoesNotCacheTransientError(t *testing.T) {
 	f := &fakeFinder{err: errors.New("connection refused")}
-	a := &Authenticator{finder: f}
+	a := newAuthenticator(f, 0, 0, rate.NewLimiter(rate.Inf, 1))
 
 	for i := 0; i < 2; i++ {
 		if _, err := a.ResolveTenantID(context.Background(), "k"); err == nil {
@@ -111,12 +113,41 @@ func TestResolveDoesNotCacheTransientError(t *testing.T) {
 // A canceled request must not poison the cache for later healthy callers.
 func TestResolveDoesNotCacheContextCanceled(t *testing.T) {
 	f := &fakeFinder{err: context.Canceled}
-	a := &Authenticator{finder: f}
+	a := newAuthenticator(f, 0, 0, rate.NewLimiter(rate.Inf, 1))
 
 	_, _ = a.ResolveTenantID(context.Background(), "k")
 	f.err, f.id = nil, 42
 	id, err := a.ResolveTenantID(context.Background(), "k")
 	if err != nil || id != 42 {
 		t.Fatalf("canceled result was cached: got id=%d err=%v", id, err)
+	}
+}
+
+func TestAuthenticatorCacheIsBounded(t *testing.T) {
+	f := &fakeFinder{id: 42}
+	a := newAuthenticator(f, 0, 2, rate.NewLimiter(rate.Inf, 1))
+
+	for _, key := range []string{"one", "two", "three"} {
+		if _, err := a.ResolveTenantID(context.Background(), key); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := a.cache.Len(); got != 2 {
+		t.Fatalf("cache length = %d, want 2", got)
+	}
+	if _, ok := a.cache.Peek(apiKeyCacheKey("one")); ok {
+		t.Fatal("least recently used key was not evicted")
+	}
+}
+
+func TestAuthenticatorLimitsColdLookups(t *testing.T) {
+	f := &fakeFinder{id: 42}
+	a := newAuthenticator(f, 0, 10, rate.NewLimiter(0, 0))
+
+	if _, err := a.ResolveTenantID(context.Background(), "cold"); !errors.Is(err, ErrAuthRateLimited) {
+		t.Fatalf("error = %v, want ErrAuthRateLimited", err)
+	}
+	if f.calls != 0 {
+		t.Fatalf("finder calls = %d, want 0", f.calls)
 	}
 }

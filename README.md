@@ -29,3 +29,11 @@ done
 
 Because schema is now hand-rolled, the old `schema_migrations` tracking table is
 an inert leftover on existing clusters — harmless, drop it whenever.
+
+## Production benchmark
+
+The 2026-07-26 Optikk ingestion benchmark measured the OpenTelemetry Demo
+signal path and the authenticated OTLP/gRPC saturation curve:
+
+- [Interactive HTML results](docs/benchmark-2026-07-26.html)
+- [Markdown results](docs/benchmark-2026-07-26.md)

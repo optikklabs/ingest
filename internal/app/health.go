@@ -12,10 +12,10 @@ import (
 const healthCacheTTL = 5 * time.Second
 
 type healthResult struct {
-	ready     bool
-	mysqlErr  string
-	chErr     string
-	expiresAt time.Time
+	ready           bool
+	mysqlReady      bool
+	clickhouseReady bool
+	expiresAt       time.Time
 }
 
 type healthCache struct {
@@ -83,11 +83,11 @@ func (a *App) healthReady(w http.ResponseWriter, r *http.Request) {
 
 	if !res.ready {
 		payload := map[string]string{"status": "not_ready"}
-		if res.mysqlErr != "" {
-			payload["mysql"] = res.mysqlErr
+		if !res.mysqlReady {
+			payload["mysql"] = "error"
 		}
-		if res.chErr != "" {
-			payload["clickhouse"] = res.chErr
+		if !res.clickhouseReady {
+			payload["clickhouse"] = "error"
 		}
 		writeJSON(w, http.StatusServiceUnavailable, payload)
 		return
@@ -99,14 +99,15 @@ func (a *App) healthReady(w http.ResponseWriter, r *http.Request) {
 func (a *App) probeReady(ctx context.Context) *healthResult {
 	res := &healthResult{}
 	if err := a.Infra.DB.PingContext(ctx); err != nil {
-		res.mysqlErr = err.Error()
+		slog.ErrorContext(ctx, "health check failed", slog.String("service", "mysql"), slog.Any("error", err))
 		return res
 	}
+	res.mysqlReady = true
 	if err := a.Infra.CH.Ping(ctx); err != nil {
-		slog.ErrorContext(ctx, "health check failed", slog.String("service", "clickhouse"), slog.String("error", err.Error()))
-		res.chErr = err.Error()
+		slog.ErrorContext(ctx, "health check failed", slog.String("service", "clickhouse"), slog.Any("error", err))
 		return res
 	}
+	res.clickhouseReady = true
 	res.ready = true
 	return res
 }

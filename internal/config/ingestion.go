@@ -1,6 +1,9 @@
 package config
 
-import "fmt"
+import (
+	"fmt"
+	"time"
+)
 
 // IngestionConfig owns per-signal Kafka topology (topic partitions, replicas,
 // retention) and the consumer-group identity.
@@ -11,8 +14,10 @@ type IngestionConfig struct {
 	MetricSeries   SignalConfig `yaml:"metric_series"`
 	IngestionStats SignalConfig `yaml:"ingestion_stats"`
 
-	SidePublish       SidePublishConfig `yaml:"side_publish"`
-	ResourceCacheSize int               `yaml:"resource_cache_size"`
+	SidePublish           SidePublishConfig `yaml:"side_publish"`
+	ResourceCacheSize     int               `yaml:"resource_cache_size"`
+	APIKeyCacheTTLSeconds int               `yaml:"api_key_cache_ttl_seconds"`
+	APIKeyCacheSize       int               `yaml:"api_key_cache_size"`
 }
 
 // SidePublishConfig tunes the async best-effort publisher used for the
@@ -94,4 +99,22 @@ func (c Config) ResourceCacheSize() int {
 		return n
 	}
 	return 500_000
+}
+
+// APIKeyCacheTTL limits how long a rotated or revoked API key can remain valid
+// in an ingest process. Values <= 0 default to 30 seconds.
+func (c Config) APIKeyCacheTTL() time.Duration {
+	if seconds := c.Ingestion.APIKeyCacheTTLSeconds; seconds > 0 {
+		return time.Duration(seconds) * time.Second
+	}
+	return 30 * time.Second
+}
+
+// APIKeyCacheSize bounds valid and invalid API-key entries so random keys
+// cannot grow ingest memory without limit.
+func (c Config) APIKeyCacheSize() int {
+	if size := c.Ingestion.APIKeyCacheSize; size > 0 {
+		return size
+	}
+	return 50_000
 }

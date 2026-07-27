@@ -31,4 +31,11 @@ var (
 		Help:      "gRPC call handling duration in seconds, by full-method.",
 		Buckets:   grpcBuckets,
 	}, []string{"method"})
+
+	GRPCInFlight = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "optikk",
+		Subsystem: "grpc",
+		Name:      "in_flight_requests",
+		Help:      "gRPC requests currently being processed, by full-method path.",
+	}, []string{"method"})
 )

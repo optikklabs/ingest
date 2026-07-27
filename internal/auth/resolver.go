@@ -5,22 +5,27 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
-	"sync"
 	"time"
 
+	lru "github.com/hashicorp/golang-lru/v2"
 	"golang.org/x/sync/singleflight"
+	"golang.org/x/time/rate"
 )
 
 var (
-	ErrMissingAPIKey = errors.New("missing API key")
-	ErrInvalidAPIKey = errors.New("invalid API key")
-	ErrResolveFailed = errors.New("failed to resolve team")
+	ErrMissingAPIKey   = errors.New("missing API key")
+	ErrInvalidAPIKey   = errors.New("invalid API key")
+	ErrAuthRateLimited = errors.New("authentication rate limited")
+	ErrResolveFailed   = errors.New("failed to resolve team")
 )
 
 const (
-	cacheTTL = 5 * time.Minute
+	defaultCacheTTL  = 30 * time.Second
+	defaultCacheSize = 50_000
 	// Short so a key tried before its team exists recovers quickly.
 	negativeCacheTTL = 15 * time.Second
+	coldLookupRate   = 200
+	coldLookupBurst  = 400
 )
 
 type cacheEntry struct {
@@ -39,15 +44,34 @@ type TeamFinder interface {
 }
 
 type Authenticator struct {
-	finder TeamFinder
-	cache  sync.Map
-	group  singleflight.Group
+	finder        TeamFinder
+	cache         *lru.Cache[string, cacheEntry]
+	group         singleflight.Group
+	lookupLimiter *rate.Limiter
+	ttl           time.Duration
 }
 
-func NewAuthenticator(ctx context.Context, finder TeamFinder) *Authenticator {
-	a := &Authenticator{finder: finder}
-	go a.startCleanup(ctx, 5*time.Minute)
-	return a
+func NewAuthenticator(finder TeamFinder, ttl time.Duration, cacheSize int) *Authenticator {
+	return newAuthenticator(finder, ttl, cacheSize, rate.NewLimiter(coldLookupRate, coldLookupBurst))
+}
+
+func newAuthenticator(finder TeamFinder, ttl time.Duration, cacheSize int, lookupLimiter *rate.Limiter) *Authenticator {
+	if ttl <= 0 {
+		ttl = defaultCacheTTL
+	}
+	if cacheSize <= 0 {
+		cacheSize = defaultCacheSize
+	}
+	cache, err := lru.New[string, cacheEntry](cacheSize)
+	if err != nil {
+		panic("auth cache: " + err.Error())
+	}
+	return &Authenticator{
+		finder:        finder,
+		cache:         cache,
+		lookupLimiter: lookupLimiter,
+		ttl:           ttl,
+	}
 }
 
 func (a *Authenticator) ResolveTenantID(ctx context.Context, apiKey string) (int64, error) {
@@ -64,6 +88,9 @@ func (a *Authenticator) ResolveTenantID(ctx context.Context, apiKey string) (int
 	v, err, _ := a.group.Do(cacheKey, func() (any, error) {
 		if entry, ok := a.lookupCache(cacheKey); ok {
 			return entry.tenantID, entry.err
+		}
+		if a.lookupLimiter != nil && !a.lookupLimiter.Allow() {
+			return int64(0), ErrAuthRateLimited
 		}
 		id, err := a.finder.FindTenantIDByAPIKey(ctx, apiKey)
 		if err != nil {
@@ -84,24 +111,26 @@ func (a *Authenticator) ResolveTenantID(ctx context.Context, apiKey string) (int
 }
 
 func (a *Authenticator) lookupCache(cacheKey string) (cacheEntry, bool) {
-	val, ok := a.cache.Load(cacheKey)
+	entry, ok := a.cache.Get(cacheKey)
 	if !ok {
 		return cacheEntry{}, false
 	}
-	entry := val.(cacheEntry)
 	if time.Now().After(entry.expiresAt) {
-		a.cache.Delete(cacheKey)
+		a.cache.Remove(cacheKey)
 		return cacheEntry{}, false
 	}
 	return entry, true
 }
 
 func (a *Authenticator) cacheSet(cacheKey string, tenantID int64, err error) {
-	ttl := cacheTTL
+	ttl := a.ttl
+	if ttl <= 0 {
+		ttl = defaultCacheTTL
+	}
 	if err != nil {
 		ttl = negativeCacheTTL
 	}
-	a.cache.Store(cacheKey, cacheEntry{
+	a.cache.Add(cacheKey, cacheEntry{
 		tenantID:  tenantID,
 		err:       err,
 		expiresAt: time.Now().Add(ttl),
@@ -111,23 +140,4 @@ func (a *Authenticator) cacheSet(cacheKey string, tenantID int64, err error) {
 func apiKeyCacheKey(apiKey string) string {
 	h := sha256.Sum256([]byte(apiKey))
 	return hex.EncodeToString(h[:])
-}
-
-func (a *Authenticator) startCleanup(ctx context.Context, interval time.Duration) {
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			now := time.Now()
-			a.cache.Range(func(key, val any) bool {
-				if entry, ok := val.(cacheEntry); ok && now.After(entry.expiresAt) {
-					a.cache.Delete(key)
-				}
-				return true
-			})
-		}
-	}
 }

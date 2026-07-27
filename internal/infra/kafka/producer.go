@@ -2,7 +2,6 @@ package kafka
 
 import (
 	"context"
-	"sync"
 
 	"github.com/twmb/franz-go/pkg/kgo"
 )
@@ -19,26 +18,7 @@ func (p *Producer) PublishBatch(ctx context.Context, records []*kgo.Record) erro
 	if len(records) == 0 {
 		return nil
 	}
-	var (
-		wg       sync.WaitGroup
-		mu       sync.Mutex
-		firstErr error
-	)
-	wg.Add(len(records))
-	for _, r := range records {
-		p.client.Produce(ctx, r, func(_ *kgo.Record, err error) {
-			defer wg.Done()
-			if err != nil {
-				mu.Lock()
-				if firstErr == nil {
-					firstErr = err
-				}
-				mu.Unlock()
-			}
-		})
-	}
-	wg.Wait()
-	return firstErr
+	return p.client.ProduceSync(ctx, records...).FirstErr()
 }
 
 func (p *Producer) PublishSync(ctx context.Context, rec *kgo.Record) error {

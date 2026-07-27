@@ -13,6 +13,8 @@ import (
 func grpcMetricsUnary() grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 		metrics.GRPCStarted.WithLabelValues(info.FullMethod).Inc()
+		metrics.GRPCInFlight.WithLabelValues(info.FullMethod).Inc()
+		defer metrics.GRPCInFlight.WithLabelValues(info.FullMethod).Dec()
 		start := time.Now()
 		resp, err := handler(ctx, req)
 		code := status.Code(err).String()
@@ -26,6 +28,8 @@ func grpcMetricsUnary() grpc.UnaryServerInterceptor {
 func grpcMetricsStream() grpc.StreamServerInterceptor {
 	return func(srv any, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 		metrics.GRPCStarted.WithLabelValues(info.FullMethod).Inc()
+		metrics.GRPCInFlight.WithLabelValues(info.FullMethod).Inc()
+		defer metrics.GRPCInFlight.WithLabelValues(info.FullMethod).Dec()
 		start := time.Now()
 		err := handler(srv, ss)
 		code := status.Code(err).String()

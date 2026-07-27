@@ -44,6 +44,19 @@ func TestInvalidAPIKeyIsUnauthenticated(t *testing.T) {
 	}
 }
 
+func TestColdAuthenticationIsRateLimited(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "/v1/traces", nil)
+	req.Header.Set("x-api-key", "random")
+	res := httptest.NewRecorder()
+	traceHandler(fakeResolver{err: auth.ErrAuthRateLimited}).ServeHTTP(res, req)
+	if res.Code != http.StatusTooManyRequests {
+		t.Fatalf("status = %d, want %d", res.Code, http.StatusTooManyRequests)
+	}
+	if got := res.Header().Get("Retry-After"); got != "1" {
+		t.Fatalf("Retry-After = %q, want 1", got)
+	}
+}
+
 func TestUnsupportedContentTypeIsRejected(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/v1/traces", http.NoBody)
 	req.Header.Set("x-api-key", "valid")

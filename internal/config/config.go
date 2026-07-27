@@ -153,4 +153,6 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("ingestion.side_publish.queue_size", 4096)
 	v.SetDefault("ingestion.side_publish.workers", 2)
 	v.SetDefault("ingestion.resource_cache_size", 500000)
+	v.SetDefault("ingestion.api_key_cache_ttl_seconds", 30)
+	v.SetDefault("ingestion.api_key_cache_size", 50000)
 }

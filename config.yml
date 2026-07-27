@@ -59,6 +59,10 @@ ingestion:
   # Total per-signal resource-cache capacity (split across 32 shards). Size to
   # active-series cardinality, not tenant count. Default 500000.
   resource_cache_size: 500000
+  # Bounds the window in which a rotated/revoked key may remain cached.
+  api_key_cache_ttl_seconds: 30
+  # Bounds valid and negative cache entries under random invalid-key traffic.
+  api_key_cache_size: 50000
 
 kafka:
   broker_list: "127.0.0.1:9092"

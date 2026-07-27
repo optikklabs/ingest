@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 // baseConfig writes the minimum config Load accepts.
@@ -36,5 +37,29 @@ func TestResourceCacheSizeDefault(t *testing.T) {
 	}
 	if got := cfg.ResourceCacheSize(); got != 500_000 {
 		t.Errorf("ResourceCacheSize = %d, want default 500000", got)
+	}
+}
+
+func TestAPIKeyCacheTTLEnvironmentOverride(t *testing.T) {
+	t.Setenv("OPTIKK_INGESTION_API_KEY_CACHE_TTL_SECONDS", "12")
+
+	cfg, err := Load(baseConfig(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := cfg.APIKeyCacheTTL(); got != 12*time.Second {
+		t.Errorf("APIKeyCacheTTL = %v, want 12s", got)
+	}
+}
+
+func TestAPIKeyCacheSizeEnvironmentOverride(t *testing.T) {
+	t.Setenv("OPTIKK_INGESTION_API_KEY_CACHE_SIZE", "1234")
+
+	cfg, err := Load(baseConfig(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := cfg.APIKeyCacheSize(); got != 1234 {
+		t.Errorf("APIKeyCacheSize = %d, want 1234", got)
 	}
 }

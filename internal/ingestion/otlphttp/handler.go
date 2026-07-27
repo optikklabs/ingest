@@ -30,6 +30,9 @@ func Export[Req proto.Message, Resp proto.Message](resolver auth.TeamResolver, n
 		if err != nil {
 			if errors.Is(err, auth.ErrMissingAPIKey) || errors.Is(err, auth.ErrInvalidAPIKey) {
 				http.Error(w, "unauthenticated", http.StatusUnauthorized)
+			} else if errors.Is(err, auth.ErrAuthRateLimited) {
+				w.Header().Set("Retry-After", "1")
+				http.Error(w, "authentication rate limited", http.StatusTooManyRequests)
 			} else {
 				http.Error(w, "authentication service unavailable", http.StatusInternalServerError)
 			}
