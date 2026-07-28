@@ -15,8 +15,8 @@ CREATE TABLE IF NOT EXISTS optikk.metrics_series (
     pod              LowCardinality(String) CODEC(ZSTD(1)),
     container        LowCardinality(String) CODEC(ZSTD(1)),
     attributes       Map(LowCardinality(String), String) CODEC(ZSTD(1)),
-                                                                                
-                                                                           
+    -- Host-scoped resource attributes (os.*, host.*, cloud.*, k8s node/cluster)
+    -- retained per series for host metadata panels. Allowlisted at ingest.
     resource_attributes Map(LowCardinality(String), String) CODEC(ZSTD(1))
 ) ENGINE = ReplicatedReplacingMergeTree('/clickhouse/tables/{shard}/optikk/metrics_series_v2', '{replica}')
 PARTITION BY toYYYYMMDD(timestamp)

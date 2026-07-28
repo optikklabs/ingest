@@ -1,9 +1,7 @@
 package config
 
 type ServerConfig struct {
-	Port           string `yaml:"port"`
-	AllowedOrigins string `yaml:"allowed_origins"`
-	DebugAPILogs   bool   `yaml:"debug_api_logs"`
+	Port string `yaml:"port"`
 }
 
 type OTLPConfig struct {

@@ -25,10 +25,22 @@ the database.
 | `10_spans_root.sql` | `spans_root` + `spans_to_root` (traces explorer) |
 | `11_spans_llm_context.sql` | `ALTER`s adding gen_ai/langfuse columns to `spans` |
 | `12_llm_scores.sql` | `llm_scores` |
-| `13_llm_traces.sql` | `llm_traces` + `spans_to_llm_traces` |
 | `14_span_stats.sql` | `span_stats_1m/5m/1h` + MVs — the RED cascade, every APM dimension as a real column, and `peer_name`/`peer_type` for the service graph |
 
 `span_stats` is the single source for span-derived reads: RED, per-host/pod
 aggregates, database and Kafka RED, and the service-graph edges. There is no
 separate edge table — edges are the client-side rows
 (`kind_string IN ('CLIENT','PRODUCER')`, non-empty `peer_name`).
+
+## Removed files
+
+Numbers are never reused; gaps mark retired objects. `02` (`spans_resource`)
+and `04` (`logs_resource`) were dropped with their pipelines. `13`
+(`llm_traces` + `spans_to_llm_traces`) was a write-only rollup read by
+nothing and was removed. Clusters created before the removal still carry the
+objects; drop them by hand (view first, so span inserts stop feeding it):
+
+```sql
+DROP VIEW IF EXISTS optikk.spans_to_llm_traces;
+DROP TABLE IF EXISTS optikk.llm_traces SYNC;
+```

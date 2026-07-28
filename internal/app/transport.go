@@ -47,7 +47,7 @@ func (a *App) addHTTPServerActor(g *run.Group) {
 	otlpMux := http.NewServeMux()
 	for _, mod := range a.Modules {
 		if httpMod, ok := mod.(registry.HTTPModule); ok {
-			httpMod.RegisterOTLPHTTP(otlpMux, a.Infra.Authenticator)
+			httpMod.RegisterOTLPHTTP(otlpMux, a.Infra.Authenticator, a.Infra.RateLimiter)
 		}
 	}
 	otlpSrv := &http.Server{Addr: fmt.Sprintf(":%s", a.Config.OTLP.HTTPPort), Handler: otlpMux, ReadTimeout: 30 * time.Second, WriteTimeout: 60 * time.Second, IdleTimeout: 120 * time.Second}
@@ -74,18 +74,9 @@ func (a *App) addGRPCServerActor(g *run.Group) error {
 		slog.String("addr", addr),
 		slog.String("hint", "send gRPC metadata x-api-key (team API key); use OTLP gRPC on this port, not HTTP/protobuf"))
 
-	maxStreams := a.Config.OTLP.GRPCMaxConcurrentStr
-	if maxStreams == 0 {
-		maxStreams = 10_000
-	}
-
-	maxRecvMsgSize := a.Config.OTLP.GRPCMaxRecvMsgSize
-	if maxRecvMsgSize == 0 {
-		maxRecvMsgSize = 16 * 1024 * 1024
-	}
 	grpcSrv := grpc.NewServer(
-		grpc.MaxConcurrentStreams(maxStreams),
-		grpc.MaxRecvMsgSize(maxRecvMsgSize),
+		grpc.MaxConcurrentStreams(a.Config.OTLP.GRPCMaxConcurrentStr),
+		grpc.MaxRecvMsgSize(a.Config.OTLP.GRPCMaxRecvMsgSize),
 		grpc.ConnectionTimeout(30*time.Second),
 		grpc.KeepaliveParams(keepalive.ServerParameters{
 			Time:    20 * time.Second,
@@ -98,7 +89,7 @@ func (a *App) addGRPCServerActor(g *run.Group) error {
 
 		grpc.ChainUnaryInterceptor(
 			grpcMetricsUnary(),
-			auth.UnaryInterceptor(a.Infra.Authenticator),
+			auth.UnaryInterceptor(a.Infra.Authenticator, a.Infra.RateLimiter),
 		),
 		grpc.ChainStreamInterceptor(
 			grpcMetricsStream(),

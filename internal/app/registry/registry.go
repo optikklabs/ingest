@@ -8,10 +8,9 @@ import (
 )
 
 type Module interface {
-	Name() string
 	RegisterGRPC(srv *grpc.Server)
 }
 
 type HTTPModule interface {
-	RegisterOTLPHTTP(*http.ServeMux, auth.TeamResolver)
+	RegisterOTLPHTTP(*http.ServeMux, auth.TeamResolver, *auth.TenantRateLimiter)
 }

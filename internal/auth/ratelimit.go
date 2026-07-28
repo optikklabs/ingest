@@ -8,16 +8,9 @@ import (
 	lru "github.com/hashicorp/golang-lru/v2"
 )
 
-var RateLimiter *TenantRateLimiter
-
-func init() {
-	var err error
-	RateLimiter, err = NewTenantRateLimiter(1000, 2000, 10000)
-	if err != nil {
-		panic(err)
-	}
-}
-
+// TenantRateLimiter enforces per-tenant request limits within one replica:
+// state is in-process, so a tenant's effective cluster-wide rate is
+// limit x replica count. Limits come from the ratelimit.* config keys.
 type TenantRateLimiter struct {
 	cache *lru.Cache[int64, *rate.Limiter]
 	limit rate.Limit

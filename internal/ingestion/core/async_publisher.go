@@ -31,12 +31,6 @@ type AsyncPublisher[T Row] struct {
 }
 
 func NewAsyncPublisher[T Row](pub resourcePublisher[T], signal, topic string, queueSize, workers int) *AsyncPublisher[T] {
-	if queueSize <= 0 {
-		queueSize = 4096
-	}
-	if workers <= 0 {
-		workers = 2
-	}
 	a := &AsyncPublisher[T]{
 		pub:    pub,
 		signal: signal,

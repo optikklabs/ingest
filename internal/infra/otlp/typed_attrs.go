@@ -44,13 +44,9 @@ func TypedAttrsInto(
 		}
 	}
 	if maxStringKeys > 0 && len(strMap) > maxStringKeys {
-		return capStringMapDeterministic(strMap, maxStringKeys)
+		return CapStringMap(strMap, maxStringKeys)
 	}
 	return 0
-}
-
-func capStringMapDeterministic(strMap map[string]string, max int) int {
-	return CapStringMap(strMap, max)
 }
 
 func CapStringMap(strMap map[string]string, max int) int {

@@ -25,7 +25,9 @@ type ConsumerRunner interface {
 type Infra struct {
 	DB            *sql.DB
 	CH            clickhouse.Conn
+	AuthRepo      *authrepo.Repository
 	Authenticator *auth.Authenticator
+	RateLimiter   *auth.TenantRateLimiter
 	Ingest        []registry.Module
 	LagPollers    []*kafkainfra.LagPoller
 	Consumers     []ConsumerRunner
@@ -61,12 +63,20 @@ func newInfra(cfg config.Config) (_ *Infra, err error) {
 		return nil, err
 	}
 
-	authenticator := auth.NewAuthenticator(authrepo.New(dbConn), cfg.APIKeyCacheTTL(), cfg.APIKeyCacheSize())
+	authRepo := authrepo.New(dbConn)
+	authenticator := auth.NewAuthenticator(authRepo, cfg.APIKeyCacheTTL(), cfg.APIKeyCacheSize())
+
+	rateLimiter, err := auth.NewTenantRateLimiter(cfg.RateLimitTenantRPS(), cfg.RateLimitTenantBurst(), cfg.RateLimitMaxTenants())
+	if err != nil {
+		return nil, fmt.Errorf("tenant rate limiter: %w", err)
+	}
 
 	return &Infra{
 		DB:              dbConn,
 		CH:              chConn,
+		AuthRepo:        authRepo,
 		Authenticator:   authenticator,
+		RateLimiter:     rateLimiter,
 		Ingest:          ingest.modules,
 		LagPollers:      ingest.lagPollers,
 		Consumers:       ingest.consumers,

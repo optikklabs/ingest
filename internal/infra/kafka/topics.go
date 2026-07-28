@@ -13,13 +13,12 @@ import (
 )
 
 const (
-	SignalSpans           = "spans"
-	SignalSpansTracegraph = "spans_tracegraph"
-	SignalLogs            = "logs"
-	SignalMetrics         = "metrics"
-	SignalMetricSeries    = "metric_series"
-	SignalIngestionStats  = "ingestion_stats"
-	SignalLLMScores       = "llm_scores"
+	SignalSpans          = "spans"
+	SignalLogs           = "logs"
+	SignalMetrics        = "metrics"
+	SignalMetricSeries   = "metric_series"
+	SignalIngestionStats = "ingestion_stats"
+	SignalLLMScores      = "llm_scores"
 )
 
 type TopicSpec struct {

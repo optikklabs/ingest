@@ -19,10 +19,4 @@ func (p *Producer) PublishBatch(ctx context.Context, records []*kgo.Record) erro
 	return p.client.ProduceSync(ctx, records...).FirstErr()
 }
 
-func (p *Producer) PublishSync(ctx context.Context, rec *kgo.Record) error {
-	return p.client.ProduceSync(ctx, rec).FirstErr()
-}
-
-func (p *Producer) Flush(ctx context.Context) error { return p.client.Flush(ctx) }
-func (p *Producer) Close()                          { p.client.Close() }
-func (p *Producer) Client() *kgo.Client             { return p.client }
+func (p *Producer) Close() { p.client.Close() }

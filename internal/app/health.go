@@ -14,6 +14,7 @@ const healthCacheTTL = 5 * time.Second
 type healthResult struct {
 	ready           bool
 	mysqlReady      bool
+	tenantTableOK   bool
 	clickhouseReady bool
 	expiresAt       time.Time
 }
@@ -82,6 +83,9 @@ func (a *App) healthReady(w http.ResponseWriter, r *http.Request) {
 		if !res.mysqlReady {
 			payload["mysql"] = "error"
 		}
+		if res.mysqlReady && !res.tenantTableOK {
+			payload["tenant_table"] = "error"
+		}
 		if !res.clickhouseReady {
 			payload["clickhouse"] = "error"
 		}
@@ -99,6 +103,13 @@ func (a *App) probeReady(ctx context.Context) *healthResult {
 		return res
 	}
 	res.mysqlReady = true
+	// Cross-repo seam: query owns the tenant table ingest auth reads. A
+	// query-side schema change must flip readiness, not fail silently.
+	if err := a.Infra.AuthRepo.ProbeSchema(ctx); err != nil {
+		slog.ErrorContext(ctx, "health check failed", slog.String("service", "tenant_table"), slog.Any("error", err))
+		return res
+	}
+	res.tenantTableOK = true
 	if err := a.Infra.CH.Ping(ctx); err != nil {
 		slog.ErrorContext(ctx, "health check failed", slog.String("service", "clickhouse"), slog.Any("error", err))
 		return res

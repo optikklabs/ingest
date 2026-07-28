@@ -78,13 +78,12 @@ func (h hooks) OnGroupManageError(err error) {
 }
 
 var knownSignals = map[string]struct{}{
-	SignalSpans:           {},
-	SignalSpansTracegraph: {},
-	SignalLogs:            {},
-	SignalMetrics:         {},
-	SignalMetricSeries:    {},
-	SignalIngestionStats:  {},
-	SignalLLMScores:       {},
+	SignalSpans:          {},
+	SignalLogs:           {},
+	SignalMetrics:        {},
+	SignalMetricSeries:   {},
+	SignalIngestionStats: {},
+	SignalLLMScores:      {},
 }
 
 func signalFromTopic(topic string) string {

@@ -78,7 +78,8 @@ func (p *Producer[T]) marshalBatch(rows []T, now time.Time, buf []byte) ([]*kgo.
 		buf = make([]byte, 0, total)
 	}
 
-	var opts proto.MarshalOptions
+	// proto.Size above cached each row's size; reuse it during marshal.
+	opts := proto.MarshalOptions{UseCachedSize: true}
 	records := make([]*kgo.Record, 0, len(rows))
 	for _, r := range rows {
 		start := len(buf)

@@ -5,6 +5,7 @@ import (
 	obsmetrics "github.com/optikklabs/ingest/internal/infra/metrics"
 	"github.com/optikklabs/ingest/internal/infra/otlp"
 	"github.com/optikklabs/ingest/internal/infra/timebucket"
+	"github.com/optikklabs/ingest/internal/ingestion/ingestionstats"
 	"github.com/optikklabs/ingest/internal/ingestion/spans/schema"
 	tracepb "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	commonpb "go.opentelemetry.io/proto/otlp/common/v1"
@@ -18,7 +19,7 @@ const (
 	zeroSpanHex       = "0000000000000000"
 )
 
-func mapRequest(tenantID int64, req *tracepb.ExportTraceServiceRequest) []*schema.Row {
+func mapRequest(tenantID int64, req *tracepb.ExportTraceServiceRequest) ([]*schema.Row, []ingestionstats.ResourceUsage) {
 	spanCount := 0
 	for _, rs := range req.GetResourceSpans() {
 		for _, ss := range rs.GetScopeSpans() {
@@ -26,9 +27,10 @@ func mapRequest(tenantID int64, req *tracepb.ExportTraceServiceRequest) []*schem
 		}
 	}
 	if spanCount == 0 {
-		return nil
+		return nil, nil
 	}
 	rows := make([]*schema.Row, 0, spanCount)
+	usage := make([]ingestionstats.ResourceUsage, 0, len(req.GetResourceSpans()))
 	for _, rs := range req.GetResourceSpans() {
 		var resAttrs []*commonpb.KeyValue
 		if rs.Resource != nil {
@@ -38,17 +40,37 @@ func mapRequest(tenantID int64, req *tracepb.ExportTraceServiceRequest) []*schem
 		resMap := otlp.GetAttrMap()
 		otlp.AttrsToMapInto(resMap, resAttrs)
 		dims := fingerprint.ResolveResource(resMap)
+		baseAttrs := resourceBaseAttrs(resMap)
+		before := len(rows)
 		for _, ss := range rs.GetScopeSpans() {
 			for _, s := range ss.GetSpans() {
-				rows = append(rows, buildSpanRow(tenantID, resMap, dims, s))
+				rows = append(rows, buildSpanRow(tenantID, baseAttrs, dims, s))
 			}
 		}
 		otlp.PutAttrMap(resMap)
+		if n := len(rows) - before; n > 0 {
+			usage = append(usage, ingestionstats.ResourceUsage{Service: dims.Service, Environment: dims.Environment, Records: uint64(n)})
+		}
 	}
-	return rows
+	return rows, usage
 }
 
-func buildSpanRow(tenantID int64, resMap map[string]string, dims fingerprint.ResourceDimensions, s *trace.Span) *schema.Row {
+// resourceBaseAttrs filters promoted keys and caps once per ResourceSpans,
+// instead of re-copying all resource attrs for every span in the batch.
+func resourceBaseAttrs(resMap map[string]string) map[string]string {
+	base := make(map[string]string, len(resMap))
+	for k, v := range resMap {
+		if !isPromotedKey(k) {
+			base[k] = v
+		}
+	}
+	if dropped := otlp.CapStringMap(base, maxSpanAttributes); dropped > 0 {
+		obsmetrics.MapperAttrsDropped.WithLabelValues("spans").Add(float64(dropped))
+	}
+	return base
+}
+
+func buildSpanRow(tenantID int64, baseAttrs map[string]string, dims fingerprint.ResourceDimensions, s *trace.Span) *schema.Row {
 	timestampNs := s.GetStartTimeUnixNano()
 	tsBucket := timebucket.BucketStart(int64(timestampNs / nsPerSecond))
 
@@ -62,7 +84,7 @@ func buildSpanRow(tenantID int64, resMap map[string]string, dims fingerprint.Res
 	spanMap := otlp.GetAttrMap()
 	defer otlp.PutAttrMap(spanMap)
 	otlp.AttrsToMapInto(spanMap, s.GetAttributes())
-	merged := mergeAndCapAttrs(resMap, spanMap)
+	merged := mergeAndCapAttrs(baseAttrs, spanMap)
 
 	httpMethod := firstNonEmpty(spanMap, "http.method", "http.request.method")
 	httpURL := firstNonEmpty(spanMap, "http.url", "url.full")
@@ -127,12 +149,24 @@ func buildSpanRow(tenantID int64, resMap map[string]string, dims fingerprint.Res
 	}
 }
 
-func mergeAndCapAttrs(resMap, spanMap map[string]string) map[string]string {
-	merged := make(map[string]string, len(resMap)+len(spanMap))
-	for k, v := range resMap {
+// mergeAndCapAttrs merges span attrs over the precomputed resource base.
+// Spans with no own attrs alias baseAttrs: rows are marshaled synchronously
+// in this request and never mutated afterwards, so sharing one read-only
+// map across spans is safe and skips a full copy per span.
+func mergeAndCapAttrs(baseAttrs, spanMap map[string]string) map[string]string {
+	hasOwn := false
+	for k := range spanMap {
 		if !isPromotedKey(k) {
-			merged[k] = v
+			hasOwn = true
+			break
 		}
+	}
+	if !hasOwn {
+		return baseAttrs
+	}
+	merged := make(map[string]string, len(baseAttrs)+len(spanMap))
+	for k, v := range baseAttrs {
+		merged[k] = v
 	}
 	for k, v := range spanMap {
 		if !isPromotedKey(k) {

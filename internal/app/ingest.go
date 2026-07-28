@@ -100,18 +100,20 @@ func wireLogs(in signalWireInput) (registry.Module, ConsumerRunner) {
 	return mod, consumer
 }
 
-func wireMetrics(in signalWireInput) (registry.Module, ConsumerRunner) {
-	metricsProducer := core.NewProducer[*metricsschema.Row](in.ingestTopic, in.producerBase)
-	seriesTopic := kafkainfra.IngestTopic(in.topicPrefix, kafkainfra.SignalMetricSeries)
-	seriesProducer := core.NewProducer[*metricseriesschema.SeriesRow](seriesTopic, in.producerBase)
+func wireMetrics(seriesDedup *metricseries.Dedup) func(signalWireInput) (registry.Module, ConsumerRunner) {
+	return func(in signalWireInput) (registry.Module, ConsumerRunner) {
+		metricsProducer := core.NewProducer[*metricsschema.Row](in.ingestTopic, in.producerBase)
+		seriesTopic := kafkainfra.IngestTopic(in.topicPrefix, kafkainfra.SignalMetricSeries)
+		seriesProducer := core.NewProducer[*metricseriesschema.SeriesRow](seriesTopic, in.producerBase)
 
-	writer := core.NewRetryWriter(metricsignal.NewMetricsClickHouseWriter(in.ch), kafkainfra.SignalMetrics, in.insertMaxRetries)
-	dlq := core.NewDLQ(in.producerBase, in.dlqTopic, kafkainfra.SignalMetrics)
-	consumer := core.NewInsertConsumer(in.consumer, kafkainfra.SignalMetrics, writer, dlq, func() *metricsschema.Row { return &metricsschema.Row{} })
-	mod := metricsignal.NewModule(metricsignal.Deps{
-		Handler: metricsignal.NewHandler(metricsProducer, seriesProducer, in.stats),
-	})
-	return mod, consumer
+		writer := core.NewRetryWriter(metricsignal.NewMetricsClickHouseWriter(in.ch), kafkainfra.SignalMetrics, in.insertMaxRetries)
+		dlq := core.NewDLQ(in.producerBase, in.dlqTopic, kafkainfra.SignalMetrics)
+		consumer := core.NewInsertConsumer(in.consumer, kafkainfra.SignalMetrics, writer, dlq, func() *metricsschema.Row { return &metricsschema.Row{} })
+		mod := metricsignal.NewModule(metricsignal.Deps{
+			Handler: metricsignal.NewHandler(metricsProducer, seriesProducer, seriesDedup, in.stats),
+		})
+		return mod, consumer
+	}
 }
 
 func insertOnly[T core.Row](
@@ -127,16 +129,21 @@ func insertOnly[T core.Row](
 
 func newRow[T any]() *T { return new(T) }
 
-func ingestTopicSpecs(wirings []signalWiring, topicPrefix, dlqPrefix string) []kafkainfra.TopicSpec {
+func ingestTopicSpecs(wirings []signalWiring, topicPrefix, dlqPrefix string, dlqRetentionHours int) []kafkainfra.TopicSpec {
 	specs := make([]kafkainfra.TopicSpec, 0, len(wirings)*2)
 	seen := make(map[string]struct{}, len(wirings)*2)
 	for _, w := range wirings {
-		for _, name := range []string{kafkainfra.IngestTopic(topicPrefix, w.signal), kafkainfra.DLQTopic(dlqPrefix, w.signal)} {
-			if _, exists := seen[name]; exists {
+		for _, spec := range []kafkainfra.TopicSpec{
+			{Name: kafkainfra.IngestTopic(topicPrefix, w.signal), RetentionHours: w.cfg.RetentionHours},
+			{Name: kafkainfra.DLQTopic(dlqPrefix, w.signal), RetentionHours: dlqRetentionHours},
+		} {
+			if _, exists := seen[spec.Name]; exists {
 				continue
 			}
-			seen[name] = struct{}{}
-			specs = append(specs, kafkainfra.TopicSpec{Name: name, Partitions: int32(w.cfg.Partitions), Replicas: int16(w.cfg.Replicas), RetentionHours: w.cfg.RetentionHours})
+			seen[spec.Name] = struct{}{}
+			spec.Partitions = int32(w.cfg.Partitions)
+			spec.Replicas = int16(w.cfg.Replicas)
+			specs = append(specs, spec)
 		}
 	}
 	return specs
@@ -151,7 +158,7 @@ func buildIngest(cfg config.Config, ch clickhouse.Conn) (ingestBundle, error) {
 		{signal: kafkainfra.SignalSpans, cfg: cfg.IngestSignal("spans"), wire: wireSpans},
 		{signal: kafkainfra.SignalLogs, cfg: cfg.IngestSignal("logs"), wire: wireLogs},
 
-		{signal: kafkainfra.SignalMetrics, cfg: cfg.IngestSignal("metrics"), wire: wireMetrics},
+		{signal: kafkainfra.SignalMetrics, cfg: cfg.IngestSignal("metrics"), wire: wireMetrics(metricseries.NewDedup(cfg.ResourceCacheSize(), cfg.SeriesRepublishInterval()))},
 		{signal: kafkainfra.SignalMetricSeries, cfg: cfg.IngestSignal("metric_series"), wire: insertOnly(metricseries.NewClickHouseWriter, newRow[metricseriesschema.SeriesRow])},
 		{signal: kafkainfra.SignalIngestionStats, cfg: cfg.IngestSignal("ingestion_stats"), wire: insertOnly(ingestionstats.NewClickHouseWriter, newRow[statsschema.StatRow])},
 		{signal: kafkainfra.SignalLLMScores, cfg: cfg.IngestSignal("llm_scores"), wire: insertOnly(llmscores.NewClickHouseWriter, newRow[llmscoresschema.ScoreRow])},
@@ -159,7 +166,7 @@ func buildIngest(cfg config.Config, ch clickhouse.Conn) (ingestBundle, error) {
 
 	ensureCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	if err := kafkainfra.EnsureTopics(ensureCtx, brokers, ingestTopicSpecs(wirings, topicPrefix, dlqPrefix)); err != nil {
+	if err := kafkainfra.EnsureTopics(ensureCtx, brokers, ingestTopicSpecs(wirings, topicPrefix, dlqPrefix, cfg.KafkaDLQRetentionHours())); err != nil {
 		return ingestBundle{}, err
 	}
 
@@ -178,7 +185,7 @@ func buildIngest(cfg config.Config, ch clickhouse.Conn) (ingestBundle, error) {
 	}
 	slog.Info("kafka producer client connected", slog.Any("brokers", brokers))
 	producerBase := kafkainfra.NewProducer(producerClient)
-	stats := ingestionstats.NewHourlyRecorder(newStatsProducer(signalWireInput{topicPrefix: topicPrefix, producerBase: producerBase}))
+	stats := ingestionstats.NewHourlyRecorder(newStatsProducer(signalWireInput{topicPrefix: topicPrefix, producerBase: producerBase}), cfg.StatsFlushInterval())
 
 	b := ingestBundle{
 		producerClient:  producerClient,

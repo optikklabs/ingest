@@ -1,230 +1,46 @@
-# CLAUDE.md
+# CLAUDE.md — ingest
 
-Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-specific instructions as needed.
+Workspace-wide standards live in `../CLAUDE.md` and apply in full here.
+This file covers only what is specific to ingest.
 
-**Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
+## What This Repo Owns
 
-## 1. Think Before Coding
+OTLP ingestion, Kafka produce/consume, and ClickHouse writes. Business logic,
+querying, and auth policy belong to query; UI belongs to web.
 
-**Don't assume. Don't hide confusion. Surface tradeoffs.**
+Data flow: OTLP (gRPC :4317 / HTTP :4318) → per-signal mapper → Kafka →
+consumer → ClickHouse batch insert.
 
-Before implementing:
-- State your assumptions explicitly. If uncertain, ask.
-- If multiple interpretations exist, present them - don't pick silently.
-- If a simpler approach exists, say so. Push back when warranted.
-- If something is unclear, stop. Name what's confusing. Ask.
+## Layout
 
-## 2. Simplicity First
+- `cmd/ingest/` — entrypoint; wiring in `internal/app/`.
+- `internal/ingestion/<signal>/` — one package per signal (spans, logs,
+  metrics, metricseries, ...): mapper, schema, handler for that signal only.
+- `internal/ingestion/core/` — the shared produce/consume/write pipeline.
+  Keep it thin; if a type in core has one consumer, move it to that signal.
+- `internal/infra/<concern>/` — kafka, database, otlp, metrics, config.
+  ClickHouse DDL lives in `db/` migrations.
 
-**Minimum code that solves the problem. Nothing speculative.**
+## Failure Semantics — Accepted Loss
 
-- No features beyond what was asked.
-- No abstractions for single-use code.
-- No "flexibility" or "configurability" that wasn't requested.
-- No error handling for impossible scenarios.
-- If you write 200 lines and it could be 50, rewrite it.
+This pipeline drops on failure, by design. A failed publish or insert is
+counted (`internal/infra/metrics/ingest.go`), logged once, and the batch is
+dropped. Do not add retry writers, re-flush buffers, backoff loops, or retry
+config. `IngestionStatsPublishDropped` is the pattern to copy.
 
-Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
+Durability comes from the architecture — Kafka retention and consumer
+offsets — not from application retry code.
 
-## 3. Surgical Changes
+## Hot Path Discipline
 
-**Touch only what you must. Clean up only your own mess.**
+The per-row path (mapper → producer → consumer → writer) is the hottest code
+in the platform. That is an argument for *less* code on it, not more: no
+pooling, no manual zero-alloc formatting, no sharded caches — per workspace
+rule 3. Throughput comes from batch size and Kafka partitioning.
 
-When editing existing code:
-- Don't "improve" adjacent code, comments, or formatting.
-- Don't refactor things that aren't broken.
-- Match existing style, even if you'd do it differently.
-- If you notice unrelated dead code, mention it - don't delete it.
+## Gotchas
 
-When your changes create orphans:
-- Remove imports/variables/functions that YOUR changes made unused.
-- Don't remove pre-existing dead code unless asked.
-
-The test: Every changed line should trace directly to the user's request.
-
-## 4. Goal-Driven Execution
-
-**Define success criteria. Loop until verified.**
-
-Transform tasks into verifiable goals:
-- "Add validation" → "Write tests for invalid inputs, then make them pass"
-- "Fix the bug" → "Write a test that reproduces it, then make it pass"
-- "Refactor X" → "Ensure tests pass before and after"
-
-For multi-step tasks, state a brief plan:
-```
-1. [Step] → verify: [check]
-2. [Step] → verify: [check]
-3. [Step] → verify: [check]
-```
-
-Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
-
-
-## 5. Engineering Principles
-- No God files/functions/variables: each file/function should own a single responsibility 
-- DRY: Single authoritative representation for each piece of knowledge.
-- SRP: A class/package should have one reason to change.
-- OCP: Open for extension, closed for modification.
-- LSP: Subtypes must be substitutable for their base types.
-- ISP: Many small, focused interfaces over one general-purpose interface.
-- DIP: Depend on abstractions, not concretions.
-
-
-## 6. Code Comments
-- Comments should be of single line and not more 80 characters, concise explainable
-
----
-
-## 7. Architecture First
-
-Always optimize for long-term maintainability over short-term convenience.
-
-Before introducing new code, evaluate whether it:
-
-- fits the existing architecture
-- respects package boundaries
-- introduces unnecessary coupling
-- belongs in the correct layer
-- increases future maintenance cost
-
-Challenge existing designs instead of assuming they are correct.
-
-If a simpler architecture exists, recommend it.
-
----
-
-## 8. Package Ownership
-
-Every package should have a single responsibility.
-
-Business logic should never leak into:
-
-- HTTP handlers
-- database repositories
-- configuration
-- transport models
-
-Prefer the following flow:
-
-```
-HTTP Handler
-    ↓
-Service
-    ↓
-Repository
-    ↓
-Database
-```
-
-Repositories fetch data.
-
-Services implement business logic.
-
-Handlers translate HTTP requests and responses.
-
----
-
-## 9. Database & Query Performance
-
-This service is query-heavy.
-
-Assume every endpoint may execute against billions of telemetry records.
-
-Always evaluate:
-
-- query complexity
-- ClickHouse execution cost
-- unnecessary allocations
-- repeated database calls
-- N+1 queries
-- missing LIMITs
-- unnecessary scans
-- excessive joins
-- unnecessary deserialization
-
-Never sacrifice query performance for cleaner-looking code.
-
----
-
-## 10. API Design
-
-APIs should be:
-
-- consistent
-- predictable
-- versioned
-- backwards compatible
-
-Avoid:
-
-- inconsistent response shapes
-- hidden breaking changes
-- ambiguous field names
-- leaking database models directly to clients
-
-DTOs should represent the API contract, not database schemas.
-
----
-
-## 11. Scalability & Production Readiness
-
-Assume this service will eventually support:
-
-- thousands of organizations
-- millions of API requests
-- billions of telemetry rows
-- concurrent dashboard queries
-- alert evaluations
-- background jobs
-- enterprise customers
-
-Prefer designs that minimize:
-
-- lock contention
-- memory allocations
-- unnecessary copies
-- synchronous bottlenecks
-- repeated parsing
-- repeated query planning
-
-Think about production behaviour, not just correctness.
-
----
-
-## 12. Go Best Practices
-
-Write idiomatic Go.
-
-Prefer:
-
-- small packages
-- small interfaces
-- composition over inheritance
-- explicit dependencies
-- context propagation
-- error wrapping where useful
-- early returns
-- zero-value friendly types
-
-Avoid:
-
-- global mutable state
-- massive interfaces
-- utility packages containing unrelated code
-- reflection unless absolutely necessary
-- premature abstractions
-- unnecessary goroutines
-
-Review every implementation before considering it complete.
-
-Ask yourself:
-
-- Is this the simplest correct solution?
-- Is this idiomatic Go?
-- Will this still scale in two years?
-- Would another senior Go engineer approve this?
-- Is every abstraction justified?
-- Does this improve or degrade maintainability?
-
-**These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
+- OTLP/HTTP does not inflate gzip request bodies; collectors default to gzip
+  and get 400s. Fix the handler before adding features near it.
+- Unknown API keys are negative-cached (15s) in auth; a "missing API key"
+  drop can be cache, not config.

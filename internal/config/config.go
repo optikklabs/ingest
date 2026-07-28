@@ -19,6 +19,7 @@ type Config struct {
 	Kafka       KafkaConfig      `yaml:"kafka"`
 	OTLP        OTLPConfig       `yaml:"otlp"`
 	Ingestion   IngestionConfig  `yaml:"ingestion"`
+	RateLimit   RateLimitConfig  `yaml:"ratelimit"`
 }
 
 func Load(path ...string) (Config, error) {
@@ -100,8 +101,6 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("environment", "")
 
 	v.SetDefault("server.port", "")
-	v.SetDefault("server.allowed_origins", "")
-	v.SetDefault("server.debug_api_logs", false)
 
 	v.SetDefault("mysql.host", "")
 	v.SetDefault("mysql.port", "")
@@ -116,28 +115,32 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("clickhouse.database", "")
 	v.SetDefault("clickhouse.user", "")
 	v.SetDefault("clickhouse.password", "")
-	v.SetDefault("clickhouse.production", false)
-	v.SetDefault("clickhouse.cloud_host", "")
 	v.SetDefault("clickhouse.max_open_conns", 0)
 	v.SetDefault("clickhouse.max_idle_conns", 0)
 
 	v.SetDefault("kafka.broker_list", "")
-	v.SetDefault("kafka.topic_prefix", "")
-	v.SetDefault("kafka.dlq_prefix", "")
+	v.SetDefault("kafka.topic_prefix", "optikk.ingest")
+	v.SetDefault("kafka.dlq_prefix", "optikk.dlq")
+	v.SetDefault("kafka.dlq_retention_hours", 7*24)
 	v.SetDefault("kafka.compression", "zstd")
 	v.SetDefault("kafka.linger_ms", 20)
 	v.SetDefault("kafka.batch_max_bytes", 1<<20)
 	v.SetDefault("kafka.fetch_max_bytes", 8<<20)
 	v.SetDefault("kafka.fetch_max_partition_bytes", 1<<20)
-	v.SetDefault("kafka.consumer_max_retries", 0)
+	v.SetDefault("kafka.consumer_max_retries", 2)
 	v.SetDefault("kafka.consumer_max_poll_records", 5000)
+	v.SetDefault("kafka.consumer_insert_workers", 1)
+
+	v.SetDefault("ratelimit.tenant_rps", 1000)
+	v.SetDefault("ratelimit.tenant_burst", 2000)
+	v.SetDefault("ratelimit.max_tenants", 10000)
 
 	v.SetDefault("otlp.grpc_port", "")
 	v.SetDefault("otlp.http_port", "")
 	v.SetDefault("otlp.grpc_max_concurrent_streams", 10000)
 	v.SetDefault("otlp.grpc_max_recv_msg_size", 16*1024*1024)
 
-	for _, signal := range []string{"spans", "logs", "metrics", "metric_series", "ingestion_stats"} {
+	for _, signal := range []string{"spans", "logs", "metrics", "metric_series", "ingestion_stats", "llm_scores"} {
 		def := SignalDefaults(signal)
 		prefix := "ingestion." + signal + "."
 		v.SetDefault(prefix+"partitions", def.Partitions)
@@ -148,6 +151,8 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("ingestion.side_publish.queue_size", 4096)
 	v.SetDefault("ingestion.side_publish.workers", 2)
 	v.SetDefault("ingestion.resource_cache_size", 500000)
+	v.SetDefault("ingestion.series_republish_interval_seconds", 900)
 	v.SetDefault("ingestion.api_key_cache_ttl_seconds", 30)
 	v.SetDefault("ingestion.api_key_cache_size", 50000)
+	v.SetDefault("ingestion.stats_flush_interval_seconds", 300)
 }

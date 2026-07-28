@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"strings"
 
+	"github.com/optikklabs/ingest/internal/infra/metrics"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
@@ -13,13 +15,31 @@ import (
 
 const apiKeyHeader = "x-api-key"
 
-func UnaryInterceptor(resolver TeamResolver) grpc.UnaryServerInterceptor {
-	return func(ctx context.Context, req any, _ *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
+func UnaryInterceptor(resolver TeamResolver, limiter *TenantRateLimiter) grpc.UnaryServerInterceptor {
+	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 		tenantID, err := resolveFromContext(ctx, resolver)
 		if err != nil {
 			return nil, err
 		}
+		// Rate-limit here so throttled requests skip mapping and publish work.
+		if !limiter.Allow(tenantID) {
+			metrics.OTLPRateLimitedTotal.WithLabelValues(signalFromMethod(info.FullMethod)).Inc()
+			return nil, status.Error(codes.ResourceExhausted, "tenant rate limit exceeded")
+		}
 		return handler(WithTenantID(ctx, tenantID), req)
+	}
+}
+
+func signalFromMethod(fullMethod string) string {
+	switch {
+	case strings.Contains(fullMethod, ".trace."):
+		return "spans"
+	case strings.Contains(fullMethod, ".logs."):
+		return "logs"
+	case strings.Contains(fullMethod, ".metrics."):
+		return "metrics"
+	default:
+		return "unknown"
 	}
 }
 

@@ -1,7 +1,7 @@
-                                                                          
-                                                                              
-                                                                   
-                                                          
+-- Evaluation scores attached to LLM traces/spans. Populated by the ingest
+-- score sink (from gen_ai.evaluation.result / langfuse.score span events) and
+-- by the query POST /llm/scores API (human + programmatic scores).
+-- One row = one score on one trace (optionally one span).
 
 CREATE TABLE IF NOT EXISTS optikk.llm_scores (
     tenant_id    UInt32          CODEC(T64, ZSTD(1)),
@@ -13,9 +13,9 @@ CREATE TABLE IF NOT EXISTS optikk.llm_scores (
     service      LowCardinality(String) CODEC(ZSTD(1)),
     environment  LowCardinality(String) CODEC(ZSTD(1)),
     name         LowCardinality(String) CODEC(ZSTD(1)),
-                                                                             
+    -- otel | api | human | eval  (eval == an automated judge run; reserved).
     source       LowCardinality(String) CODEC(ZSTD(1)),
-                                       
+    -- numeric | boolean | categorical.
     data_type    LowCardinality(String) CODEC(ZSTD(1)),
     value        Float64         CODEC(ZSTD(1)),
     string_value String          CODEC(ZSTD(1)),

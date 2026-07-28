@@ -25,12 +25,6 @@ type Consumer struct {
 }
 
 func NewConsumer(client *kgo.Client, maxPollRecords, workers int, signal string) *Consumer {
-	if maxPollRecords <= 0 {
-		maxPollRecords = 5_000
-	}
-	if workers <= 0 {
-		workers = 1
-	}
 	return &Consumer{client: client, maxPollRecords: maxPollRecords, workers: workers, signal: signal}
 }
 

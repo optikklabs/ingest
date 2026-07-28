@@ -3,6 +3,7 @@ package ingestionstats
 import (
 	"context"
 	"log/slog"
+	"math/rand/v2"
 	"sync"
 	"time"
 
@@ -30,13 +31,14 @@ type statKey struct {
 }
 
 type HourlyRecorder struct {
-	pub       publisher
-	mu        sync.Mutex
-	rows      map[statKey]*schema.StatRow
-	closing   bool
-	done      chan struct{}
-	closeOnce sync.Once
-	wg        sync.WaitGroup
+	pub           publisher
+	flushInterval time.Duration
+	mu            sync.Mutex
+	rows          map[statKey]*schema.StatRow
+	closing       bool
+	done          chan struct{}
+	closeOnce     sync.Once
+	wg            sync.WaitGroup
 }
 
 const (
@@ -45,8 +47,8 @@ const (
 	closeRetries   = 3
 )
 
-func NewHourlyRecorder(pub publisher) *HourlyRecorder {
-	r := &HourlyRecorder{pub: pub, rows: make(map[statKey]*schema.StatRow), done: make(chan struct{})}
+func NewHourlyRecorder(pub publisher, flushInterval time.Duration) *HourlyRecorder {
+	r := &HourlyRecorder{pub: pub, flushInterval: flushInterval, rows: make(map[statKey]*schema.StatRow), done: make(chan struct{})}
 	r.wg.Add(1)
 	go r.run()
 	return r
@@ -87,7 +89,11 @@ func cloneRow(row *schema.StatRow) *schema.StatRow {
 
 func (r *HourlyRecorder) run() {
 	defer r.wg.Done()
-	delay := time.Until(nextHour())
+	// Jittered start so replicas never flush in lockstep: aligned flushes
+	// produced identical insert blocks that ClickHouse's
+	// replicated_deduplication_window silently dropped (prod incident).
+	// Rows keep their hourly bucket; partial increments sum in the table.
+	delay := time.Duration(rand.Int64N(int64(r.flushInterval)))
 	for {
 		timer := time.NewTimer(delay)
 		select {
@@ -97,17 +103,12 @@ func (r *HourlyRecorder) run() {
 			return
 		case <-timer.C:
 			if r.flush() {
-				delay = time.Until(nextHour())
+				delay = r.flushInterval
 			} else {
 				delay = retryDelay
 			}
 		}
 	}
-}
-
-func nextHour() time.Time {
-	now := time.Now().UTC()
-	return now.Truncate(time.Hour).Add(time.Hour)
 }
 
 func (r *HourlyRecorder) flush() bool {
@@ -123,7 +124,7 @@ func (r *HourlyRecorder) flush() bool {
 	}
 	r.restore(rows)
 	metrics.IngestionStatsPublishRetries.Inc()
-	slog.Warn("ingestion_stats: hourly publish failed; retry scheduled", slog.Any("error", err), slog.Int("rows", len(rows)))
+	slog.Warn("ingestion_stats: publish failed; retry scheduled", slog.Any("error", err), slog.Int("rows", len(rows)))
 	return false
 }
 

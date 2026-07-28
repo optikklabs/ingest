@@ -12,6 +12,10 @@ type KafkaConfig struct {
 
 	DLQPrefix string `yaml:"dlq_prefix"`
 
+	// DLQ topics outlive ingest topics so operators can inspect and
+	// replay failed records before they age out.
+	DLQRetentionHours int `yaml:"dlq_retention_hours"`
+
 	Compression string `yaml:"compression"`
 
 	LingerMs int `yaml:"linger_ms"`
@@ -36,72 +40,24 @@ func (c Config) KafkaBrokers() []string {
 	return c.Kafka.Brokers
 }
 
-func (c Config) KafkaTopicPrefix() string {
-	if c.Kafka.TopicPrefix != "" {
-		return c.Kafka.TopicPrefix
-	}
-	return "optikk.ingest"
-}
+func (c Config) KafkaTopicPrefix() string { return c.Kafka.TopicPrefix }
 
-func (c Config) KafkaDLQPrefix() string {
-	if c.Kafka.DLQPrefix != "" {
-		return c.Kafka.DLQPrefix
-	}
-	return "optikk.dlq"
-}
+func (c Config) KafkaDLQPrefix() string { return c.Kafka.DLQPrefix }
 
-func (c Config) KafkaCompression() string {
-	if s := strings.ToLower(c.Kafka.Compression); s != "" {
-		return s
-	}
-	return "zstd"
-}
+func (c Config) KafkaDLQRetentionHours() int { return c.Kafka.DLQRetentionHours }
 
-func (c Config) KafkaLingerMs() int {
-	if n := c.Kafka.LingerMs; n > 0 {
-		return n
-	}
-	return 20
-}
+func (c Config) KafkaCompression() string { return strings.ToLower(c.Kafka.Compression) }
 
-func (c Config) KafkaBatchMaxBytes() int {
-	if n := c.Kafka.BatchMaxBytes; n > 0 {
-		return n
-	}
-	return 1 << 20
-}
+func (c Config) KafkaLingerMs() int { return c.Kafka.LingerMs }
 
-func (c Config) KafkaFetchMaxBytes() int {
-	if n := c.Kafka.FetchMaxBytes; n > 0 {
-		return n
-	}
-	return 8 << 20
-}
+func (c Config) KafkaBatchMaxBytes() int { return c.Kafka.BatchMaxBytes }
 
-func (c Config) KafkaFetchMaxPartitionBytes() int {
-	if n := c.Kafka.FetchMaxPartitionBytes; n > 0 {
-		return n
-	}
-	return 1 << 20
-}
+func (c Config) KafkaFetchMaxBytes() int { return c.Kafka.FetchMaxBytes }
 
-func (c Config) KafkaConsumerMaxPollRecords() int {
-	if n := c.Kafka.ConsumerMaxPollRecords; n > 0 {
-		return n
-	}
-	return 5_000
-}
+func (c Config) KafkaFetchMaxPartitionBytes() int { return c.Kafka.FetchMaxPartitionBytes }
 
-func (c Config) KafkaConsumerMaxRetries() int {
-	if n := c.Kafka.ConsumerMaxRetries; n > 0 {
-		return n
-	}
-	return 2
-}
+func (c Config) KafkaConsumerMaxPollRecords() int { return c.Kafka.ConsumerMaxPollRecords }
 
-func (c Config) KafkaConsumerInsertWorkers() int {
-	if n := c.Kafka.ConsumerInsertWorkers; n > 0 {
-		return n
-	}
-	return 1
-}
+func (c Config) KafkaConsumerMaxRetries() int { return c.Kafka.ConsumerMaxRetries }
+
+func (c Config) KafkaConsumerInsertWorkers() int { return c.Kafka.ConsumerInsertWorkers }

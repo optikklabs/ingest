@@ -7,6 +7,7 @@ import (
 	"github.com/optikklabs/ingest/internal/infra/fingerprint"
 	obsmetrics "github.com/optikklabs/ingest/internal/infra/metrics"
 	"github.com/optikklabs/ingest/internal/infra/otlp"
+	"github.com/optikklabs/ingest/internal/ingestion/ingestionstats"
 	"github.com/optikklabs/ingest/internal/ingestion/metrics/schema"
 	seriesschema "github.com/optikklabs/ingest/internal/ingestion/metricseries/schema"
 	metricspb "go.opentelemetry.io/proto/otlp/collector/metrics/v1"
@@ -49,8 +50,9 @@ func hostResourceAttrs(resMap map[string]string) map[string]string {
 	return out
 }
 
-func mapRequest(tenantID int64, req *metricspb.ExportMetricsServiceRequest) ([]*schema.Row, []*seriesschema.SeriesRow) {
+func mapRequest(tenantID int64, req *metricspb.ExportMetricsServiceRequest) ([]*schema.Row, []*seriesschema.SeriesRow, []ingestionstats.ResourceUsage) {
 	acc := &rowAccumulator{seen: make(map[uint64]struct{})}
+	usage := make([]ingestionstats.ResourceUsage, 0, len(req.GetResourceMetrics()))
 	for _, rm := range req.GetResourceMetrics() {
 		var resAttrs []*commonpb.KeyValue
 		if rm.Resource != nil {
@@ -64,13 +66,17 @@ func mapRequest(tenantID int64, req *metricspb.ExportMetricsServiceRequest) ([]*
 			resSeriesMap: fingerprint.FilterHighCardinality(resMap),
 			hostResAttrs: hostResourceAttrs(resMap),
 		}
+		before := len(acc.rows)
 		for _, sm := range rm.GetScopeMetrics() {
 			for _, m := range sm.GetMetrics() {
 				appendMetric(acc, hdr, m)
 			}
 		}
+		if n := len(acc.rows) - before; n > 0 {
+			usage = append(usage, ingestionstats.ResourceUsage{Service: hdr.resource.Service, Environment: hdr.resource.Environment, Records: uint64(n)})
+		}
 	}
-	return acc.rows, acc.series
+	return acc.rows, acc.series, usage
 }
 
 type rowAccumulator struct {

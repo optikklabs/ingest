@@ -2,7 +2,9 @@ package core
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
+	"runtime/debug"
 	"sync"
 
 	kafkainfra "github.com/optikklabs/ingest/internal/infra/kafka"
@@ -16,6 +18,20 @@ func NewInsertHandler[T Row](signal string, writer Writer[T], dlq *DLQ, newRow f
 	}
 
 	return func(ctx context.Context, recs []*kgo.Record) error {
+		// A panic must not escape to the consumer: it would halt commits and
+		// kill every signal consumer in the pod. DLQ the batch like an insert
+		// failure so offsets never advance past an un-inserted, un-DLQ'd batch.
+		defer func() {
+			if p := recover(); p != nil {
+				slog.ErrorContext(ctx, "ingest consumer: handler panic → DLQ",
+					slog.String("signal", signal),
+					slog.Int("records", len(recs)),
+					slog.Any("panic", p),
+					slog.String("stack", string(debug.Stack())),
+				)
+				dlq.PublishAll(ctx, recs, DLQReasonPanic, fmt.Errorf("panic: %v", p))
+			}
+		}()
 		rows := make([]T, 0, len(recs))
 
 		for _, rec := range recs {
@@ -44,7 +60,7 @@ func NewInsertHandler[T Row](signal string, writer Writer[T], dlq *DLQ, newRow f
 				slog.Int("rows", len(rows)),
 				slog.Any("error", err),
 			)
-			dlq.PublishAll(ctx, recs, err)
+			dlq.PublishAll(ctx, recs, DLQReasonInsertFailure, err)
 		}
 		for _, r := range rows {
 			rowPool.Put(r)

@@ -1,7 +1,6 @@
 package logs
 
 import (
-	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -10,6 +9,7 @@ import (
 	obsmetrics "github.com/optikklabs/ingest/internal/infra/metrics"
 	"github.com/optikklabs/ingest/internal/infra/otlp"
 	"github.com/optikklabs/ingest/internal/infra/timebucket"
+	"github.com/optikklabs/ingest/internal/ingestion/ingestionstats"
 	"github.com/optikklabs/ingest/internal/ingestion/logs/schema"
 	logspb "go.opentelemetry.io/proto/otlp/collector/logs/v1"
 	commonpb "go.opentelemetry.io/proto/otlp/common/v1"
@@ -23,9 +23,10 @@ const (
 	zeroSpanHex      = "0000000000000000"
 )
 
-func mapRequest(tenantID int64, req *logspb.ExportLogsServiceRequest) []*schema.Row {
+func mapRequest(tenantID int64, req *logspb.ExportLogsServiceRequest) ([]*schema.Row, []ingestionstats.ResourceUsage) {
 	nowNs := uint64(time.Now().UnixNano())
 	var rows []*schema.Row
+	usage := make([]ingestionstats.ResourceUsage, 0, len(req.GetResourceLogs()))
 	for _, rl := range req.GetResourceLogs() {
 		var resAttrs []*commonpb.KeyValue
 		if rl.Resource != nil {
@@ -34,6 +35,9 @@ func mapRequest(tenantID int64, req *logspb.ExportLogsServiceRequest) []*schema.
 
 		resourceMap := otlp.GetAttrMap()
 		otlp.AttrsToMapInto(resourceMap, resAttrs)
+		rc := newResourceContext(resourceMap)
+		otlp.PutAttrMap(resourceMap)
+		before := len(rows)
 		for _, sl := range rl.GetScopeLogs() {
 			scopeName, scopeVersion := "", ""
 			if sl.GetScope() != nil {
@@ -41,15 +45,68 @@ func mapRequest(tenantID int64, req *logspb.ExportLogsServiceRequest) []*schema.
 				scopeVersion = sl.GetScope().GetVersion()
 			}
 			for _, lr := range sl.GetLogRecords() {
-				rows = append(rows, buildLogRow(tenantID, resourceMap, scopeName, scopeVersion, lr, nowNs))
+				rows = append(rows, buildLogRow(tenantID, rc, scopeName, scopeVersion, lr, nowNs))
 			}
 		}
-		otlp.PutAttrMap(resourceMap)
+		if n := len(rows) - before; n > 0 {
+			usage = append(usage, ingestionstats.ResourceUsage{Service: rc.dims.Service, Environment: rc.dims.Environment, Records: uint64(n)})
+		}
 	}
-	return rows
+	return rows, usage
 }
 
-func buildLogRow(tenantID int64, resource map[string]string, scopeName, scopeVersion string, lr *logv1.LogRecord, nowNs uint64) *schema.Row {
+var resourceFallbackKeys = []string{"service.name", "host.name", "k8s.pod.name", "deployment.environment"}
+
+// resourceContext holds per-ResourceLogs state computed once instead of per
+// log record. res is shared read-only by rows that need no fallback patch;
+// rows are marshaled synchronously in this request and never mutated after.
+type resourceContext struct {
+	res     map[string]string
+	dims    fingerprint.ResourceDimensions
+	missing []string
+}
+
+func newResourceContext(resourceMap map[string]string) resourceContext {
+	res := make(map[string]string, len(resourceMap))
+	for k, v := range resourceMap {
+		res[k] = v
+	}
+	var missing []string
+	for _, k := range resourceFallbackKeys {
+		if res[k] == "" {
+			missing = append(missing, k)
+		}
+	}
+	return resourceContext{res: res, dims: fingerprint.ResolveResource(res), missing: missing}
+}
+
+// resolveResource patches fallback keys from record attrs only when the
+// resource is genuinely missing them, copying the shared map at most once.
+func (rc resourceContext) resolveResource(attrs map[string]string) (map[string]string, fingerprint.ResourceDimensions) {
+	res := rc.res
+	patched := false
+	for _, k := range rc.missing {
+		v := attrs[k]
+		if v == "" {
+			continue
+		}
+		if !patched {
+			m := make(map[string]string, len(rc.res)+len(rc.missing))
+			for k2, v2 := range rc.res {
+				m[k2] = v2
+			}
+			res = m
+			patched = true
+		}
+		res[k] = v
+	}
+	if !patched {
+		return rc.res, rc.dims
+	}
+	return res, fingerprint.ResolveResource(res)
+}
+
+func buildLogRow(tenantID int64, rc resourceContext, scopeName, scopeVersion string, lr *logv1.LogRecord, nowNs uint64) *schema.Row {
 	tsNs := lr.GetTimeUnixNano()
 	if tsNs == 0 {
 		tsNs = lr.GetObservedTimeUnixNano()
@@ -68,8 +125,7 @@ func buildLogRow(tenantID int64, resource map[string]string, scopeName, scopeVer
 		obsmetrics.MapperAttrsDropped.WithLabelValues("logs").Add(float64(dropped))
 	}
 	sevNum := uint32(lr.GetSeverityNumber())
-	res := fillResourceFallbacks(resource, attrStr)
-	dims := fingerprint.ResolveResource(res)
+	res, dims := rc.resolveResource(attrStr)
 
 	traceID := zeroOut(otlp.BytesToHex(lr.GetTraceId()), zeroTraceHex)
 	body := otlp.AnyValueString(lr.GetBody())
@@ -119,13 +175,28 @@ func computeLogID(traceID string, tsNs uint64, body string) string {
 		h *= prime64
 		return h
 	}
+	// Stored IDs: hash inputs and hex format must stay byte-identical to the
+	// old FormatUint + Sprintf("%016x") version. See TestComputeLogID.
+	var tsBuf [20]byte
+	ts := strconv.AppendUint(tsBuf[:0], tsNs, 10)
 	h := offset64
 	h = addStr(h, traceID)
 	h = addByte(h, separatorByte)
-	h = addStr(h, strconv.FormatUint(tsNs, 10))
+	for _, b := range ts {
+		h = addByte(h, b)
+	}
 	h = addByte(h, separatorByte)
 	h = addStr(h, body)
-	return fmt.Sprintf("%016x", h)
+
+	var hexBuf [16]byte
+	hx := strconv.AppendUint(hexBuf[:0], h, 16)
+	var out [16]byte
+	pad := len(out) - len(hx)
+	for i := 0; i < pad; i++ {
+		out[i] = '0'
+	}
+	copy(out[pad:], hx)
+	return string(out[:])
 }
 
 func resolveSeverity(lr *logv1.LogRecord) string {
@@ -193,23 +264,6 @@ func normalizeSeverityText(text string, num uint32) string {
 	default:
 		return "FATAL"
 	}
-}
-
-func fillResourceFallbacks(resource, attrs map[string]string) map[string]string {
-
-	out := make(map[string]string, len(resource))
-	for k, v := range resource {
-		out[k] = v
-	}
-	for _, k := range []string{"service.name", "host.name", "k8s.pod.name", "deployment.environment"} {
-		if out[k] != "" {
-			continue
-		}
-		if v := attrs[k]; v != "" {
-			out[k] = v
-		}
-	}
-	return out
 }
 
 func zeroOut(id, zero string) string {

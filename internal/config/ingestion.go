@@ -11,11 +11,14 @@ type IngestionConfig struct {
 	Metrics        SignalConfig `yaml:"metrics"`
 	MetricSeries   SignalConfig `yaml:"metric_series"`
 	IngestionStats SignalConfig `yaml:"ingestion_stats"`
+	LLMScores      SignalConfig `yaml:"llm_scores"`
 
-	SidePublish           SidePublishConfig `yaml:"side_publish"`
-	ResourceCacheSize     int               `yaml:"resource_cache_size"`
-	APIKeyCacheTTLSeconds int               `yaml:"api_key_cache_ttl_seconds"`
-	APIKeyCacheSize       int               `yaml:"api_key_cache_size"`
+	SidePublish                    SidePublishConfig `yaml:"side_publish"`
+	ResourceCacheSize              int               `yaml:"resource_cache_size"`
+	SeriesRepublishIntervalSeconds int               `yaml:"series_republish_interval_seconds"`
+	APIKeyCacheTTLSeconds          int               `yaml:"api_key_cache_ttl_seconds"`
+	APIKeyCacheSize                int               `yaml:"api_key_cache_size"`
+	StatsFlushIntervalSeconds      int               `yaml:"stats_flush_interval_seconds"`
 }
 
 type SidePublishConfig struct {
@@ -30,6 +33,7 @@ type SignalConfig struct {
 	ConsumerGroup  string `yaml:"consumer_group"`
 }
 
+// SignalDefaults feeds viper's setDefaults, the single source of defaults.
 func SignalDefaults(signal string) SignalConfig {
 	return SignalConfig{
 		Partitions:     8,
@@ -40,66 +44,41 @@ func SignalDefaults(signal string) SignalConfig {
 }
 
 func (c Config) IngestSignal(signal string) SignalConfig {
-	var raw SignalConfig
 	switch signal {
 	case "spans":
-		raw = c.Ingestion.Spans
+		return c.Ingestion.Spans
 	case "logs":
-		raw = c.Ingestion.Logs
+		return c.Ingestion.Logs
 	case "metrics":
-		raw = c.Ingestion.Metrics
+		return c.Ingestion.Metrics
 	case "metric_series":
-		raw = c.Ingestion.MetricSeries
+		return c.Ingestion.MetricSeries
 	case "ingestion_stats":
-		raw = c.Ingestion.IngestionStats
+		return c.Ingestion.IngestionStats
+	case "llm_scores":
+		return c.Ingestion.LLMScores
 	}
-	def := SignalDefaults(signal)
-	if raw.Partitions <= 0 {
-		raw.Partitions = def.Partitions
-	}
-	if raw.Replicas <= 0 {
-		raw.Replicas = def.Replicas
-	}
-	if raw.RetentionHours <= 0 {
-		raw.RetentionHours = def.RetentionHours
-	}
-	if raw.ConsumerGroup == "" {
-		raw.ConsumerGroup = def.ConsumerGroup
-	}
-	return raw
+	return SignalConfig{}
 }
 
-func (c Config) SidePublishQueueSize() int {
-	if n := c.Ingestion.SidePublish.QueueSize; n > 0 {
-		return n
-	}
-	return 4096
-}
+func (c Config) SidePublishQueueSize() int { return c.Ingestion.SidePublish.QueueSize }
 
-func (c Config) SidePublishWorkers() int {
-	if n := c.Ingestion.SidePublish.Workers; n > 0 {
-		return n
-	}
-	return 2
-}
+func (c Config) SidePublishWorkers() int { return c.Ingestion.SidePublish.Workers }
 
-func (c Config) ResourceCacheSize() int {
-	if n := c.Ingestion.ResourceCacheSize; n > 0 {
-		return n
-	}
-	return 500_000
+// Capacity (entries) of the cross-request series-dedup cache.
+func (c Config) ResourceCacheSize() int { return c.Ingestion.ResourceCacheSize }
+
+// How often an active series' metadata row is republished despite dedup.
+func (c Config) SeriesRepublishInterval() time.Duration {
+	return time.Duration(c.Ingestion.SeriesRepublishIntervalSeconds) * time.Second
 }
 
 func (c Config) APIKeyCacheTTL() time.Duration {
-	if seconds := c.Ingestion.APIKeyCacheTTLSeconds; seconds > 0 {
-		return time.Duration(seconds) * time.Second
-	}
-	return 30 * time.Second
+	return time.Duration(c.Ingestion.APIKeyCacheTTLSeconds) * time.Second
 }
 
-func (c Config) APIKeyCacheSize() int {
-	if size := c.Ingestion.APIKeyCacheSize; size > 0 {
-		return size
-	}
-	return 50_000
+func (c Config) APIKeyCacheSize() int { return c.Ingestion.APIKeyCacheSize }
+
+func (c Config) StatsFlushInterval() time.Duration {
+	return time.Duration(c.Ingestion.StatsFlushIntervalSeconds) * time.Second
 }

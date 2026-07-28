@@ -8,6 +8,8 @@ import (
 
 const separatorByte byte = 255
 
+var separator = []byte{separatorByte}
+
 func FingerprintHash(attrs map[string]string) uint64 {
 	if len(attrs) == 0 {
 		return 0
@@ -22,9 +24,9 @@ func FingerprintHash(attrs map[string]string) uint64 {
 	h := xxhash.New()
 	for _, k := range keys {
 		_, _ = h.WriteString(k)
-		_, _ = h.Write([]byte{separatorByte})
+		_, _ = h.Write(separator)
 		_, _ = h.WriteString(attrs[k])
-		_, _ = h.Write([]byte{separatorByte})
+		_, _ = h.Write(separator)
 	}
 	return h.Sum64()
 }

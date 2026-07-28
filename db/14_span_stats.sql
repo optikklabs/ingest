@@ -1,21 +1,21 @@
-                                                                      
-                                                                              
-                                                                          
-                                                                               
-                                                                            
-                                  
-  
-                                                                            
-                                                       
-  
-                                                                                
-                                                                             
-                                  
-  
-                                                                          
-                                                                        
-                                                                               
-                                            
+-- RED span-stats cascade: spans roll up 1m -> 5m -> 1h with every APM
+-- dimension as a real column, replacing the Go spanmetrics aggregator and the
+-- fingerprint join against metrics_series (same pattern as llm_stats_1m).
+-- Latency is a mergeable tDigest state in milliseconds; error counting stays a
+-- read-time predicate on status_code_string / http_status_bucket so readers
+-- keep their own error semantics.
+--
+-- Like the Go aggregator it replaces, the MV aggregates every span (no kind
+-- filter); readers narrow by kind_string where needed.
+--
+-- http_method/rpc_system carry the call's protocol verb so readers can label an
+-- endpoint without parsing span_name, which only encodes the method when the
+-- instrumentation knew the route.
+--
+-- peer_name/peer_type carry the client-side call target, which makes this
+-- cascade the sole source for the service graph (topology.GetEdges) and
+-- replaces the paired CLIENT/SERVER service_graph_edges_1m table. Edge latency
+-- and errors are therefore client-observed.
 
 CREATE TABLE IF NOT EXISTS optikk.span_stats_1m (
     tenant_id                UInt32                 CODEC(T64, ZSTD(1)),
@@ -83,8 +83,8 @@ SELECT
     attributes['cloud.platform']                AS cloud_platform,
     if(attributes['cloud.region'] != '', attributes['cloud.region'], attributes['aws.region']) AS cloud_region,
     attributes['k8s.node.name']                 AS k8s_node,
-                                                                            
-                                                   
+    -- Client-side peer for the service graph; empty on server-side kinds so
+    -- SERVER/CONSUMER rows do not fan out by peer.
     if(kind_string IN ('CLIENT', 'PRODUCER'),
        multiIf(peer_service != '',                             peer_service,
                db_system != '',                                db_system,
@@ -231,5 +231,5 @@ GROUP BY tenant_id, timestamp, service, environment, host, pod, span_name,
          db_system, messaging_system, messaging_destination, messaging_consumer_group,
          cloud_provider, cloud_platform, cloud_region, k8s_node, peer_name, peer_type;
 
-                                                                             
-                                                        
+-- A historical repair inserts bounded rows into span_stats_1m; the 5m and 1h
+-- tiers then populate through their materialized views.

@@ -93,6 +93,13 @@ var (
 		},
 	}, []string{"table", "result"})
 
+	DLQRecordsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "optikk",
+		Subsystem: "ingest",
+		Name:      "dlq_records_total",
+		Help:      "Records published to a DLQ topic, by signal and coarse reason class.",
+	}, []string{"signal", "reason"})
+
 	RecordsLost = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "optikk",
 		Subsystem: "ingest",
@@ -107,6 +114,7 @@ var (
 		Help:      "Consume loops halted after a handler failure to avoid committing past it, by signal.",
 	}, []string{"signal"})
 
+	// ResourceCache* track the cross-request series-dedup cache.
 	ResourceCacheHits = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "optikk",
 		Subsystem: "ingest",
@@ -126,20 +134,6 @@ var (
 		Subsystem: "ingest",
 		Name:      "resource_cache_evictions_total",
 		Help:      "Resource-cache keys evicted by LRU capacity pressure, by signal.",
-	}, []string{"signal"})
-
-	AggregatorKeys = promauto.NewGaugeVec(prometheus.GaugeOpts{
-		Namespace: "optikk",
-		Subsystem: "ingest",
-		Name:      "aggregator_keys",
-		Help:      "Live key count held by an in-memory aggregator, by signal.",
-	}, []string{"signal"})
-
-	AggregatorKeysDropped = promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "optikk",
-		Subsystem: "ingest",
-		Name:      "aggregator_keys_dropped_total",
-		Help:      "Aggregator keys dropped after hitting a cardinality cap, by signal.",
 	}, []string{"signal"})
 
 	ConsumerBatchInsertDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
