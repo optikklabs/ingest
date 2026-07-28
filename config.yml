@@ -58,7 +58,7 @@ ingestion:
     workers: 2
                                                                               
                                                                 
-  resource_cache_size: 500000
+  series_dedup_size: 500000
                                                                        
   api_key_cache_ttl_seconds: 30
                                                                              

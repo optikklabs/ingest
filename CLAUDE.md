@@ -40,7 +40,5 @@ rule 3. Throughput comes from batch size and Kafka partitioning.
 
 ## Gotchas
 
-- OTLP/HTTP does not inflate gzip request bodies; collectors default to gzip
-  and get 400s. Fix the handler before adding features near it.
 - Unknown API keys are negative-cached (15s) in auth; a "missing API key"
   drop can be cache, not config.

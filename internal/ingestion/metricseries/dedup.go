@@ -31,7 +31,7 @@ func NewDedup(capacity int, republishInterval time.Duration) *Dedup {
 		return nil
 	}
 	cache, _ := lru.NewWithEvict(capacity, func(dedupKey, int64) {
-		obsmetrics.ResourceCacheEvictions.WithLabelValues(signalLabel).Inc()
+		obsmetrics.SeriesDedupEvictions.WithLabelValues(signalLabel).Inc()
 	})
 	return &Dedup{bucketSecs: int64(republishInterval / time.Second), cache: cache}
 }
@@ -58,10 +58,10 @@ func (d *Dedup) FilterUnpublished(rows []*schema.SeriesRow, bucket int64) []*sch
 		out = append(out, r)
 	}
 	if hits := len(rows) - len(out); hits > 0 {
-		obsmetrics.ResourceCacheHits.WithLabelValues(signalLabel).Add(float64(hits))
+		obsmetrics.SeriesDedupHits.WithLabelValues(signalLabel).Add(float64(hits))
 	}
 	if len(out) > 0 {
-		obsmetrics.ResourceCacheMisses.WithLabelValues(signalLabel).Add(float64(len(out)))
+		obsmetrics.SeriesDedupMisses.WithLabelValues(signalLabel).Add(float64(len(out)))
 	}
 	return out
 }

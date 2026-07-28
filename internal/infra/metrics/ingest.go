@@ -121,26 +121,25 @@ var (
 		Help:      "Batches whose handler failed; offsets commit anyway (accepted loss), by signal.",
 	}, []string{"signal"})
 
-	// ResourceCache* track the cross-request series-dedup cache.
-	ResourceCacheHits = promauto.NewCounterVec(prometheus.CounterOpts{
+	SeriesDedupHits = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "optikk",
 		Subsystem: "ingest",
-		Name:      "resource_cache_hits_total",
-		Help:      "Resource-cache lookups that matched an existing key+bucket, by signal.",
+		Name:      "series_dedup_hits_total",
+		Help:      "Series-dedup lookups that matched an existing key+bucket, by signal.",
 	}, []string{"signal"})
 
-	ResourceCacheMisses = promauto.NewCounterVec(prometheus.CounterOpts{
+	SeriesDedupMisses = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "optikk",
 		Subsystem: "ingest",
-		Name:      "resource_cache_misses_total",
-		Help:      "Resource-cache lookups that were new or changed bucket, by signal.",
+		Name:      "series_dedup_misses_total",
+		Help:      "Series-dedup lookups that were new or changed bucket, by signal.",
 	}, []string{"signal"})
 
-	ResourceCacheEvictions = promauto.NewCounterVec(prometheus.CounterOpts{
+	SeriesDedupEvictions = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "optikk",
 		Subsystem: "ingest",
-		Name:      "resource_cache_evictions_total",
-		Help:      "Resource-cache keys evicted by LRU capacity pressure, by signal.",
+		Name:      "series_dedup_evictions_total",
+		Help:      "Series-dedup keys evicted by LRU capacity pressure, by signal.",
 	}, []string{"signal"})
 
 	ConsumerBatchInsertDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{

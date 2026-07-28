@@ -13,7 +13,8 @@ CREATE TABLE IF NOT EXISTS optikk.logs (
 
     severity_text        LowCardinality(String) CODEC(ZSTD(1)),
     severity_number      UInt8 DEFAULT 0,
-    severity_bucket      UInt8 CODEC(T64, ZSTD(1)),
+    -- OTel severity ladder: 0 unset, then one bucket per 4 numbers up to FATAL.
+    severity_bucket      UInt8 MATERIALIZED if(severity_number = 0, 0, least(intDiv(severity_number - 1, 4), 5)) CODEC(T64, ZSTD(1)),
     attributes_string    Map(LowCardinality(String), String) CODEC(ZSTD(1)),
     attributes_number    Map(LowCardinality(String), Float64) CODEC(ZSTD(1)),
     attributes_bool      Map(LowCardinality(String), Bool) CODEC(ZSTD(1)),
@@ -23,8 +24,8 @@ CREATE TABLE IF NOT EXISTS optikk.logs (
     trace_flags          UInt32 DEFAULT 0,
     body                 String CODEC(ZSTD(2)),
     resource             Map(LowCardinality(String), String) CODEC(ZSTD(1)),
-    scope_name           String CODEC(ZSTD(1)),
-    scope_version        String CODEC(ZSTD(1)),
+    scope_name           LowCardinality(String) CODEC(ZSTD(1)),
+    scope_version        LowCardinality(String) CODEC(ZSTD(1)),
 
     INDEX idx_trace_id     trace_id     TYPE bloom_filter(0.01)        GRANULARITY 1,
     INDEX idx_log_id       log_id       TYPE bloom_filter(0.01)        GRANULARITY 4,
@@ -42,8 +43,9 @@ SETTINGS
     storage_policy = 'tiered',
     index_granularity = 8192,
     min_bytes_for_wide_part = 10485760,
-    -- Insert-block dedup for Kafka redelivery. The non_replicated_* variant
-    -- is a no-op on Replicated engines; live cluster: ALTER ... MODIFY SETTING.
+    -- Dedup window matched by the consumer's insert_deduplication_token
+    -- (hash of the batch's partition/offset spans). Catches same-boundary
+    -- Kafka redelivery only; different boundaries duplicate (accepted).
     replicated_deduplication_window = 10000,
     replicated_deduplication_window_seconds = 3600,
     ttl_only_drop_parts = 1;

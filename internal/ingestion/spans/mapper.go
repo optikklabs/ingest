@@ -4,7 +4,6 @@ import (
 	"github.com/optikklabs/ingest/internal/infra/fingerprint"
 	obsmetrics "github.com/optikklabs/ingest/internal/infra/metrics"
 	"github.com/optikklabs/ingest/internal/infra/otlp"
-	"github.com/optikklabs/ingest/internal/infra/timebucket"
 	"github.com/optikklabs/ingest/internal/ingestion/ingestionstats"
 	"github.com/optikklabs/ingest/internal/ingestion/spans/schema"
 	tracepb "go.opentelemetry.io/proto/otlp/collector/trace/v1"
@@ -12,12 +11,7 @@ import (
 	trace "go.opentelemetry.io/proto/otlp/trace/v1"
 )
 
-const (
-	nsPerSecond       = 1_000_000_000
-	maxSpanAttributes = 128
-	zeroTraceHex      = "00000000000000000000000000000000"
-	zeroSpanHex       = "0000000000000000"
-)
+const maxSpanAttributes = 128
 
 func mapRequest(tenantID int64, req *tracepb.ExportTraceServiceRequest) ([]*schema.Row, []ingestionstats.ResourceUsage) {
 	spanCount := 0
@@ -70,7 +64,6 @@ func resourceBaseAttrs(resMap map[string]string) map[string]string {
 
 func buildSpanRow(tenantID int64, baseAttrs map[string]string, dims fingerprint.ResourceDimensions, s *trace.Span) *schema.Row {
 	timestampNs := s.GetStartTimeUnixNano()
-	tsBucket := timebucket.BucketStart(int64(timestampNs / nsPerSecond))
 
 	statusMsg := ""
 	statusCode := trace.Status_STATUS_CODE_UNSET
@@ -89,21 +82,18 @@ func buildSpanRow(tenantID int64, baseAttrs map[string]string, dims fingerprint.
 	gen := extractGenAI(spanMap, spanDuration(s))
 
 	return &schema.Row{
-		TsBucket:            uint64(tsBucket),
 		TenantId:            uint32(tenantID),
 		TimestampNs:         int64(timestampNs),
-		TraceId:             zeroOut(otlp.BytesToHex(s.GetTraceId()), zeroTraceHex),
-		SpanId:              zeroOut(otlp.BytesToHex(s.GetSpanId()), zeroSpanHex),
-		ParentSpanId:        zeroOut(otlp.BytesToHex(s.GetParentSpanId()), zeroSpanHex),
+		TraceId:             otlp.BytesToHex(s.GetTraceId()),
+		SpanId:              otlp.BytesToHex(s.GetSpanId()),
+		ParentSpanId:        otlp.BytesToHex(s.GetParentSpanId()),
 		TraceState:          s.GetTraceState(),
 		Flags:               s.GetFlags(),
 		Name:                s.GetName(),
 		Kind:                int32(s.GetKind()),
-		KindString:          spanKindString(s.GetKind()),
 		DurationNano:        spanDuration(s),
 		HasError:            statusCode == trace.Status_STATUS_CODE_ERROR,
 		StatusCode:          int32(statusCode),
-		StatusCodeString:    statusCodeString(statusCode),
 		StatusMessage:       statusMsg,
 		HttpUrl:             httpURL,
 		HttpMethod:          httpMethod,
@@ -211,41 +201,6 @@ func serializeLinks(links []*trace.Span_Link) []*schema.Row_SpanLink {
 		})
 	}
 	return out
-}
-
-func spanKindString(k trace.Span_SpanKind) string {
-	switch k {
-	case trace.Span_SPAN_KIND_INTERNAL:
-		return "INTERNAL"
-	case trace.Span_SPAN_KIND_SERVER:
-		return "SERVER"
-	case trace.Span_SPAN_KIND_CLIENT:
-		return "CLIENT"
-	case trace.Span_SPAN_KIND_PRODUCER:
-		return "PRODUCER"
-	case trace.Span_SPAN_KIND_CONSUMER:
-		return "CONSUMER"
-	default:
-		return "UNSPECIFIED"
-	}
-}
-
-func statusCodeString(c trace.Status_StatusCode) string {
-	switch c {
-	case trace.Status_STATUS_CODE_OK:
-		return "OK"
-	case trace.Status_STATUS_CODE_ERROR:
-		return "ERROR"
-	default:
-		return "UNSET"
-	}
-}
-
-func zeroOut(id, zero string) string {
-	if id == zero {
-		return ""
-	}
-	return id
 }
 
 func firstNonEmpty(m map[string]string, keys ...string) string {

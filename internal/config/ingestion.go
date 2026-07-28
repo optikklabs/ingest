@@ -14,7 +14,7 @@ type IngestionConfig struct {
 	LLMScores      SignalConfig `yaml:"llm_scores"`
 
 	SidePublish                    SidePublishConfig `yaml:"side_publish"`
-	ResourceCacheSize              int               `yaml:"resource_cache_size"`
+	SeriesDedupSize                int               `yaml:"series_dedup_size"`
 	SeriesRepublishIntervalSeconds int               `yaml:"series_republish_interval_seconds"`
 	APIKeyCacheTTLSeconds          int               `yaml:"api_key_cache_ttl_seconds"`
 	APIKeyCacheSize                int               `yaml:"api_key_cache_size"`
@@ -66,7 +66,7 @@ func (c Config) SidePublishQueueSize() int { return c.Ingestion.SidePublish.Queu
 func (c Config) SidePublishWorkers() int { return c.Ingestion.SidePublish.Workers }
 
 // Capacity (entries) of the cross-request series-dedup cache.
-func (c Config) ResourceCacheSize() int { return c.Ingestion.ResourceCacheSize }
+func (c Config) SeriesDedupSize() int { return c.Ingestion.SeriesDedupSize }
 
 // How often an active series' metadata row is republished despite dedup.
 func (c Config) SeriesRepublishInterval() time.Duration {

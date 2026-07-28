@@ -15,17 +15,6 @@ func TypedAttrs(kvs []*commonpb.KeyValue, maxStringKeys int) (
 	strMap = make(map[string]string, len(kvs))
 	numMap = make(map[string]float64)
 	boolMap = make(map[string]bool)
-	dropped = TypedAttrsInto(kvs, maxStringKeys, strMap, numMap, boolMap)
-	return
-}
-
-func TypedAttrsInto(
-	kvs []*commonpb.KeyValue,
-	maxStringKeys int,
-	strMap map[string]string,
-	numMap map[string]float64,
-	boolMap map[string]bool,
-) int {
 	for _, kv := range kvs {
 		if kv == nil || kv.Value == nil {
 			continue
@@ -44,9 +33,9 @@ func TypedAttrsInto(
 		}
 	}
 	if maxStringKeys > 0 && len(strMap) > maxStringKeys {
-		return CapStringMap(strMap, maxStringKeys)
+		dropped = CapStringMap(strMap, maxStringKeys)
 	}
-	return 0
+	return
 }
 
 func CapStringMap(strMap map[string]string, max int) int {

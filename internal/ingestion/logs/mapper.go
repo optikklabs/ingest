@@ -22,8 +22,6 @@ import (
 const (
 	nsPerSecond      = 1_000_000_000
 	maxLogAttributes = 128
-	zeroTraceHex     = "00000000000000000000000000000000"
-	zeroSpanHex      = "0000000000000000"
 )
 
 func mapRequest(tenantID int64, req *logspb.ExportLogsServiceRequest) ([]*schema.Row, []ingestionstats.ResourceUsage) {
@@ -127,7 +125,7 @@ func buildLogRow(tenantID int64, rc resourceContext, scopeName, scopeVersion str
 	sevNum := uint32(lr.GetSeverityNumber())
 	res, dims := rc.resolveResource(attrStr)
 
-	traceID := zeroOut(otlp.BytesToHex(lr.GetTraceId()), zeroTraceHex)
+	traceID := otlp.BytesToHex(lr.GetTraceId())
 	body := otlp.AnyValueString(lr.GetBody())
 	logID := computeLogID(traceID, tsNs, body)
 
@@ -137,9 +135,9 @@ func buildLogRow(tenantID int64, rc resourceContext, scopeName, scopeVersion str
 		TimestampNs:         int64(tsNs),
 		ObservedTimestampNs: observedNs,
 		TraceId:             traceID,
-		SpanId:              zeroOut(otlp.BytesToHex(lr.GetSpanId()), zeroSpanHex),
+		SpanId:              otlp.BytesToHex(lr.GetSpanId()),
 		TraceFlags:          lr.GetFlags(),
-		SeverityText:        normalizeSeverityText(resolveSeverity(lr), sevNum),
+		SeverityText:        resolveSeverity(lr),
 		SeverityNumber:      sevNum,
 		Body:                body,
 		AttributesString:    attrStr,
@@ -169,76 +167,28 @@ func computeLogID(traceID string, tsNs uint64, body string) string {
 	return fmt.Sprintf("%016x", h.Sum64())
 }
 
+// resolveSeverity prefers the record's text, falling back to the numeric
+// level; the result is always trimmed and upper-cased.
 func resolveSeverity(lr *logv1.LogRecord) string {
-	if s := lr.GetSeverityText(); s != "" {
+	if s := strings.ToUpper(strings.TrimSpace(lr.GetSeverityText())); s != "" {
 		return s
 	}
-	return severityNumberToLevel(lr.GetSeverityNumber())
-}
-
-func severityBucketFor(severityNumber uint32) uint8 {
+	n := int(lr.GetSeverityNumber())
 	switch {
-	case severityNumber >= 21:
-		return 5
-	case severityNumber >= 17:
-		return 4
-	case severityNumber >= 13:
-		return 3
-	case severityNumber >= 9:
-		return 2
-	case severityNumber >= 5:
-		return 1
-	default:
-		return 0
-	}
-}
-
-func severityNumberToLevel(n logv1.SeverityNumber) string {
-	v := int(n)
-	switch {
-	case v <= 0:
+	case n <= 0:
 		return "UNSET"
-	case v <= 4:
+	case n <= 4:
 		return "TRACE"
-	case v <= 8:
+	case n <= 8:
 		return "DEBUG"
-	case v <= 12:
+	case n <= 12:
 		return "INFO"
-	case v <= 16:
+	case n <= 16:
 		return "WARN"
-	case v <= 20:
+	case n <= 20:
 		return "ERROR"
 	default:
 		return "FATAL"
 	}
 }
 
-func normalizeSeverityText(text string, num uint32) string {
-	t := strings.ToUpper(strings.TrimSpace(text))
-	if t != "" {
-		return t
-	}
-	switch {
-	case num == 0:
-		return "UNSET"
-	case num <= 4:
-		return "TRACE"
-	case num <= 8:
-		return "DEBUG"
-	case num <= 12:
-		return "INFO"
-	case num <= 16:
-		return "WARN"
-	case num <= 20:
-		return "ERROR"
-	default:
-		return "FATAL"
-	}
-}
-
-func zeroOut(id, zero string) string {
-	if id == zero {
-		return ""
-	}
-	return id
-}

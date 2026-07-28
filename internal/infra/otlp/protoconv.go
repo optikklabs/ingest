@@ -77,9 +77,12 @@ func AttrsToMap(kvs []*commonpb.KeyValue) map[string]string {
 	return m
 }
 
+// BytesToHex treats all-zero IDs as absent, matching OTLP invalid-ID semantics.
 func BytesToHex(b []byte) string {
-	if len(b) > 0 {
-		return hex.EncodeToString(b)
+	for _, c := range b {
+		if c != 0 {
+			return hex.EncodeToString(b)
+		}
 	}
 	return ""
 }

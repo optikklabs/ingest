@@ -8,13 +8,23 @@ CREATE TABLE IF NOT EXISTS optikk.spans (
     flags                                 UInt32          CODEC(T64, ZSTD(1)),
     name                                  LowCardinality(String) CODEC(ZSTD(1)),
     kind                                  Int8            CODEC(T64, ZSTD(1)),
-    kind_string                           LowCardinality(String) CODEC(ZSTD(1)),
+    kind_string                           LowCardinality(String) MATERIALIZED multiIf(
+                                              kind = 1, 'INTERNAL',
+                                              kind = 2, 'SERVER',
+                                              kind = 3, 'CLIENT',
+                                              kind = 4, 'PRODUCER',
+                                              kind = 5, 'CONSUMER',
+                                              'UNSPECIFIED') CODEC(ZSTD(1)),
     duration_nano                         UInt64          CODEC(T64, ZSTD(1)),
     has_error                             Bool            CODEC(T64, ZSTD(1)),
     status_code                           Int16           CODEC(T64, ZSTD(1)),
-    status_code_string                    LowCardinality(String) CODEC(ZSTD(1)),
+    status_code_string                    LowCardinality(String) MATERIALIZED multiIf(
+                                              status_code = 1, 'OK',
+                                              status_code = 2, 'ERROR',
+                                              'UNSET') CODEC(ZSTD(1)),
     status_message                        String          CODEC(ZSTD(1)),
-    http_url                              LowCardinality(String) CODEC(ZSTD(1)),
+    -- Full URLs are unbounded-cardinality; LowCardinality would bloat here.
+    http_url                              String          CODEC(ZSTD(1)),
     http_method                           LowCardinality(String) CODEC(ZSTD(1)),
     http_host                             LowCardinality(String) CODEC(ZSTD(1)),
     response_status_code                  LowCardinality(String) CODEC(ZSTD(1)),
@@ -84,8 +94,9 @@ SETTINGS
     storage_policy = 'tiered',
     index_granularity = 8192,
     min_bytes_for_wide_part = 10485760,
-    -- Insert-block dedup for Kafka redelivery. The non_replicated_* variant
-    -- is a no-op on Replicated engines; live cluster: ALTER ... MODIFY SETTING.
+    -- Dedup window matched by the consumer's insert_deduplication_token
+    -- (hash of the batch's partition/offset spans). Catches same-boundary
+    -- Kafka redelivery only; different boundaries duplicate (accepted).
     replicated_deduplication_window = 10000,
     replicated_deduplication_window_seconds = 3600,
     ttl_only_drop_parts = 1;

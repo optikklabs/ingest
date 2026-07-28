@@ -21,8 +21,9 @@ SETTINGS
     index_granularity = 8192,
     min_bytes_for_wide_part = 10485760,
     enable_mixed_granularity_parts = 1,
-    -- Insert-block dedup for Kafka redelivery. The non_replicated_* variant
-    -- is a no-op on Replicated engines; live cluster: ALTER ... MODIFY SETTING.
+    -- Dedup window matched by the consumer's insert_deduplication_token
+    -- (hash of the batch's partition/offset spans). Catches same-boundary
+    -- Kafka redelivery only; different boundaries duplicate (accepted).
     replicated_deduplication_window = 10000,
     replicated_deduplication_window_seconds = 3600,
     ttl_only_drop_parts = 1;

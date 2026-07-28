@@ -20,7 +20,6 @@ type rowHeader struct {
 	resMap   map[string]string
 	resource fingerprint.ResourceDimensions
 
-
 	hostResAttrs map[string]string
 }
 
@@ -199,11 +198,7 @@ func summaryRow(hdr rowHeader, m *metricsdatapb.Metric, dp *metricsdatapb.Summar
 	return row, series
 }
 
-func scalarRow(hdr rowHeader, m *metricsdatapb.Metric, name, metricType, temporality string, isMonotonic bool, tsNs int64, attrs map[string]string, value float64) (*schema.Row, *seriesschema.SeriesRow) {
-	return baseRow(hdr, m, name, metricType, temporality, isMonotonic, tsNs, attrs, value)
-}
-
-func baseRow(
+func scalarRow(
 	hdr rowHeader, m *metricsdatapb.Metric, name string,
 	metricType, temporality string, isMonotonic bool,
 	tsNs int64, attrs map[string]string,

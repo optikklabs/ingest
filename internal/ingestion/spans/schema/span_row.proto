@@ -6,7 +6,8 @@ option go_package = "github.com/optikklabs/ingest/internal/ingestion/spans/schem
 
                                                                                              
 message Row {
-  uint64 ts_bucket = 1;
+  reserved 1;
+  reserved "ts_bucket";
   uint32 tenant_id = 2;
   int64  timestamp_ns = 3;
   string trace_id = 4;
@@ -15,14 +16,16 @@ message Row {
   string trace_state = 7;
   uint32 flags = 8;
   string name = 9;
-  int32  kind = 10;              
-  string kind_string = 11;
+  int32  kind = 10;
+  reserved 11;
+  reserved "kind_string";
   uint64 duration_nano = 12;
   bool   has_error = 13;
-  reserved 14;                   
+  reserved 14;
   reserved "is_remote";
-  int32  status_code = 15;       
-  string status_code_string = 16;
+  int32  status_code = 15;
+  reserved 16;
+  reserved "status_code_string";
   string status_message = 17;
   string http_url = 18;
   string http_method = 19;

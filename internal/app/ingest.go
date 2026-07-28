@@ -59,16 +59,22 @@ type signalWireInput struct {
 
 func newStatsProducer(in signalWireInput) *core.Producer[*statsschema.StatRow] {
 	topic := kafkainfra.IngestTopic(in.topicPrefix, kafkainfra.SignalIngestionStats)
-	return core.NewProducer[*statsschema.StatRow](topic, in.producerBase).
-		WithKeyFunc(func(r *statsschema.StatRow) []byte {
-			b := make([]byte, 4)
-			binary.BigEndian.PutUint32(b, r.GetTenantId())
-			return b
-		})
+	return core.NewProducer[*statsschema.StatRow](topic, in.producerBase)
+}
+
+// fingerprintKey spreads metric rows across partitions; tenant keying would
+// funnel a whole tenant through one partition and cap it at one consumer.
+func fingerprintKey(fingerprint uint64) []byte {
+	b := make([]byte, 8)
+	binary.BigEndian.PutUint64(b, fingerprint)
+	return b
 }
 
 func wireSpans(in signalWireInput) (registry.Module, ConsumerRunner) {
-	producer := core.NewProducer[*spansschema.Row](in.ingestTopic, in.producerBase)
+	// Trace-keyed so a whole trace stays on one partition while a tenant's
+	// volume spreads across all of them.
+	producer := core.NewProducer[*spansschema.Row](in.ingestTopic, in.producerBase).
+		WithKeyFunc(func(r *spansschema.Row) []byte { return []byte(r.GetTraceId()) })
 
 	scoresTopic := kafkainfra.IngestTopic(in.topicPrefix, kafkainfra.SignalLLMScores)
 	scoresProducer := core.NewProducer[*llmscoresschema.ScoreRow](scoresTopic, in.producerBase).WithKeyFunc(func(r *llmscoresschema.ScoreRow) []byte {
@@ -88,7 +94,8 @@ func wireSpans(in signalWireInput) (registry.Module, ConsumerRunner) {
 }
 
 func wireLogs(in signalWireInput) (registry.Module, ConsumerRunner) {
-	producer := core.NewProducer[*logsschema.Row](in.ingestTopic, in.producerBase)
+	producer := core.NewProducer[*logsschema.Row](in.ingestTopic, in.producerBase).
+		WithKeyFunc(func(r *logsschema.Row) []byte { return []byte(r.GetLogId()) })
 
 	dataWriter := logsignal.NewDataWriter(in.ch)
 	dlq := core.NewDLQ(in.producerBase, in.dlqTopic, kafkainfra.SignalLogs)
@@ -101,9 +108,11 @@ func wireLogs(in signalWireInput) (registry.Module, ConsumerRunner) {
 
 func wireMetrics(seriesDedup *metricseries.Dedup) func(signalWireInput) (registry.Module, ConsumerRunner) {
 	return func(in signalWireInput) (registry.Module, ConsumerRunner) {
-		metricsProducer := core.NewProducer[*metricsschema.Row](in.ingestTopic, in.producerBase)
+		metricsProducer := core.NewProducer[*metricsschema.Row](in.ingestTopic, in.producerBase).
+			WithKeyFunc(func(r *metricsschema.Row) []byte { return fingerprintKey(r.GetFingerprint()) })
 		seriesTopic := kafkainfra.IngestTopic(in.topicPrefix, kafkainfra.SignalMetricSeries)
-		seriesProducer := core.NewProducer[*metricseriesschema.SeriesRow](seriesTopic, in.producerBase)
+		seriesProducer := core.NewProducer[*metricseriesschema.SeriesRow](seriesTopic, in.producerBase).
+			WithKeyFunc(func(r *metricseriesschema.SeriesRow) []byte { return fingerprintKey(r.GetFingerprint()) })
 
 		writer := metricsignal.NewMetricsClickHouseWriter(in.ch)
 		dlq := core.NewDLQ(in.producerBase, in.dlqTopic, kafkainfra.SignalMetrics)
@@ -157,7 +166,7 @@ func buildIngest(cfg config.Config, ch clickhouse.Conn) (ingestBundle, error) {
 		{signal: kafkainfra.SignalSpans, cfg: cfg.IngestSignal("spans"), wire: wireSpans},
 		{signal: kafkainfra.SignalLogs, cfg: cfg.IngestSignal("logs"), wire: wireLogs},
 
-		{signal: kafkainfra.SignalMetrics, cfg: cfg.IngestSignal("metrics"), wire: wireMetrics(metricseries.NewDedup(cfg.ResourceCacheSize(), cfg.SeriesRepublishInterval()))},
+		{signal: kafkainfra.SignalMetrics, cfg: cfg.IngestSignal("metrics"), wire: wireMetrics(metricseries.NewDedup(cfg.SeriesDedupSize(), cfg.SeriesRepublishInterval()))},
 		{signal: kafkainfra.SignalMetricSeries, cfg: cfg.IngestSignal("metric_series"), wire: insertOnly(metricseries.NewClickHouseWriter, newRow[metricseriesschema.SeriesRow])},
 		{signal: kafkainfra.SignalIngestionStats, cfg: cfg.IngestSignal("ingestion_stats"), wire: insertOnly(ingestionstats.NewClickHouseWriter, newRow[statsschema.StatRow])},
 		{signal: kafkainfra.SignalLLMScores, cfg: cfg.IngestSignal("llm_scores"), wire: insertOnly(llmscores.NewClickHouseWriter, newRow[llmscoresschema.ScoreRow])},

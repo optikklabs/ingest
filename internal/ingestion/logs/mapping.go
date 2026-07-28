@@ -13,7 +13,7 @@ const chTableData = "optikk.logs"
 var chColumnsData = []string{
 	"tenant_id", "ts_bucket", "trace_id", "log_id", "timestamp",
 	"service", "environment", "host", "pod", "container",
-	"severity_text", "severity_number", "severity_bucket",
+	"severity_text", "severity_number",
 	"attributes_string", "attributes_number", "attributes_bool",
 	"observed_timestamp", "span_id", "trace_flags",
 	"body", "resource", "scope_name", "scope_version",
@@ -36,15 +36,14 @@ func rowDataValues(r *schema.Row, dst []any) {
 	dst[9] = r.GetContainer()
 	dst[10] = r.GetSeverityText()
 	dst[11] = uint8(r.GetSeverityNumber())
-	dst[12] = severityBucketFor(r.GetSeverityNumber())
-	dst[13] = r.GetAttributesString()
-	dst[14] = r.GetAttributesNumber()
-	dst[15] = r.GetAttributesBool()
-	dst[16] = r.GetObservedTimestampNs()
-	dst[17] = r.GetSpanId()
-	dst[18] = r.GetTraceFlags()
-	dst[19] = r.GetBody()
-	dst[20] = r.GetResource()
-	dst[21] = r.GetScopeName()
-	dst[22] = r.GetScopeVersion()
+	dst[12] = r.GetAttributesString()
+	dst[13] = r.GetAttributesNumber()
+	dst[14] = r.GetAttributesBool()
+	dst[15] = r.GetObservedTimestampNs()
+	dst[16] = r.GetSpanId()
+	dst[17] = r.GetTraceFlags()
+	dst[18] = r.GetBody()
+	dst[19] = r.GetResource()
+	dst[20] = r.GetScopeName()
+	dst[21] = r.GetScopeVersion()
 }
