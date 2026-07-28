@@ -50,7 +50,6 @@ func (a *App) Start(ctx context.Context) error {
 	return normalizeRunError(err)
 }
 
-// runAddContextCancelActor shuts down the run group when ctx is cancelled.
 func runAddContextCancelActor(g *run.Group, ctx context.Context) {
 	ctx, cancel := context.WithCancel(ctx)
 	g.Add(func() error { <-ctx.Done(); return ctx.Err() },

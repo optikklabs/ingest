@@ -13,8 +13,6 @@ import (
 
 const apiKeyHeader = "x-api-key"
 
-// UnaryInterceptor authenticates unary OTLP RPCs and binds team IDs to the
-// context, serving as the single team-resolution site for ingest.
 func UnaryInterceptor(resolver TeamResolver) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req any, _ *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 		tenantID, err := resolveFromContext(ctx, resolver)

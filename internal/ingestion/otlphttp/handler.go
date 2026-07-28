@@ -1,5 +1,3 @@
-// Package otlphttp adapts the three OTLP Export RPCs to the OTLP/HTTP wire
-// protocol while preserving the same API-key authentication as gRPC.
 package otlphttp
 
 import (
@@ -8,6 +6,7 @@ import (
 	"io"
 	"mime"
 	"net/http"
+	"sync"
 
 	"github.com/optikklabs/ingest/internal/auth"
 	"google.golang.org/grpc/codes"
@@ -19,6 +18,9 @@ import (
 const maxBodyBytes = 16 << 20
 
 func Export[Req proto.Message, Resp proto.Message](resolver auth.TeamResolver, newReq func() Req, export func(context.Context, Req) (Resp, error)) http.HandlerFunc {
+	pool := sync.Pool{
+		New: func() any { return newReq() },
+	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			w.Header().Set("Allow", http.MethodPost)
@@ -43,7 +45,11 @@ func Export[Req proto.Message, Resp proto.Message](resolver auth.TeamResolver, n
 			http.Error(w, "unsupported OTLP content type", http.StatusUnsupportedMediaType)
 			return
 		}
-		req := newReq()
+		req := pool.Get().(Req)
+		defer func() {
+			proto.Reset(req)
+			pool.Put(req)
+		}()
 		body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxBodyBytes))
 		if err != nil {
 			http.Error(w, "request body too large", http.StatusRequestEntityTooLarge)

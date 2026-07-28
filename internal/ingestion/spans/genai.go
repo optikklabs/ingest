@@ -7,11 +7,8 @@ import (
 	"unicode/utf8"
 )
 
-// maxGenAIContentBytes caps promoted prompt/completion content per span.
 const maxGenAIContentBytes = 16 * 1024
 
-// genAI holds span fields promoted from OTel gen_ai.* semconv attributes plus
-// LLM Observability context (user/session/tags/prompt) from gen_ai / langfuse.
 type genAI struct {
 	System        string
 	Operation     string
@@ -29,12 +26,10 @@ type genAI struct {
 	Release       string
 	PromptName    string
 	PromptVersion uint32
-	// span | generation | event | eval — the observation kind for the UI tree.
+
 	SpanKind string
 }
 
-// extractGenAI promotes gen_ai.* attrs; legacy prompt/completion token keys
-// are accepted as fallbacks for older instrumentations.
 func extractGenAI(spanMap map[string]string, durationNano uint64) genAI {
 	g := genAI{
 		System:        spanMap["gen_ai.system"],
@@ -58,9 +53,6 @@ func extractGenAI(spanMap map[string]string, durationNano uint64) genAI {
 	return g
 }
 
-// genAISpanKind classifies a span into the Langfuse-style observation kind.
-// Explicit attributes win; otherwise a model presence / zero-duration heuristic
-// distinguishes generation vs event vs span.
 func genAISpanKind(spanMap map[string]string, g genAI, durationNano uint64) string {
 	if !g.Present {
 		return ""
@@ -84,7 +76,6 @@ func genAISpanKind(spanMap map[string]string, g genAI, durationNano uint64) stri
 	}
 }
 
-// parseTags accepts either a JSON string array or a comma-separated list.
 func parseTags(v string) []string {
 	if v == "" {
 		return nil
@@ -111,8 +102,6 @@ func nonEmptyTrimmed(in []string) []string {
 	return out
 }
 
-// normalizeGenAIOperation buckets semconv operation names into the kinds the
-// LLM Observability UI groups by: chat, tool, embedding, retrieval, agent.
 func normalizeGenAIOperation(op string) string {
 	switch op {
 	case "":
@@ -132,7 +121,6 @@ func normalizeGenAIOperation(op string) string {
 	}
 }
 
-// capUTF8 truncates s to at most max bytes without splitting a rune.
 func capUTF8(s string, max int) string {
 	if len(s) <= max {
 		return s

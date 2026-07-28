@@ -1,9 +1,9 @@
--- Trace-level rollup of LLM activity. One row per (tenant, day, trace).
--- Powers the Traces list, Sessions (GROUP BY session_id) and Users
--- (GROUP BY user_id) tabs without scanning raw spans per page load.
--- Forward-looking: only captures traces ingested after the MV is created.
--- A trace that crosses midnight yields two rows; query-time GROUP BY trace_id
--- with the same merge functions re-stitches it.
+                                                                        
+                                                                   
+                                                                    
+                                                                          
+                                                                              
+                                                
 
 CREATE TABLE IF NOT EXISTS optikk.llm_traces (
     tenant_id     UInt32          CODEC(T64, ZSTD(1)),

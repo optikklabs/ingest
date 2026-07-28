@@ -3,7 +3,6 @@ package auth
 import (
 	"context"
 	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"time"
 
@@ -16,13 +15,12 @@ var (
 	ErrMissingAPIKey   = errors.New("missing API key")
 	ErrInvalidAPIKey   = errors.New("invalid API key")
 	ErrAuthRateLimited = errors.New("authentication rate limited")
-	ErrResolveFailed   = errors.New("failed to resolve team")
 )
 
 const (
 	defaultCacheTTL  = 30 * time.Second
 	defaultCacheSize = 50_000
-	// Short so a key tried before its team exists recovers quickly.
+
 	negativeCacheTTL = 15 * time.Second
 	coldLookupRate   = 200
 	coldLookupBurst  = 400
@@ -34,7 +32,6 @@ type cacheEntry struct {
 	expiresAt time.Time
 }
 
-// TeamResolver turns an OTLP API key into the owning team id.
 type TeamResolver interface {
 	ResolveTenantID(ctx context.Context, apiKey string) (int64, error)
 }
@@ -45,7 +42,7 @@ type TeamFinder interface {
 
 type Authenticator struct {
 	finder        TeamFinder
-	cache         *lru.Cache[string, cacheEntry]
+	cache         *lru.Cache[[32]byte, cacheEntry]
 	group         singleflight.Group
 	lookupLimiter *rate.Limiter
 	ttl           time.Duration
@@ -62,7 +59,7 @@ func newAuthenticator(finder TeamFinder, ttl time.Duration, cacheSize int, looku
 	if cacheSize <= 0 {
 		cacheSize = defaultCacheSize
 	}
-	cache, err := lru.New[string, cacheEntry](cacheSize)
+	cache, err := lru.New[[32]byte, cacheEntry](cacheSize)
 	if err != nil {
 		panic("auth cache: " + err.Error())
 	}
@@ -78,14 +75,13 @@ func (a *Authenticator) ResolveTenantID(ctx context.Context, apiKey string) (int
 	if apiKey == "" {
 		return 0, ErrMissingAPIKey
 	}
-	// Hash once per request; the digest keys the cache, singleflight, and store.
+
 	cacheKey := apiKeyCacheKey(apiKey)
 	if entry, ok := a.lookupCache(cacheKey); ok {
 		return entry.tenantID, entry.err
 	}
-	// Collapse concurrent lookups for the same cold key into one DB call so a
-	// traffic spike on an uncached key can't stampede the auth database.
-	v, err, _ := a.group.Do(cacheKey, func() (any, error) {
+
+	v, err, _ := a.group.Do(string(cacheKey[:]), func() (any, error) {
 		if entry, ok := a.lookupCache(cacheKey); ok {
 			return entry.tenantID, entry.err
 		}
@@ -94,8 +90,7 @@ func (a *Authenticator) ResolveTenantID(ctx context.Context, apiKey string) (int
 		}
 		id, err := a.finder.FindTenantIDByAPIKey(ctx, apiKey)
 		if err != nil {
-			// Only negative-cache genuine not-found; never cache transient or
-			// context errors, which would lock out a tenant for the full TTL.
+
 			if errors.Is(err, ErrInvalidAPIKey) {
 				a.cacheSet(cacheKey, 0, err)
 			}
@@ -110,7 +105,7 @@ func (a *Authenticator) ResolveTenantID(ctx context.Context, apiKey string) (int
 	return v.(int64), nil
 }
 
-func (a *Authenticator) lookupCache(cacheKey string) (cacheEntry, bool) {
+func (a *Authenticator) lookupCache(cacheKey [32]byte) (cacheEntry, bool) {
 	entry, ok := a.cache.Get(cacheKey)
 	if !ok {
 		return cacheEntry{}, false
@@ -122,7 +117,7 @@ func (a *Authenticator) lookupCache(cacheKey string) (cacheEntry, bool) {
 	return entry, true
 }
 
-func (a *Authenticator) cacheSet(cacheKey string, tenantID int64, err error) {
+func (a *Authenticator) cacheSet(cacheKey [32]byte, tenantID int64, err error) {
 	ttl := a.ttl
 	if ttl <= 0 {
 		ttl = defaultCacheTTL
@@ -137,7 +132,6 @@ func (a *Authenticator) cacheSet(cacheKey string, tenantID int64, err error) {
 	})
 }
 
-func apiKeyCacheKey(apiKey string) string {
-	h := sha256.Sum256([]byte(apiKey))
-	return hex.EncodeToString(h[:])
+func apiKeyCacheKey(apiKey string) [32]byte {
+	return sha256.Sum256([]byte(apiKey))
 }

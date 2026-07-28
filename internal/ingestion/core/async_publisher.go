@@ -9,23 +9,17 @@ import (
 	"github.com/optikklabs/ingest/internal/infra/metrics"
 )
 
-// asyncPublishTimeout bounds one async side-topic publish attempt.
 const asyncPublishTimeout = 5 * time.Second
 
-// resourcePublisher is the subset of Producer the async publisher drives.
 type resourcePublisher[T Row] interface {
 	Publish(ctx context.Context, rows []T) error
 }
 
-// asyncJob is one enqueued publish plus its rollback hook.
 type asyncJob[T Row] struct {
 	rows   []T
 	onFail func()
 }
 
-// AsyncPublisher publishes best-effort rows off the request path. A bounded
-// queue drops on overflow so Export never blocks; each job's onFail hook rolls
-// back caller state (e.g. a resource-cache key) on drop or publish failure.
 type AsyncPublisher[T Row] struct {
 	pub    resourcePublisher[T]
 	signal string
@@ -36,7 +30,6 @@ type AsyncPublisher[T Row] struct {
 	wg     sync.WaitGroup
 }
 
-// NewAsyncPublisher starts workers draining a queue of queueSize into pub.
 func NewAsyncPublisher[T Row](pub resourcePublisher[T], signal, topic string, queueSize, workers int) *AsyncPublisher[T] {
 	if queueSize <= 0 {
 		queueSize = 4096
@@ -57,8 +50,6 @@ func NewAsyncPublisher[T Row](pub resourcePublisher[T], signal, topic string, qu
 	return a
 }
 
-// Enqueue submits rows for async publish. It never blocks: a full queue drops
-// the batch, runs onFail, and returns false so the caller can roll back inline.
 func (a *AsyncPublisher[T]) Enqueue(rows []T, onFail func()) bool {
 	if len(rows) == 0 {
 		return true
@@ -97,7 +88,6 @@ func (a *AsyncPublisher[T]) worker() {
 	}
 }
 
-// drop records the loss and runs the rollback hook, if any.
 func (a *AsyncPublisher[T]) drop(rows int, onFail func()) {
 	metrics.SidePublishDropped.WithLabelValues(a.signal, a.topic).Add(float64(rows))
 	if onFail != nil {
@@ -105,7 +95,6 @@ func (a *AsyncPublisher[T]) drop(rows int, onFail func()) {
 	}
 }
 
-// Close stops accepting jobs, drains the queue, and waits for workers.
 func (a *AsyncPublisher[T]) Close() {
 	a.mu.Lock()
 	if a.closed {

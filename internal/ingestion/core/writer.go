@@ -11,12 +11,8 @@ import (
 	"github.com/optikklabs/ingest/internal/infra/metrics"
 )
 
-// RowMapper fills dst with column values for one row. The caller
-// allocates dst once per batch and reuses it across rows, avoiding a
-// per-row []any heap allocation.
 type RowMapper[T Row] func(r T, dst []any)
 
-// Writer defines how a batch of rows is inserted into the destination.
 type Writer[T Row] interface {
 	Insert(ctx context.Context, rows []T) error
 }
@@ -37,7 +33,7 @@ type ClickHouseWriter[T Row] struct {
 }
 
 func NewClickHouseWriter[T Row](ch clickhouse.Conn, table string, columns []string, rowMapper RowMapper[T]) *ClickHouseWriter[T] {
-	// Derive a short signal name from the table for metrics labeling.
+
 	signal := table
 	if i := strings.LastIndex(table, "."); i >= 0 {
 		signal = table[i+1:]
@@ -55,15 +51,12 @@ func (w *ClickHouseWriter[T]) Insert(ctx context.Context, rows []T) error {
 	if len(rows) == 0 {
 		return nil
 	}
-	// PrepareBatch already assembles a columnar block client-side;
-	// async_insert adds server-side re-buffering with no benefit when
-	// the caller batches via Kafka. Removed per audit Issue #1.
+
 	batch, err := w.ch.PrepareBatch(ctx, w.query)
 	if err != nil {
 		return fmt.Errorf("core writer: prepare: %w", err)
 	}
-	// Allocate the column-value slice once per batch; the mapper fills
-	// it in-place so each row costs zero heap allocations (Issue #5).
+
 	vals := make([]any, w.colCount)
 	for _, r := range rows {
 		w.rowMapper(r, vals)

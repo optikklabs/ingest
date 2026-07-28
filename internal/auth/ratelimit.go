@@ -1,6 +1,8 @@
 package auth
 
 import (
+	"sync"
+
 	"golang.org/x/time/rate"
 
 	lru "github.com/hashicorp/golang-lru/v2"
@@ -20,6 +22,7 @@ type TenantRateLimiter struct {
 	cache *lru.Cache[int64, *rate.Limiter]
 	limit rate.Limit
 	burst int
+	mu    sync.Mutex
 }
 
 func NewTenantRateLimiter(limit float64, burst int, maxTenants int) (*TenantRateLimiter, error) {
@@ -36,13 +39,18 @@ func NewTenantRateLimiter(limit float64, burst int, maxTenants int) (*TenantRate
 
 func (trl *TenantRateLimiter) Allow(tenantID int64) bool {
 	if tenantID == 0 {
-		return true // skip limiting if no tenant
+		return true
 	}
-	
+
 	limiter, ok := trl.cache.Get(tenantID)
 	if !ok {
-		limiter = rate.NewLimiter(trl.limit, trl.burst)
-		trl.cache.Add(tenantID, limiter)
+		trl.mu.Lock()
+		limiter, ok = trl.cache.Get(tenantID)
+		if !ok {
+			limiter = rate.NewLimiter(trl.limit, trl.burst)
+			trl.cache.Add(tenantID, limiter)
+		}
+		trl.mu.Unlock()
 	}
 
 	return limiter.Allow()

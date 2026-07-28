@@ -6,8 +6,6 @@ import (
 	"github.com/twmb/franz-go/pkg/kgo"
 )
 
-// Producer is a thin wrapper around *kgo.Client shared across all signal
-// producers, batching concurrent Produce calls.
 type Producer struct {
 	client *kgo.Client
 }

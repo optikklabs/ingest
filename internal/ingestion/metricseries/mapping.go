@@ -1,6 +1,3 @@
-// Package metricseries owns the decoupled metric series ingestion path: its own
-// wire schema and the ClickHouse sink. Series rows are built by the metrics
-// mapper and published to the metric_series topic.
 package metricseries
 
 import (

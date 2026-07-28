@@ -5,7 +5,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
-// dbBuckets provides histogram buckets from 1ms to 1s for database queries.
 var dbBuckets = []float64{.001, .005, .01, .025, .05, .1, .25, .5, 1}
 
 var (

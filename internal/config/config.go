@@ -21,8 +21,6 @@ type Config struct {
 	Ingestion   IngestionConfig  `yaml:"ingestion"`
 }
 
-// Load reads YAML configuration with environment variable overrides.
-// If no path is provided, it defaults to "config.yml".
 func Load(path ...string) (Config, error) {
 	p := "config.yml"
 	if len(path) > 0 && path[0] != "" {
@@ -61,9 +59,6 @@ func Load(path ...string) (Config, error) {
 	return cfg, nil
 }
 
-// Validate rejects a config missing the credentials required to run safely.
-// The service is always deployed in production, so these checks are
-// unconditional. Each failing field is named so the startup log is actionable.
 func (c Config) Validate() error {
 	if c.MySQL.Password == "" {
 		return errors.New("mysql.password must not be empty")

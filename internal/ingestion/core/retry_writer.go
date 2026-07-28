@@ -10,9 +10,6 @@ import (
 	"github.com/optikklabs/ingest/internal/infra/metrics"
 )
 
-// RetryWriter retries failed inserts before the caller falls back to the
-// DLQ. Only the insert is retried: DLQ publishing stays single-attempt by
-// design (accepted-loss policy). Configured via kafka.consumer_max_retries.
 type RetryWriter[T Row] struct {
 	next       Writer[T]
 	signal     string
@@ -29,8 +26,6 @@ func NewRetryWriter[T Row](next Writer[T], signal string, maxRetries int) *Retry
 	}
 }
 
-// Insert attempts the insert up to 1+maxRetries times. Its error retains both
-// the last insert failure and the reason retrying stopped.
 func (w *RetryWriter[T]) Insert(ctx context.Context, rows []T) error {
 	attempts := 0
 	_, err := backoff.Retry(ctx, func() (struct{}, error) {

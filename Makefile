@@ -1,7 +1,7 @@
-.PHONY: build run fmt vet test proto
+.PHONY: build run fmt vet proto
 
-# Regenerates the Kafka wire schemas. The previous `go generate ./...` was a
-# no-op: no //go:generate directive has ever existed in this repo.
+                                                                            
+                                                                  
 PROTO_FILES := $(shell find internal -name '*.proto')
 
 proto:
@@ -20,6 +20,3 @@ fmt:
 
 vet:
 	go vet ./...
-
-test:
-	go test ./...

@@ -5,8 +5,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
-// Ingest counters measure records/sec received on OTLP endpoints.
-// Signal label splits throughput by pipeline.
 var (
 	IngestRecordsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "optikk",
@@ -22,8 +20,6 @@ var (
 		Help:      "Total OTLP requests rate limited, labeled by signal.",
 	}, []string{"signal"})
 
-	// ConsumedRecordsTotal counts fetch-side records separately from
-	// records_total: publish success must never mask a stalled consumer.
 	ConsumedRecordsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "optikk",
 		Subsystem: "ingest",
@@ -87,8 +83,6 @@ var (
 		Help:      "ClickHouse insert retry attempts after a failed write, by signal.",
 	}, []string{"signal"})
 
-	// CHInsertDuration isolates the ClickHouse batch.Send() latency
-	// from the overall consumer batch duration, by signal and result.
 	CHInsertDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: "optikk",
 		Subsystem: "ingest",
@@ -106,9 +100,6 @@ var (
 		Help:      "Records dropped after both CH insert retries and the DLQ publish failed, by signal.",
 	}, []string{"signal"})
 
-	// ConsumerHalts counts consume loops stopped because a batch handler
-	// failed. Not a loss counter: the batch is redelivered on restart. Any
-	// non-zero value means a signal has stopped consuming and needs a look.
 	ConsumerHalts = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "optikk",
 		Subsystem: "ingest",
@@ -116,8 +107,6 @@ var (
 		Help:      "Consume loops halted after a handler failure to avoid committing past it, by signal.",
 	}, []string{"signal"})
 
-	// ResourceCacheHits counts CheckAndUpdateBucket calls served without a
-	// resource re-publish, by signal.
 	ResourceCacheHits = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "optikk",
 		Subsystem: "ingest",
@@ -125,7 +114,6 @@ var (
 		Help:      "Resource-cache lookups that matched an existing key+bucket, by signal.",
 	}, []string{"signal"})
 
-	// ResourceCacheMisses counts lookups that triggered a resource re-publish.
 	ResourceCacheMisses = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "optikk",
 		Subsystem: "ingest",
@@ -133,7 +121,6 @@ var (
 		Help:      "Resource-cache lookups that were new or changed bucket, by signal.",
 	}, []string{"signal"})
 
-	// ResourceCacheEvictions counts LRU evictions, by signal.
 	ResourceCacheEvictions = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "optikk",
 		Subsystem: "ingest",
@@ -141,7 +128,6 @@ var (
 		Help:      "Resource-cache keys evicted by LRU capacity pressure, by signal.",
 	}, []string{"signal"})
 
-	// AggregatorKeys tracks live key cardinality in in-memory aggregators.
 	AggregatorKeys = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "optikk",
 		Subsystem: "ingest",
@@ -149,7 +135,6 @@ var (
 		Help:      "Live key count held by an in-memory aggregator, by signal.",
 	}, []string{"signal"})
 
-	// AggregatorKeysDropped counts aggregator keys shed by a cardinality cap.
 	AggregatorKeysDropped = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "optikk",
 		Subsystem: "ingest",
@@ -157,8 +142,6 @@ var (
 		Help:      "Aggregator keys dropped after hitting a cardinality cap, by signal.",
 	}, []string{"signal"})
 
-	// ConsumerBatchInsertDuration measures per-batch handle latency (unmarshal
-	// + ClickHouse insert + commit), by signal.
 	ConsumerBatchInsertDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: "optikk",
 		Subsystem: "ingest",
@@ -169,7 +152,6 @@ var (
 		},
 	}, []string{"signal"})
 
-	// ConsumerInflightBatches tracks batches held between fetch and commit.
 	ConsumerInflightBatches = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "optikk",
 		Subsystem: "ingest",
@@ -177,8 +159,6 @@ var (
 		Help:      "Batches in flight between fetch and commit, by signal.",
 	}, []string{"signal"})
 
-	// SidePublishDropped counts best-effort side-topic rows dropped because the
-	// async queue was full or the async publish failed, by signal and topic.
 	SidePublishDropped = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "optikk",
 		Subsystem: "ingest",

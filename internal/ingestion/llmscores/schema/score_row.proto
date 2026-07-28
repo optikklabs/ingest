@@ -4,9 +4,9 @@ package optikk.ingest.llmscores.v1;
 
 option go_package = "github.com/optikklabs/ingest/internal/ingestion/llmscores/schema;schema";
 
-// ScoreRow is the wire format on Kafka for one evaluation score attached to an
-// LLM trace/span, extracted from gen_ai.evaluation.result / langfuse.score
-// span events. One record == one row bound for optikk.llm_scores.
+                                                                               
+                                                                           
+                                                                  
 message ScoreRow {
   uint32 tenant_id = 1;
   int64  timestamp_ns = 2;
@@ -17,12 +17,12 @@ message ScoreRow {
   string service = 7;
   string environment = 8;
   string name = 9;
-  string source = 10;      // otel | api | human | eval
-  string data_type = 11;   // numeric | boolean | categorical
+  string source = 10;                                  
+  string data_type = 11;                                     
   double value = 12;
   string string_value = 13;
   string comment = 14;
   uint64 evaluator_id = 15;
-  // Unused for scores (no resource dedup); present to satisfy core.Row.
+                                                                        
   uint64 fingerprint = 16;
 }

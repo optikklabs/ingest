@@ -18,17 +18,23 @@ const (
 	zeroSpanHex       = "0000000000000000"
 )
 
-// mapRequest converts an OTLP trace export request into wire rows; one OTLP
-// span yields one Row.
 func mapRequest(tenantID int64, req *tracepb.ExportTraceServiceRequest) []*schema.Row {
-	rows := make([]*schema.Row, 0, 64)
+	spanCount := 0
+	for _, rs := range req.GetResourceSpans() {
+		for _, ss := range rs.GetScopeSpans() {
+			spanCount += len(ss.GetSpans())
+		}
+	}
+	if spanCount == 0 {
+		return nil
+	}
+	rows := make([]*schema.Row, 0, spanCount)
 	for _, rs := range req.GetResourceSpans() {
 		var resAttrs []*commonpb.KeyValue
 		if rs.Resource != nil {
 			resAttrs = rs.Resource.Attributes
 		}
-		// resMap is shared across this resource's spans and copied into each
-		// row's fields/merged map — free to pool once the inner loop ends.
+
 		resMap := otlp.GetAttrMap()
 		otlp.AttrsToMapInto(resMap, resAttrs)
 		dims := fingerprint.ResolveResource(resMap)
@@ -53,8 +59,6 @@ func buildSpanRow(tenantID int64, resMap map[string]string, dims fingerprint.Res
 		statusCode = s.Status.GetCode()
 	}
 
-	// spanMap is read for promoted fields and copied into merged, then unused —
-	// pool it per span. merged is retained on the Row, so it is never pooled.
 	spanMap := otlp.GetAttrMap()
 	defer otlp.PutAttrMap(spanMap)
 	otlp.AttrsToMapInto(spanMap, s.GetAttributes())
@@ -65,8 +69,6 @@ func buildSpanRow(tenantID int64, resMap map[string]string, dims fingerprint.Res
 	httpHost := firstNonEmpty(spanMap, "http.host", "net.host.name")
 	httpStatus := firstNonEmpty(spanMap, "http.status_code", "http.response.status_code")
 	gen := extractGenAI(spanMap, spanDuration(s))
-
-	stripPromotedKeys(merged)
 
 	return &schema.Row{
 		TsBucket:            uint64(tsBucket),
@@ -128,10 +130,14 @@ func buildSpanRow(tenantID int64, resMap map[string]string, dims fingerprint.Res
 func mergeAndCapAttrs(resMap, spanMap map[string]string) map[string]string {
 	merged := make(map[string]string, len(resMap)+len(spanMap))
 	for k, v := range resMap {
-		merged[k] = v
+		if !isPromotedKey(k) {
+			merged[k] = v
+		}
 	}
 	for k, v := range spanMap {
-		merged[k] = v
+		if !isPromotedKey(k) {
+			merged[k] = v
+		}
 	}
 	if dropped := otlp.CapStringMap(merged, maxSpanAttributes); dropped > 0 {
 		obsmetrics.MapperAttrsDropped.WithLabelValues("spans").Add(float64(dropped))
@@ -242,8 +248,16 @@ var promotedSpanKeys = []string{
 	"langfuse.observation.type", "gen_ai.observation.type", "optikk.eval",
 }
 
-func stripPromotedKeys(m map[string]string) {
+var promotedKeysMap = buildPromotedKeysMap()
+
+func buildPromotedKeysMap() map[string]bool {
+	m := make(map[string]bool, len(promotedSpanKeys))
 	for _, k := range promotedSpanKeys {
-		delete(m, k)
+		m[k] = true
 	}
+	return m
+}
+
+func isPromotedKey(k string) bool {
+	return promotedKeysMap[k]
 }

@@ -10,7 +10,6 @@ import (
 
 const chTable = "optikk.spans"
 
-// chColumns mirrors the column order in db/01_spans.sql.
 var chColumns = []string{
 	"tenant_id",
 	"timestamp", "trace_id", "span_id", "parent_span_id", "trace_state", "flags",

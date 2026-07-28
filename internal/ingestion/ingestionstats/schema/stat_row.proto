@@ -4,10 +4,10 @@ package optikk.ingest.ingestionstats.v1;
 
 option go_package = "github.com/optikklabs/ingest/internal/ingestion/ingestionstats/schema;schema";
 
-// StatRow is the wire format on Kafka for the ingestion usage meter. One record
-// == one (tenant, hour, signal, service, environment) bucket bound for
-// optikk.ingestion_stats. record_count is rows for logs/spans and datapoints
-// for metrics; byte_count is uncompressed OTLP wire bytes of the resource block.
+                                                                                
+                                                                       
+                                                                             
+                                                                                 
 message StatRow {
   uint32 tenant_id    = 1;
   uint64 fingerprint  = 2;

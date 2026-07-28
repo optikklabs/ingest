@@ -8,7 +8,6 @@ import (
 	spansschema "github.com/optikklabs/ingest/internal/ingestion/spans/schema"
 )
 
-// Source and data-type tags persisted alongside each score.
 const (
 	sourceOTel = "otel"
 
@@ -19,10 +18,6 @@ const (
 	maxCommentBytes = 2048
 )
 
-// ExtractFromSpans walks span events for evaluation scores and returns one
-// ScoreRow per score. Two conventions are recognised:
-//   - OTel GenAI: event "gen_ai.evaluation.result" with gen_ai.evaluation.*
-//   - Langfuse:   event "langfuse.score" with langfuse.score.*
 func ExtractFromSpans(rows []*spansschema.Row) []*schema.ScoreRow {
 	var out []*schema.ScoreRow
 	for _, row := range rows {
@@ -82,9 +77,6 @@ func baseScore(row *spansschema.Row, name string) *schema.ScoreRow {
 	}
 }
 
-// assignValue fills value/string_value/data_type from a raw numeric string and
-// an optional label. A parseable number wins as numeric; otherwise the label
-// is classified as boolean (true/false/pass/fail) or categorical.
 func assignValue(s *schema.ScoreRow, raw, label string) {
 	if raw != "" {
 		if f, err := strconv.ParseFloat(raw, 64); err == nil {

@@ -12,7 +12,6 @@ import (
 	"github.com/twmb/franz-go/pkg/kerr"
 )
 
-// Signal name constants used by topic naming and the observability hooks.
 const (
 	SignalSpans           = "spans"
 	SignalSpansTracegraph = "spans_tracegraph"
@@ -55,10 +54,7 @@ func EnsureTopics(ctx context.Context, brokers []string, specs []TopicSpec) erro
 				return fmt.Errorf("kafka ensure topics: create %q: %w", r.Topic, r.Err)
 			}
 		}
-		// CreateTopics no-ops on an existing topic, so grow partitions
-		// separately to keep the desired count declarative and idempotent.
-		// An existing topic is usable at whatever count it already has, so a
-		// failed grow costs throughput, not correctness, and must not fail boot.
+
 		actual, err := EnsureTopicPartitions(ctx, adm, s.Name, s.Partitions)
 		if err != nil {
 			slog.Warn("kafka topic partition reconcile failed, keeping current partitions",
@@ -78,17 +74,14 @@ func EnsureTopics(ctx context.Context, brokers []string, specs []TopicSpec) erro
 	return nil
 }
 
-// partitionAction is how a topic's live partition count reconciles to target.
 type partitionAction int
 
 const (
-	partitionNoop       partitionAction = iota // already at target
-	partitionGrow                              // below target, safe to grow
-	partitionShrinkSkip                        // above target, Kafka forbids shrink
+	partitionNoop partitionAction = iota
+	partitionGrow
+	partitionShrinkSkip
 )
 
-// decidePartitionAction reconciles current→target. Kafka never shrinks
-// partitions, so a higher current count is skipped with a warning upstream.
 func decidePartitionAction(current, target int32) partitionAction {
 	switch {
 	case current < target:
@@ -100,9 +93,6 @@ func decidePartitionAction(current, target int32) partitionAction {
 	}
 }
 
-// EnsureTopicPartitions grows an existing topic to target partitions and
-// reports the count the topic has once done. It never shrinks (Kafka forbids
-// it) and no-ops when already at or above target.
 func EnsureTopicPartitions(ctx context.Context, adm *kadm.Client, topic string, target int32) (int32, error) {
 	td, err := adm.ListTopics(ctx, topic)
 	if err != nil {
@@ -142,10 +132,6 @@ func EnsureTopicPartitions(ctx context.Context, adm *kadm.Client, topic string, 
 	return current, nil
 }
 
-// partitionsRespError reports the broker's own explanation for a rejected
-// grow. CreatePartitionsResponses.Error() yields only the error code, whose
-// canned text ("Number of partitions is below 1.") describes the code itself
-// rather than what the broker objected to.
 func partitionsRespError(resp kadm.CreatePartitionsResponses, topic string) error {
 	r, ok := resp[topic]
 	if !ok || r.Err == nil {

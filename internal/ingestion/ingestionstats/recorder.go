@@ -1,4 +1,3 @@
-// Package ingestionstats owns the hourly ingestion usage meter.
 package ingestionstats
 
 import (
@@ -19,8 +18,6 @@ const (
 	SignalMetrics Signal = "metrics"
 )
 
-// Recorder is intentionally synchronous and tiny: recording only updates a
-// mutex-protected map, never starts work proportional to request rate.
 type Recorder interface{ Record([]*schema.StatRow) }
 
 type publisher interface {
@@ -32,8 +29,6 @@ type statKey struct {
 	signal, service, environment string
 }
 
-// HourlyRecorder coalesces OTLP usage rows and publishes each UTC-hour bucket
-// from one background goroutine. Close emits the current partial bucket.
 type HourlyRecorder struct {
 	pub       publisher
 	mu        sync.Mutex
@@ -77,9 +72,6 @@ func (r *HourlyRecorder) Record(rows []*schema.StatRow) {
 	}
 }
 
-// cloneRow avoids retaining caller-owned protobuf messages in the accumulator.
-// Protobuf messages must not be copied by value because their runtime state
-// contains synchronization primitives.
 func cloneRow(row *schema.StatRow) *schema.StatRow {
 	return &schema.StatRow{
 		TenantId:    row.GetTenantId(),
@@ -118,8 +110,6 @@ func nextHour() time.Time {
 	return now.Truncate(time.Hour).Add(time.Hour)
 }
 
-// flush snapshots then publishes the accumulated rows. A failed snapshot is
-// merged back before returning so concurrent Record calls are never lost.
 func (r *HourlyRecorder) flush() bool {
 	rows := r.snapshot()
 	if len(rows) == 0 {

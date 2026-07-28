@@ -14,8 +14,6 @@ import (
 	"github.com/twmb/franz-go/pkg/kmsg"
 )
 
-// hooks implements the kgo.Hook* interfaces we instrument: produce/fetch
-// counters, broker connect counter, group rebalance error counter.
 type hooks struct {
 	group string
 	topic string
@@ -79,8 +77,6 @@ func (h hooks) OnGroupManageError(err error) {
 	)
 }
 
-// knownSignals covers every signal a topic name can end with; topics are
-// always built as prefix + "." + signal (see IngestTopic/DLQTopic).
 var knownSignals = map[string]struct{}{
 	SignalSpans:           {},
 	SignalSpansTracegraph: {},

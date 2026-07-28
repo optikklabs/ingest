@@ -58,7 +58,6 @@ func (h *Handler) Export(ctx context.Context, req *tracepb.ExportTraceServiceReq
 	metrics.HandlerPublishDuration.WithLabelValues("spans", "ok").Observe(time.Since(pubStart).Seconds())
 	ingestionstats.Emit(h.stats, statRows(uint32(tenantID), req))
 
-	// Evaluation scores carried on span events, off the request path.
 	if scores := llmscores.ExtractFromSpans(rows); len(scores) > 0 {
 		h.scoresPublisher.Enqueue(scores, nil)
 	}

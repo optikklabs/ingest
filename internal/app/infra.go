@@ -18,7 +18,6 @@ import (
 	kafkainfra "github.com/optikklabs/ingest/internal/infra/kafka"
 )
 
-// ConsumerRunner is a Kafka consumer loop that blocks until ctx is cancelled.
 type ConsumerRunner interface {
 	Run(ctx context.Context)
 }
@@ -34,9 +33,6 @@ type Infra struct {
 	KafkaProducer   *kgo.Client
 	consumerClients []*kgo.Client
 	closers         []func()
-
-	ctx    context.Context
-	cancel context.CancelFunc
 }
 
 func newInfra(cfg config.Config) (_ *Infra, err error) {
@@ -65,7 +61,6 @@ func newInfra(cfg config.Config) (_ *Infra, err error) {
 		return nil, err
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
 	authenticator := auth.NewAuthenticator(authrepo.New(dbConn), cfg.APIKeyCacheTTL(), cfg.APIKeyCacheSize())
 
 	return &Infra{
@@ -78,8 +73,6 @@ func newInfra(cfg config.Config) (_ *Infra, err error) {
 		KafkaProducer:   ingest.producerClient,
 		consumerClients: ingest.consumerClients,
 		closers:         ingest.closers,
-		ctx:             ctx,
-		cancel:          cancel,
 	}, nil
 }
 
@@ -111,16 +104,13 @@ func (i *Infra) Close() error {
 	if i == nil {
 		return nil
 	}
-	if i.cancel != nil {
-		i.cancel()
-	}
 	if n := len(i.consumerClients); n > 0 {
 		for _, c := range i.consumerClients {
 			c.Close()
 		}
 		slog.Info("kafka consumers closed", slog.Int("count", n))
 	}
-	// Drain async side-publishers before the producer they write through.
+
 	for _, closeFn := range i.closers {
 		closeFn()
 	}

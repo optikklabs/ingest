@@ -22,10 +22,6 @@ func main() {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	go func() {
-		<-ctx.Done()
-		stop() // restore default SIGINT behavior so a second Ctrl+C kills the process
-	}()
 
 	application, err := app.New(cfg)
 	if err != nil {

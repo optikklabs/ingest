@@ -9,7 +9,6 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// grpcMetricsUnary records count and duration for unary gRPC calls.
 func grpcMetricsUnary() grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 		metrics.GRPCStarted.WithLabelValues(info.FullMethod).Inc()

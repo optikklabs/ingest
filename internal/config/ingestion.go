@@ -5,8 +5,6 @@ import (
 	"time"
 )
 
-// IngestionConfig owns per-signal Kafka topology (topic partitions, replicas,
-// retention) and the consumer-group identity.
 type IngestionConfig struct {
 	Spans          SignalConfig `yaml:"spans"`
 	Logs           SignalConfig `yaml:"logs"`
@@ -20,8 +18,6 @@ type IngestionConfig struct {
 	APIKeyCacheSize       int               `yaml:"api_key_cache_size"`
 }
 
-// SidePublishConfig tunes the async best-effort publisher used for the
-// resource and llm-scores side-topics (off the OTLP request path).
 type SidePublishConfig struct {
 	QueueSize int `yaml:"queue_size"`
 	Workers   int `yaml:"workers"`
@@ -73,8 +69,6 @@ func (c Config) IngestSignal(signal string) SignalConfig {
 	return raw
 }
 
-// SidePublishQueueSize bounds the async side-topic queue. Values <= 0 default
-// to 4096; a full queue drops best-effort rows rather than blocking Export.
 func (c Config) SidePublishQueueSize() int {
 	if n := c.Ingestion.SidePublish.QueueSize; n > 0 {
 		return n
@@ -82,8 +76,6 @@ func (c Config) SidePublishQueueSize() int {
 	return 4096
 }
 
-// SidePublishWorkers is the number of goroutines draining the side-topic
-// queue. Values <= 0 default to 2.
 func (c Config) SidePublishWorkers() int {
 	if n := c.Ingestion.SidePublish.Workers; n > 0 {
 		return n
@@ -91,9 +83,6 @@ func (c Config) SidePublishWorkers() int {
 	return 2
 }
 
-// ResourceCacheSize is the total per-signal resource-cache capacity (split
-// across shards). Sized to active-series cardinality, not tenant count.
-// Values <= 0 default to 500,000.
 func (c Config) ResourceCacheSize() int {
 	if n := c.Ingestion.ResourceCacheSize; n > 0 {
 		return n
@@ -101,8 +90,6 @@ func (c Config) ResourceCacheSize() int {
 	return 500_000
 }
 
-// APIKeyCacheTTL limits how long a rotated or revoked API key can remain valid
-// in an ingest process. Values <= 0 default to 30 seconds.
 func (c Config) APIKeyCacheTTL() time.Duration {
 	if seconds := c.Ingestion.APIKeyCacheTTLSeconds; seconds > 0 {
 		return time.Duration(seconds) * time.Second
@@ -110,8 +97,6 @@ func (c Config) APIKeyCacheTTL() time.Duration {
 	return 30 * time.Second
 }
 
-// APIKeyCacheSize bounds valid and invalid API-key entries so random keys
-// cannot grow ingest memory without limit.
 func (c Config) APIKeyCacheSize() int {
 	if size := c.Ingestion.APIKeyCacheSize; size > 0 {
 		return size

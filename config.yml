@@ -1,6 +1,6 @@
 environment: development
 
-# HTTP listener for /metrics and /health only (no query API).
+                                                             
 server:
   port: "18090"
 
@@ -9,7 +9,7 @@ mysql:
   port: "13306"
   database: optikk
   user: root
-  password: "localdev" # Overridable by OPTIKK_MYSQL_PASSWORD environment variable
+  password: "localdev"                                                            
   max_open_conns: 10
   max_idle_conns: 5
 
@@ -18,10 +18,10 @@ clickhouse:
   port: "19000"
   database: optikk
   user: default
-  password: "localdev" # Overridable by OPTIKK_CLICKHOUSE_PASSWORD environment variable
+  password: "localdev"                                                                 
   secure: false
-  # Insert pool; batched writes need few connections. One insert
-  # is in-flight per signal consumer, so a small pool suffices.
+                                                                
+                                                               
   max_open_conns: 30
   max_idle_conns: 10
 
@@ -50,18 +50,18 @@ ingestion:
     partitions: 32
     replicas: 1
     retention_hours: 24
-  # Async best-effort publisher for the resource/llm-scores side-topics.
-  # A full queue drops rows (metric sidepublish_dropped_total) instead of
-  # blocking Export. Defaults: queue_size 4096, workers 2.
+                                                                        
+                                                                         
+                                                          
   side_publish:
     queue_size: 4096
     workers: 2
-  # Total per-signal resource-cache capacity (split across 32 shards). Size to
-  # active-series cardinality, not tenant count. Default 500000.
+                                                                              
+                                                                
   resource_cache_size: 500000
-  # Bounds the window in which a rotated/revoked key may remain cached.
+                                                                       
   api_key_cache_ttl_seconds: 30
-  # Bounds valid and negative cache entries under random invalid-key traffic.
+                                                                             
   api_key_cache_size: 50000
 
 kafka:
@@ -71,17 +71,17 @@ kafka:
   compression: zstd
   linger_ms: 20
   batch_max_bytes: 1048576
-  # Consumer fetch ceilings — sized for TB/day: each poll should fill
-  # a ClickHouse insert block (~50K rows). Larger fetches amortize the
-  # per-insert TCP round-trip and reduce CH part proliferation.
+                                                                     
+                                                                      
+                                                               
   fetch_max_bytes: 52428800
   fetch_max_partition_bytes: 8388608
-  # CH insert retries before a batch falls back to the DLQ (default 2)
+                                                                      
   consumer_max_retries: 2
-  # One Kafka poll maps directly to one ClickHouse insert batch.
-  # 50K rows at ~1KB/row ≈ 50MB per batch — verify pod memory limits
-  # can absorb 2× this (double-buffered consumer).
+                                                                
+                                                                    
+                                                  
   consumer_max_poll_records: 50000
-  # Number of parallel workers per consumer to process inserts.
-  # 4 is a good default for high-throughput single-replica setups.
+                                                               
+                                                                  
   consumer_insert_workers: 4

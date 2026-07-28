@@ -10,8 +10,6 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-// statRows meters one usage row per resource block: record_count is the metric
-// datapoints in the block, byte_count its exact OTLP wire size.
 func statRows(tenantID uint32, req *metricspb.ExportMetricsServiceRequest) []*statsschema.StatRow {
 	rms := req.GetResourceMetrics()
 	rows := make([]*statsschema.StatRow, 0, len(rms))
@@ -36,7 +34,6 @@ func statRows(tenantID uint32, req *metricspb.ExportMetricsServiceRequest) []*st
 	return rows
 }
 
-// dataPointCount returns the number of datapoints across every OTLP metric type.
 func dataPointCount(m *metricsdatapb.Metric) uint64 {
 	switch d := m.GetData().(type) {
 	case *metricsdatapb.Metric_Gauge:

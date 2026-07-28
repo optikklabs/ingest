@@ -16,7 +16,7 @@ SETTINGS
     storage_policy = 'tiered',
     index_granularity = 8192,
     ttl_only_drop_parts = 1,
-    -- Retain enough insert-block hashes to make normal Kafka redelivery and
-    -- retry of the same batch idempotent.
+                                                                            
+                                          
     replicated_deduplication_window = 1000,
     replicated_deduplication_window_seconds = 86400;

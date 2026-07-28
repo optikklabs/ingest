@@ -15,7 +15,6 @@ var metricsColumns = []string{
 	"summary_quantiles", "summary_values",
 }
 
-// NewMetricsClickHouseWriter returns a ClickHouse writer specifically for the raw metrics samples.
 func NewMetricsClickHouseWriter(ch clickhouse.Conn) core.Writer[*schema.Row] {
 	return core.NewClickHouseWriter(ch, "optikk.metrics", metricsColumns, metricsRowValues)
 }

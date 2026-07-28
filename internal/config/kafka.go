@@ -4,8 +4,6 @@ import (
 	"strings"
 )
 
-// KafkaConfig configures the Kafka-backed OTLP ingest queue.
-// Signal topologies live in IngestionConfig; this holds connectivity & tuning.
 type KafkaConfig struct {
 	BrokerList string   `yaml:"broker_list"`
 	Brokers    []string `yaml:"brokers"`
@@ -87,8 +85,6 @@ func (c Config) KafkaFetchMaxPartitionBytes() int {
 	return 1 << 20
 }
 
-// KafkaConsumerMaxPollRecords bounds one Kafka poll and therefore one
-// ClickHouse insert batch. Values <= 0 use the production default of 5,000.
 func (c Config) KafkaConsumerMaxPollRecords() int {
 	if n := c.Kafka.ConsumerMaxPollRecords; n > 0 {
 		return n
@@ -96,9 +92,6 @@ func (c Config) KafkaConsumerMaxPollRecords() int {
 	return 5_000
 }
 
-// KafkaConsumerMaxRetries is how many times a failed ClickHouse insert is
-// retried before the batch falls back to the DLQ. Values <= 0 use the
-// default of 2.
 func (c Config) KafkaConsumerMaxRetries() int {
 	if n := c.Kafka.ConsumerMaxRetries; n > 0 {
 		return n
@@ -106,8 +99,6 @@ func (c Config) KafkaConsumerMaxRetries() int {
 	return 2
 }
 
-// KafkaConsumerInsertWorkers controls how many parallel goroutines insert
-// fetched batches into ClickHouse per signal. Values <= 0 default to 1.
 func (c Config) KafkaConsumerInsertWorkers() int {
 	if n := c.Kafka.ConsumerInsertWorkers; n > 0 {
 		return n

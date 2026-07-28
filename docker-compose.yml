@@ -35,9 +35,9 @@ services:
       timeout: 3s
       retries: 10
 
-  # Pre-configured Kafka-compatible MQ image. Single listener advertising
-  # localhost:9092 for host clients (ingest, verification-service); no
-  # in-network client connects to the broker.
+                                                                         
+                                                                      
+                                             
   kafka:
     image: ghcr.io/ramantayal12/mq:latest
     environment:

@@ -13,8 +13,6 @@ type ClickHouseConfig struct {
 	MaxIdleConns int    `yaml:"max_idle_conns"`
 }
 
-// The insert path batches rows per signal, so a small pool suffices and
-// leaves ClickHouse's max_concurrent_queries budget to the query service.
 func (c Config) ClickHouseMaxOpenConns() int {
 	if n := c.ClickHouse.MaxOpenConns; n > 0 {
 		return n

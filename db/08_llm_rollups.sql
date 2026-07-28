@@ -1,6 +1,6 @@
--- 1-minute rollup of GenAI spans. Powers LLM Observability aggregates
--- (apps table, KPIs, token/latency/cost charts) without scanning raw spans.
--- Latency kept in ms as tDigest state; cost is derived at query time from tokens.
+                                                                      
+                                                                            
+                                                                                  
 
 CREATE TABLE IF NOT EXISTS optikk.llm_stats_1m (
     tenant_id              UInt32 CODEC(T64, ZSTD(1)),

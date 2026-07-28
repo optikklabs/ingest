@@ -9,8 +9,6 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 )
 
-// injectMySQLTimeouts adds DSN timeouts and parseTime=true (required to scan
-// MySQL datetime columns into time.Time fields) if not already present.
 func injectMySQLTimeouts(dsn string) string {
 	params := map[string]string{
 		"timeout":      "5s",

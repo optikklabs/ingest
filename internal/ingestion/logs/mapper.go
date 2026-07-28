@@ -31,8 +31,7 @@ func mapRequest(tenantID int64, req *logspb.ExportLogsServiceRequest) []*schema.
 		if rl.Resource != nil {
 			resAttrs = rl.Resource.Attributes
 		}
-		// resourceMap is only read (fillResourceFallbacks copies it into each
-		// row's Resource), so it is free to pool once this resource's logs map.
+
 		resourceMap := otlp.GetAttrMap()
 		otlp.AttrsToMapInto(resourceMap, resAttrs)
 		for _, sl := range rl.GetScopeLogs() {
@@ -102,8 +101,6 @@ func buildLogRow(tenantID int64, resource map[string]string, scopeName, scopeVer
 	}
 }
 
-// computeLogID returns a stable FNV-64a hex hash of the log attributes.
-// This is used as the row's deep-link ID.
 func computeLogID(traceID string, tsNs uint64, body string) string {
 	const (
 		offset64      uint64 = 14695981039346656037
@@ -199,7 +196,7 @@ func normalizeSeverityText(text string, num uint32) string {
 }
 
 func fillResourceFallbacks(resource, attrs map[string]string) map[string]string {
-	// Copy so the shared per-ResourceLogs resource map is never mutated.
+
 	out := make(map[string]string, len(resource))
 	for k, v := range resource {
 		out[k] = v

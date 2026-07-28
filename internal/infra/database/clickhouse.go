@@ -13,9 +13,6 @@ const (
 	chDialTimeout     = 5 * time.Second
 )
 
-// OpenClickHouseConn opens the shared insert pool. Pool sizing is
-// config-driven (clickhouse.max_open_conns / max_idle_conns): the writer
-// path batches inserts, so it needs far fewer connections than a query pool.
 func OpenClickHouseConn(dsn string, maxOpenConns, maxIdleConns int) (clickhouse.Conn, error) {
 	opts, err := clickhouse.ParseDSN(dsn)
 	if err != nil {

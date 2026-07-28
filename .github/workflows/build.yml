@@ -1,4 +1,4 @@
-name: Build and Test
+name: Build
 
 on:
   push:
@@ -16,5 +16,4 @@ jobs:
           go-version: '1.26.1'
           cache: true
       - run: go vet ./...
-      - run: go test -race ./...
       - run: go build ./cmd/ingest

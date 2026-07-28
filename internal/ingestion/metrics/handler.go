@@ -1,5 +1,3 @@
-// Package metrics is the OTLP metrics ingestion path. Same shape as
-// ingestion/spans + ingestion/logs.
 package metrics
 
 import (

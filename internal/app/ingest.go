@@ -29,7 +29,6 @@ import (
 	spansschema "github.com/optikklabs/ingest/internal/ingestion/spans/schema"
 )
 
-// ingestBundle is everything buildIngest produces for the Infra.
 type ingestBundle struct {
 	modules         []registry.Module
 	producerClient  *kgo.Client
@@ -46,22 +45,19 @@ type signalWiring struct {
 }
 
 type signalWireInput struct {
-	signal                       string
-	topicPrefix                  string
-	ingestTopic, dlqTopic, group string
-	sc                           config.SignalConfig
-	producerBase                 *kafkainfra.Producer
-	consumer                     *kafkainfra.Consumer
-	ch                           clickhouse.Conn
-	insertMaxRetries             int
-	sidePublishQueueSize         int
-	sidePublishWorkers           int
-	stats                        ingestionstats.Recorder
-	registerCloser               func(func())
+	signal                string
+	topicPrefix           string
+	ingestTopic, dlqTopic string
+	producerBase          *kafkainfra.Producer
+	consumer              *kafkainfra.Consumer
+	ch                    clickhouse.Conn
+	insertMaxRetries      int
+	sidePublishQueueSize  int
+	sidePublishWorkers    int
+	stats                 ingestionstats.Recorder
+	registerCloser        func(func())
 }
 
-// newStatsProducer builds the usage-meter producer, keyed by tenant so a
-// tenant's stat rows land on one partition for merge locality.
 func newStatsProducer(in signalWireInput) *core.Producer[*statsschema.StatRow] {
 	topic := kafkainfra.IngestTopic(in.topicPrefix, kafkainfra.SignalIngestionStats)
 	return core.NewProducer[*statsschema.StatRow](topic, in.producerBase).
@@ -118,9 +114,6 @@ func wireMetrics(in signalWireInput) (registry.Module, ConsumerRunner) {
 	return mod, consumer
 }
 
-// insertOnly wires a signal that only consumes: no OTLP handler and no
-// producer, just the durable Kafka-to-ClickHouse path. Signals that also
-// ingest over OTLP (spans, logs, metrics) have their own wire func.
 func insertOnly[T core.Row](
 	newWriter func(clickhouse.Conn) core.Writer[T],
 	newRow func() T,
@@ -132,8 +125,6 @@ func insertOnly[T core.Row](
 	}
 }
 
-// newRow allocates a zero row of T; the consumer's sync.Pool seeds itself
-// with it.
 func newRow[T any]() *T { return new(T) }
 
 func ingestTopicSpecs(wirings []signalWiring, topicPrefix, dlqPrefix string) []kafkainfra.TopicSpec {
@@ -220,8 +211,6 @@ func buildIngest(cfg config.Config, ch clickhouse.Conn) (ingestBundle, error) {
 			topicPrefix:          topicPrefix,
 			ingestTopic:          ingestTopic,
 			dlqTopic:             kafkainfra.DLQTopic(dlqPrefix, w.signal),
-			group:                w.cfg.ConsumerGroup,
-			sc:                   w.cfg,
 			producerBase:         producerBase,
 			consumer:             kafkainfra.NewConsumer(client, cfg.KafkaConsumerMaxPollRecords(), cfg.KafkaConsumerInsertWorkers(), w.signal),
 			ch:                   ch,

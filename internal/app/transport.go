@@ -19,7 +19,6 @@ import (
 	"github.com/optikklabs/ingest/internal/auth"
 )
 
-// addHTTPServerActor serves health/metrics and OTLP/HTTP on separate ports.
 func (a *App) addHTTPServerActor(g *run.Group) {
 	mux := http.NewServeMux()
 	mux.Handle("/metrics", promhttp.HandlerFor(prometheus.DefaultGatherer, promhttp.HandlerOpts{}))
@@ -128,7 +127,6 @@ func (a *App) addGRPCServerActor(g *run.Group) error {
 
 func (a *App) addLagPollerActors(g *run.Group, parentCtx context.Context) {
 	for _, p := range a.Infra.LagPollers {
-		p := p
 		pollCtx, cancel := context.WithCancel(parentCtx)
 		g.Add(func() error {
 			p.Run(pollCtx)
@@ -139,7 +137,6 @@ func (a *App) addLagPollerActors(g *run.Group, parentCtx context.Context) {
 
 func (a *App) addConsumerActors(g *run.Group, parentCtx context.Context) {
 	for _, c := range a.Infra.Consumers {
-		c := c
 		runCtx, cancel := context.WithCancel(parentCtx)
 		g.Add(func() error {
 			c.Run(runCtx)

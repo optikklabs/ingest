@@ -1,5 +1,3 @@
-// Package timebucket provides the 5-minute bucket alignment writers use when
-// keying timestamps for ClickHouse rows.
 package timebucket
 
 const BucketSeconds int64 = 300

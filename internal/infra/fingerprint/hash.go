@@ -8,8 +8,6 @@ import (
 
 const separatorByte byte = 255
 
-// FingerprintHash computes a stable xxhash of all attributes
-// sorted by key. Sorting guarantees order-independence.
 func FingerprintHash(attrs map[string]string) uint64 {
 	if len(attrs) == 0 {
 		return 0

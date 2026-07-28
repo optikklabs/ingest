@@ -10,7 +10,6 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-// NewInsertHandler is the common durable Kafka-to-ClickHouse path with sync.Pool row recycling.
 func NewInsertHandler[T Row](signal string, writer Writer[T], dlq *DLQ, newRow func() T) kafkainfra.RecordHandler {
 	rowPool := sync.Pool{
 		New: func() any { return newRow() },

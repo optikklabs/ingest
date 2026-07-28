@@ -10,8 +10,6 @@ import (
 	"google.golang.org/grpc"
 )
 
-// Deps is everything NewModule needs. The handler is constructed by
-// app/ingest.go and handed in fully wired.
 type Deps struct {
 	Handler *Handler
 }

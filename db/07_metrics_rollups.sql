@@ -1,5 +1,5 @@
--- Metrics pre-aggregation cascade: raw metrics roll up 1m -> 5m -> 1h, each
--- tier's MV reading the tier below. Aggregate states keep quantiles mergeable.
+                                                                            
+                                                                               
 
 CREATE TABLE IF NOT EXISTS optikk.metrics_1m (
     tenant_id     UInt32 CODEC(T64, ZSTD(1)),

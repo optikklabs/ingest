@@ -6,8 +6,6 @@ import (
 	commonpb "go.opentelemetry.io/proto/otlp/common/v1"
 )
 
-// TypedAttrs partitions OTLP attributes into three typed maps
-// (strings, numbers, bools) and caps the string map at maxStringKeys.
 func TypedAttrs(kvs []*commonpb.KeyValue, maxStringKeys int) (
 	strMap map[string]string,
 	numMap map[string]float64,

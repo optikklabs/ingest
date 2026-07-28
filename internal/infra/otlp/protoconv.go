@@ -9,20 +9,14 @@ import (
 	commonpb "go.opentelemetry.io/proto/otlp/common/v1"
 )
 
-// attrMapPool reuses transient attribute maps in the hot mapping path. Only
-// pool maps that are fully consumed within a single mapRequest — never maps
-// retained on a Row (e.g. the merged Attributes).
 var attrMapPool = sync.Pool{
 	New: func() any { return make(map[string]string, 16) },
 }
 
-// GetAttrMap borrows a cleared attribute map from the pool.
 func GetAttrMap() map[string]string {
 	return attrMapPool.Get().(map[string]string)
 }
 
-// PutAttrMap clears and returns a map to the pool. Never pass a map that is
-// still referenced by a Row.
 func PutAttrMap(m map[string]string) {
 	clear(m)
 	attrMapPool.Put(m)
@@ -48,8 +42,7 @@ func pcommonValueToString(v *commonpb.AnyValue) string {
 	case *commonpb.AnyValue_BytesValue:
 		return hex.EncodeToString(val.BytesValue)
 	default:
-		// Maps/arrays: JSON with sorted keys so equal attribute sets hash to
-		// one fingerprint (fmt %v map ordering was non-deterministic).
+
 		b, err := json.Marshal(anyValueToGo(v))
 		if err != nil {
 			return ""
@@ -58,8 +51,6 @@ func pcommonValueToString(v *commonpb.AnyValue) string {
 	}
 }
 
-// anyValueToGo converts an OTLP AnyValue into plain Go values so json.Marshal
-// can render maps/arrays deterministically (map keys sorted).
 func anyValueToGo(v *commonpb.AnyValue) any {
 	if v == nil {
 		return nil
@@ -98,8 +89,6 @@ func AttrsToMap(kvs []*commonpb.KeyValue) map[string]string {
 	return m
 }
 
-// AttrsToMapInto fills dst from kvs. The caller owns dst (e.g. a pooled map)
-// and must clear it before reuse.
 func AttrsToMapInto(dst map[string]string, kvs []*commonpb.KeyValue) {
 	for _, kv := range kvs {
 		dst[kv.Key] = AnyValueString(kv.Value)

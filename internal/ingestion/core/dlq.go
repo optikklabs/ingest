@@ -9,10 +9,6 @@ import (
 	"github.com/twmb/franz-go/pkg/kgo"
 )
 
-// DLQ republishes original record bytes to the DLQ topic on writer failure.
-// Publishing is best-effort by design: a failed DLQ publish is accepted
-// loss, never retried — it is logged and counted in records_lost_total so
-// the loss is observable, and the caller commits offsets regardless.
 type DLQ struct {
 	base   *kafkainfra.Producer
 	topic  string

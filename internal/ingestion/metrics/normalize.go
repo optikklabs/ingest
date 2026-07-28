@@ -2,17 +2,6 @@ package metrics
 
 import "strings"
 
-// attrAliases maps each canonical attribute key to the source keys that may
-// carry the same logical dimension, in priority order (first non-empty wins).
-//
-// Different telemetry sources name the same dimension differently: the OTel
-// kafkametrics receiver emits topic / group; otelsql emits db.system.name (and
-// a malformed nested db.system object); stable semantic conventions use the
-// canonical names below. Coalescing here — once, at ingest — lets the rollup
-// MV read a single canonical key per dimension instead of branching per source.
-//
-// To support a new source, add its key to the relevant sources list. No SQL or
-// schema change is required.
 var attrAliases = []struct {
 	canonical string
 	sources   []string

@@ -33,8 +33,6 @@ func newHealthCache() *healthCache {
 
 var readyCache = newHealthCache()
 
-// get returns a cached or freshly-computed health snapshot. Concurrent
-// callers with an expired cache share a single refresh via Cond.
 func (h *healthCache) get(ctx context.Context, probe func(ctx context.Context) *healthResult) *healthResult {
 	h.mu.Lock()
 	if h.current != nil && time.Now().Before(h.current.expiresAt) {
@@ -53,8 +51,6 @@ func (h *healthCache) get(ctx context.Context, probe func(ctx context.Context) *
 	h.inFlight = true
 	h.mu.Unlock()
 
-	// Always clear inFlight and wake waiters, even if probe panics, so a
-	// single failed probe can never wedge readiness forever.
 	var res *healthResult
 	defer func() {
 		h.mu.Lock()

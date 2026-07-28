@@ -7,9 +7,6 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-// PublishMetricPair publishes metadata and payloads concurrently. Both topics
-// use the same thread-safe Kafka producer, so independent acknowledgement waits
-// do not need to add to request latency.
 func PublishMetricPair[S Row, M Row](ctx context.Context, series Publisher[S], seriesRows []S, metrics Publisher[M], metricRows []M) error {
 	group, groupCtx := errgroup.WithContext(ctx)
 	group.Go(func() error {

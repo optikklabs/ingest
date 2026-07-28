@@ -48,7 +48,7 @@ CREATE TABLE IF NOT EXISTS optikk.spans (
     gen_ai_input_tokens                   UInt64                 CODEC(T64, ZSTD(1)),
     gen_ai_output_tokens                  UInt64                 CODEC(T64, ZSTD(1)),
     is_gen_ai                             Bool                   CODEC(T64, ZSTD(1)),
-    -- Promoted LLM content, capped at 16KiB by the ingest mapper.
+                                                                  
     gen_ai_prompt                         String                 CODEC(ZSTD(2)),
     gen_ai_completion                     String                 CODEC(ZSTD(2)),
 
@@ -67,7 +67,7 @@ CREATE TABLE IF NOT EXISTS optikk.spans (
     duration_ms              Float64                ALIAS duration_nano / 1000000.0,
     status                   LowCardinality(String) ALIAS status_code_string,
     http_status_code         UInt16                 ALIAS toUInt16OrZero(response_status_code),
-    -- OTel HTTP semconv: 4xx errors only on CLIENT spans; 5xx errors on any kind.
+                                                                                  
     is_error                 UInt8                  ALIAS if(has_error OR (kind_string = 'CLIENT' AND toUInt16OrZero(response_status_code) >= 400) OR toUInt16OrZero(response_status_code) >= 500, 1, 0),
     is_root                  UInt8                  ALIAS if((parent_span_id = '') OR (parent_span_id = '0000000000000000'), 1, 0),
 
@@ -84,8 +84,8 @@ SETTINGS
     storage_policy = 'tiered',
     index_granularity = 8192,
     min_bytes_for_wide_part = 10485760,
-    -- Insert-block dedup for Kafka redelivery. The non_replicated_* variant
-    -- is a no-op on Replicated engines; live cluster: ALTER ... MODIFY SETTING.
+                                                                            
+                                                                                
     replicated_deduplication_window = 10000,
     replicated_deduplication_window_seconds = 3600,
     ttl_only_drop_parts = 1;

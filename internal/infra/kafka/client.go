@@ -1,5 +1,3 @@
-// Package kafka provides shared Kafka client helpers for producers and
-// consumers. Per-signal configs are declared next to their handlers.
 package kafka
 
 import (

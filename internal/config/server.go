@@ -1,6 +1,5 @@
 package config
 
-// ServerConfig holds the HTTP listener used for /metrics and /health probes.
 type ServerConfig struct {
 	Port           string `yaml:"port"`
 	AllowedOrigins string `yaml:"allowed_origins"`

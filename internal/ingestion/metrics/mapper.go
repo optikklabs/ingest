@@ -18,24 +18,17 @@ type rowHeader struct {
 	tenantID uint32
 	resMap   map[string]string
 	resource fingerprint.ResourceDimensions
-	// resSeriesMap is resMap with high-cardinality keys removed, filtered once
-	// per ResourceMetrics and reused for every datapoint's series hash.
+
 	resSeriesMap map[string]string
-	// hostResAttrs is the allowlisted host-metadata subset of resMap,
-	// persisted on every series row; nil when the resource has none.
+
 	hostResAttrs map[string]string
 }
 
-// hostResourceAttrKeys are the exact non-prefix keys retained in
-// resource_attributes; prefixes os./host./cloud. are retained as well.
 var hostResourceAttrKeys = map[string]struct{}{
 	"k8s.node.name":    {},
 	"k8s.cluster.name": {},
 }
 
-// hostResourceAttrs extracts the host-metadata allowlist from resource
-// attributes. Bounded keys keep the JSON column compressible and exclude
-// high-cardinality SDK noise (service.instance.id, telemetry.sdk.*).
 func hostResourceAttrs(resMap map[string]string) map[string]string {
 	var out map[string]string
 	for k, v := range resMap {
@@ -80,8 +73,6 @@ func mapRequest(tenantID int64, req *metricspb.ExportMetricsServiceRequest) ([]*
 	return acc.rows, acc.series
 }
 
-// rowAccumulator collects metric rows and the unique series derived from them,
-// deduplicating series by fingerprint as rows are added.
 type rowAccumulator struct {
 	rows   []*schema.Row
 	series []*seriesschema.SeriesRow
@@ -168,10 +159,6 @@ func expHistogramRow(hdr rowHeader, m *metricsdatapb.Metric, temporality string,
 	return row, series
 }
 
-// expBucketsToExplicit converts OTLP exponential positive buckets to the
-// explicit-bounds form (upper bounds + per-bucket counts, counts one longer
-// than bounds) that the metrics rollup MV expects. Negative buckets are
-// dropped; latency metrics are non-negative.
 func expBucketsToExplicit(dp *metricsdatapb.ExponentialHistogramDataPoint) ([]float64, []uint64) {
 	counts := dp.GetPositive().GetBucketCounts()
 	if len(counts) == 0 {
@@ -181,14 +168,14 @@ func expBucketsToExplicit(dp *metricsdatapb.ExponentialHistogramDataPoint) ([]fl
 	offset := int(dp.GetPositive().GetOffset())
 	bounds := make([]float64, 0, len(counts)+1)
 	out := make([]uint64, 0, len(counts)+2)
-	// First bound/count cover the zero region below the lowest positive bucket.
+
 	bounds = append(bounds, math.Pow(base, float64(offset)))
 	out = append(out, dp.GetZeroCount())
 	for i, c := range counts {
 		bounds = append(bounds, math.Pow(base, float64(offset+i+1)))
 		out = append(out, c)
 	}
-	out = append(out, 0) // no overflow above the top exponential bucket
+	out = append(out, 0)
 	return bounds, out
 }
 

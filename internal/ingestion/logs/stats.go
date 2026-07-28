@@ -9,8 +9,6 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-// statRows meters one usage row per resource block: record_count is the log
-// records in the block, byte_count its exact OTLP wire size.
 func statRows(tenantID uint32, req *logspb.ExportLogsServiceRequest) []*statsschema.StatRow {
 	rls := req.GetResourceLogs()
 	rows := make([]*statsschema.StatRow, 0, len(rls))
