@@ -77,7 +77,6 @@ kafka:
   fetch_max_bytes: 52428800
   fetch_max_partition_bytes: 8388608
                                                                       
-  consumer_max_retries: 2
                                                                 
                                                                     
                                                   

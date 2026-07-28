@@ -9,10 +9,7 @@ import (
 	"github.com/optikklabs/ingest/internal/ingestion/metricseries/schema"
 )
 
-const (
-	dedupShards = 16
-	signalLabel = "metric_series"
-)
+const signalLabel = "metric_series"
 
 type dedupKey struct {
 	tenant      uint32
@@ -26,21 +23,17 @@ type dedupKey struct {
 // harmless: metrics_series is a ReplacingMergeTree.
 type Dedup struct {
 	bucketSecs int64
-	shards     [dedupShards]*lru.Cache[dedupKey, int64]
+	cache      *lru.Cache[dedupKey, int64]
 }
 
 func NewDedup(capacity int, republishInterval time.Duration) *Dedup {
 	if capacity <= 0 || republishInterval <= 0 {
 		return nil
 	}
-	perShard := max(capacity/dedupShards, 1)
-	d := &Dedup{bucketSecs: int64(republishInterval / time.Second)}
-	for i := range d.shards {
-		d.shards[i], _ = lru.NewWithEvict(perShard, func(dedupKey, int64) {
-			obsmetrics.ResourceCacheEvictions.WithLabelValues(signalLabel).Inc()
-		})
-	}
-	return d
+	cache, _ := lru.NewWithEvict(capacity, func(dedupKey, int64) {
+		obsmetrics.ResourceCacheEvictions.WithLabelValues(signalLabel).Inc()
+	})
+	return &Dedup{bucketSecs: int64(republishInterval / time.Second), cache: cache}
 }
 
 func (d *Dedup) Bucket(now time.Time) int64 {
@@ -50,16 +43,16 @@ func (d *Dedup) Bucket(now time.Time) int64 {
 	return now.Unix() / d.bucketSecs
 }
 
-// FilterUnpublished drops (in place) rows already published in this bucket.
-// A nil *Dedup disables filtering.
+// FilterUnpublished drops rows already published in this bucket. A nil *Dedup
+// disables filtering.
 func (d *Dedup) FilterUnpublished(rows []*schema.SeriesRow, bucket int64) []*schema.SeriesRow {
 	if d == nil {
 		return rows
 	}
-	out := rows[:0]
+	out := make([]*schema.SeriesRow, 0, len(rows))
 	for _, r := range rows {
 		k := dedupKey{tenant: r.GetTenantId(), fingerprint: r.GetFingerprint()}
-		if last, ok := d.shard(k).Get(k); ok && last >= bucket {
+		if last, ok := d.cache.Get(k); ok && last >= bucket {
 			continue
 		}
 		out = append(out, r)
@@ -81,10 +74,6 @@ func (d *Dedup) MarkPublished(rows []*schema.SeriesRow, bucket int64) {
 	}
 	for _, r := range rows {
 		k := dedupKey{tenant: r.GetTenantId(), fingerprint: r.GetFingerprint()}
-		d.shard(k).Add(k, bucket)
+		d.cache.Add(k, bucket)
 	}
-}
-
-func (d *Dedup) shard(k dedupKey) *lru.Cache[dedupKey, int64] {
-	return d.shards[(k.fingerprint^uint64(k.tenant))%dedupShards]
 }

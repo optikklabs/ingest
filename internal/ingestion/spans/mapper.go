@@ -37,8 +37,7 @@ func mapRequest(tenantID int64, req *tracepb.ExportTraceServiceRequest) ([]*sche
 			resAttrs = rs.Resource.Attributes
 		}
 
-		resMap := otlp.GetAttrMap()
-		otlp.AttrsToMapInto(resMap, resAttrs)
+		resMap := otlp.AttrsToMap(resAttrs)
 		dims := fingerprint.ResolveResource(resMap)
 		baseAttrs := resourceBaseAttrs(resMap)
 		before := len(rows)
@@ -47,7 +46,6 @@ func mapRequest(tenantID int64, req *tracepb.ExportTraceServiceRequest) ([]*sche
 				rows = append(rows, buildSpanRow(tenantID, baseAttrs, dims, s))
 			}
 		}
-		otlp.PutAttrMap(resMap)
 		if n := len(rows) - before; n > 0 {
 			usage = append(usage, ingestionstats.ResourceUsage{Service: dims.Service, Environment: dims.Environment, Records: uint64(n)})
 		}
@@ -81,9 +79,7 @@ func buildSpanRow(tenantID int64, baseAttrs map[string]string, dims fingerprint.
 		statusCode = s.Status.GetCode()
 	}
 
-	spanMap := otlp.GetAttrMap()
-	defer otlp.PutAttrMap(spanMap)
-	otlp.AttrsToMapInto(spanMap, s.GetAttributes())
+	spanMap := otlp.AttrsToMap(s.GetAttributes())
 	merged := mergeAndCapAttrs(baseAttrs, spanMap)
 
 	httpMethod := firstNonEmpty(spanMap, "http.method", "http.request.method")

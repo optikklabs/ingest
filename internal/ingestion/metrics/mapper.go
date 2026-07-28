@@ -20,7 +20,6 @@ type rowHeader struct {
 	resMap   map[string]string
 	resource fingerprint.ResourceDimensions
 
-	resSeriesMap map[string]string
 
 	hostResAttrs map[string]string
 }
@@ -63,7 +62,6 @@ func mapRequest(tenantID int64, req *metricspb.ExportMetricsServiceRequest) ([]*
 			tenantID:     uint32(tenantID),
 			resMap:       resMap,
 			resource:     fingerprint.ResolveResource(resMap),
-			resSeriesMap: fingerprint.FilterHighCardinality(resMap),
 			hostResAttrs: hostResourceAttrs(resMap),
 		}
 		before := len(acc.rows)
@@ -212,7 +210,7 @@ func baseRow(
 	value float64,
 ) (*schema.Row, *seriesschema.SeriesRow) {
 	normalizeAttrs(name, attrs)
-	fp := fingerprint.SeriesHashPreFiltered(name, temporality, hdr.resSeriesMap, attrs)
+	fp := fingerprint.SeriesHash(name, temporality, hdr.resMap, attrs)
 	row := &schema.Row{
 		TenantId:    hdr.tenantID,
 		MetricName:  name,

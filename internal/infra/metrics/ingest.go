@@ -76,13 +76,6 @@ var (
 		Help:      "Metric data points dropped because their OTLP type is unsupported, by signal.",
 	}, []string{"signal"})
 
-	InsertRetries = promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "optikk",
-		Subsystem: "ingest",
-		Name:      "insert_retries_total",
-		Help:      "ClickHouse insert retry attempts after a failed write, by signal.",
-	}, []string{"signal"})
-
 	CHInsertDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: "optikk",
 		Subsystem: "ingest",
@@ -104,14 +97,28 @@ var (
 		Namespace: "optikk",
 		Subsystem: "ingest",
 		Name:      "records_lost_total",
-		Help:      "Records dropped after both CH insert retries and the DLQ publish failed, by signal.",
+		Help:      "Records dropped after both the CH insert and the DLQ publish failed, by signal.",
 	}, []string{"signal"})
 
-	ConsumerHalts = promauto.NewCounterVec(prometheus.CounterOpts{
+	MalformedRecords = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "optikk",
 		Subsystem: "ingest",
-		Name:      "consumer_halts_total",
-		Help:      "Consume loops halted after a handler failure to avoid committing past it, by signal.",
+		Name:      "malformed_records_total",
+		Help:      "Kafka records dropped because their protobuf failed to unmarshal, by signal.",
+	}, []string{"signal"})
+
+	ConsumerFetchErrors = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "optikk",
+		Subsystem: "ingest",
+		Name:      "consumer_fetch_errors_total",
+		Help:      "Kafka fetch errors surfaced by the consume loop, by signal.",
+	}, []string{"signal"})
+
+	ConsumerBatchesDropped = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "optikk",
+		Subsystem: "ingest",
+		Name:      "consumer_batches_dropped_total",
+		Help:      "Batches whose handler failed; offsets commit anyway (accepted loss), by signal.",
 	}, []string{"signal"})
 
 	// ResourceCache* track the cross-request series-dedup cache.
@@ -160,17 +167,10 @@ var (
 		Help:      "Best-effort side-topic publishes dropped (queue full or publish error), by signal and topic.",
 	}, []string{"signal", "topic"})
 
-	IngestionStatsPublishRetries = promauto.NewCounter(prometheus.CounterOpts{
-		Namespace: "optikk",
-		Subsystem: "ingest",
-		Name:      "ingestion_stats_publish_retries_total",
-		Help:      "Hourly ingestion-stat snapshot publish failures retained for retry.",
-	})
-
 	IngestionStatsPublishDropped = promauto.NewCounter(prometheus.CounterOpts{
 		Namespace: "optikk",
 		Subsystem: "ingest",
 		Name:      "ingestion_stats_publish_dropped_total",
-		Help:      "Hourly ingestion-stat rows discarded only after bounded shutdown retries.",
+		Help:      "Hourly ingestion-stat rows dropped after a failed publish.",
 	})
 )

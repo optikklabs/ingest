@@ -41,11 +41,7 @@ type HourlyRecorder struct {
 	wg            sync.WaitGroup
 }
 
-const (
-	publishTimeout = 5 * time.Second
-	retryDelay     = 30 * time.Second
-	closeRetries   = 3
-)
+const publishTimeout = 5 * time.Second
 
 func NewHourlyRecorder(pub publisher, flushInterval time.Duration) *HourlyRecorder {
 	r := &HourlyRecorder{pub: pub, flushInterval: flushInterval, rows: make(map[statKey]*schema.StatRow), done: make(chan struct{})}
@@ -99,51 +95,28 @@ func (r *HourlyRecorder) run() {
 		select {
 		case <-r.done:
 			timer.Stop()
-			r.flushOnClose()
+			r.flush()
 			return
 		case <-timer.C:
-			if r.flush() {
-				delay = r.flushInterval
-			} else {
-				delay = retryDelay
-			}
+			r.flush()
+			delay = r.flushInterval
 		}
 	}
 }
 
-func (r *HourlyRecorder) flush() bool {
+// flush publishes the buffered rows once; on failure they are counted and
+// dropped (accepted loss).
+func (r *HourlyRecorder) flush() {
 	rows := r.snapshot()
 	if len(rows) == 0 {
-		return true
+		return
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), publishTimeout)
 	err := r.pub.Publish(ctx, rows)
 	cancel()
-	if err == nil {
-		return true
-	}
-	r.restore(rows)
-	metrics.IngestionStatsPublishRetries.Inc()
-	slog.Warn("ingestion_stats: publish failed; retry scheduled", slog.Any("error", err), slog.Int("rows", len(rows)))
-	return false
-}
-
-func (r *HourlyRecorder) flushOnClose() {
-	for attempt := 0; attempt < closeRetries; attempt++ {
-		if r.flush() {
-			return
-		}
-		if attempt+1 < closeRetries {
-			time.Sleep(time.Duration(attempt+1) * time.Second)
-		}
-	}
-	r.mu.Lock()
-	dropped := len(r.rows)
-	r.rows = make(map[statKey]*schema.StatRow)
-	r.mu.Unlock()
-	if dropped > 0 {
-		metrics.IngestionStatsPublishDropped.Add(float64(dropped))
-		slog.Error("ingestion_stats: dropping rows after shutdown retries", slog.Int("rows", dropped))
+	if err != nil {
+		metrics.IngestionStatsPublishDropped.Add(float64(len(rows)))
+		slog.Warn("ingestion_stats: publish failed, dropping rows", slog.Any("error", err), slog.Int("rows", len(rows)))
 	}
 }
 
@@ -156,20 +129,6 @@ func (r *HourlyRecorder) snapshot() []*schema.StatRow {
 	r.rows = make(map[statKey]*schema.StatRow)
 	r.mu.Unlock()
 	return rows
-}
-
-func (r *HourlyRecorder) restore(rows []*schema.StatRow) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	for _, row := range rows {
-		k := statKey{row.GetTenantId(), row.GetBucketUnix(), row.GetSignal(), row.GetService(), row.GetEnvironment()}
-		if current := r.rows[k]; current != nil {
-			current.RecordCount += row.GetRecordCount()
-			current.ByteCount += row.GetByteCount()
-			continue
-		}
-		r.rows[k] = row
-	}
 }
 
 func (r *HourlyRecorder) Close() {

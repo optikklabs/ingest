@@ -51,7 +51,6 @@ type signalWireInput struct {
 	producerBase          *kafkainfra.Producer
 	consumer              *kafkainfra.Consumer
 	ch                    clickhouse.Conn
-	insertMaxRetries      int
 	sidePublishQueueSize  int
 	sidePublishWorkers    int
 	stats                 ingestionstats.Recorder
@@ -79,7 +78,7 @@ func wireSpans(in signalWireInput) (registry.Module, ConsumerRunner) {
 	scoresPublisher := core.NewAsyncPublisher[*llmscoresschema.ScoreRow](scoresProducer, kafkainfra.SignalSpans, kafkainfra.SignalLLMScores, in.sidePublishQueueSize, in.sidePublishWorkers)
 	in.registerCloser(scoresPublisher.Close)
 
-	writer := core.NewRetryWriter(spansignal.NewClickHouseWriter(in.ch), kafkainfra.SignalSpans, in.insertMaxRetries)
+	writer := spansignal.NewClickHouseWriter(in.ch)
 	dlq := core.NewDLQ(in.producerBase, in.dlqTopic, kafkainfra.SignalSpans)
 	consumer := core.NewInsertConsumer(in.consumer, kafkainfra.SignalSpans, writer, dlq, func() *spansschema.Row { return &spansschema.Row{} })
 
@@ -91,7 +90,7 @@ func wireSpans(in signalWireInput) (registry.Module, ConsumerRunner) {
 func wireLogs(in signalWireInput) (registry.Module, ConsumerRunner) {
 	producer := core.NewProducer[*logsschema.Row](in.ingestTopic, in.producerBase)
 
-	dataWriter := core.NewRetryWriter(logsignal.NewDataWriter(in.ch), kafkainfra.SignalLogs, in.insertMaxRetries)
+	dataWriter := logsignal.NewDataWriter(in.ch)
 	dlq := core.NewDLQ(in.producerBase, in.dlqTopic, kafkainfra.SignalLogs)
 	consumer := core.NewInsertConsumer(in.consumer, kafkainfra.SignalLogs, dataWriter, dlq, func() *logsschema.Row { return &logsschema.Row{} })
 
@@ -106,7 +105,7 @@ func wireMetrics(seriesDedup *metricseries.Dedup) func(signalWireInput) (registr
 		seriesTopic := kafkainfra.IngestTopic(in.topicPrefix, kafkainfra.SignalMetricSeries)
 		seriesProducer := core.NewProducer[*metricseriesschema.SeriesRow](seriesTopic, in.producerBase)
 
-		writer := core.NewRetryWriter(metricsignal.NewMetricsClickHouseWriter(in.ch), kafkainfra.SignalMetrics, in.insertMaxRetries)
+		writer := metricsignal.NewMetricsClickHouseWriter(in.ch)
 		dlq := core.NewDLQ(in.producerBase, in.dlqTopic, kafkainfra.SignalMetrics)
 		consumer := core.NewInsertConsumer(in.consumer, kafkainfra.SignalMetrics, writer, dlq, func() *metricsschema.Row { return &metricsschema.Row{} })
 		mod := metricsignal.NewModule(metricsignal.Deps{
@@ -121,7 +120,7 @@ func insertOnly[T core.Row](
 	newRow func() T,
 ) func(signalWireInput) (registry.Module, ConsumerRunner) {
 	return func(in signalWireInput) (registry.Module, ConsumerRunner) {
-		writer := core.NewRetryWriter(newWriter(in.ch), in.signal, in.insertMaxRetries)
+		writer := newWriter(in.ch)
 		dlq := core.NewDLQ(in.producerBase, in.dlqTopic, in.signal)
 		return nil, core.NewInsertConsumer(in.consumer, in.signal, writer, dlq, newRow)
 	}
@@ -221,7 +220,6 @@ func buildIngest(cfg config.Config, ch clickhouse.Conn) (ingestBundle, error) {
 			producerBase:         producerBase,
 			consumer:             kafkainfra.NewConsumer(client, cfg.KafkaConsumerMaxPollRecords(), cfg.KafkaConsumerInsertWorkers(), w.signal),
 			ch:                   ch,
-			insertMaxRetries:     cfg.KafkaConsumerMaxRetries(),
 			sidePublishQueueSize: cfg.SidePublishQueueSize(),
 			sidePublishWorkers:   cfg.SidePublishWorkers(),
 			registerCloser:       func(f func()) { b.closers = append(b.closers, f) },

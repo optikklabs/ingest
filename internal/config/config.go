@@ -127,7 +127,6 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("kafka.batch_max_bytes", 1<<20)
 	v.SetDefault("kafka.fetch_max_bytes", 8<<20)
 	v.SetDefault("kafka.fetch_max_partition_bytes", 1<<20)
-	v.SetDefault("kafka.consumer_max_retries", 2)
 	v.SetDefault("kafka.consumer_max_poll_records", 5000)
 	v.SetDefault("kafka.consumer_insert_workers", 1)
 

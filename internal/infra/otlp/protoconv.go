@@ -4,23 +4,9 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"strconv"
-	"sync"
 
 	commonpb "go.opentelemetry.io/proto/otlp/common/v1"
 )
-
-var attrMapPool = sync.Pool{
-	New: func() any { return make(map[string]string, 16) },
-}
-
-func GetAttrMap() map[string]string {
-	return attrMapPool.Get().(map[string]string)
-}
-
-func PutAttrMap(m map[string]string) {
-	clear(m)
-	attrMapPool.Put(m)
-}
 
 func AnyValueString(v *commonpb.AnyValue) string {
 	if v == nil {
@@ -85,14 +71,10 @@ func anyValueToGo(v *commonpb.AnyValue) any {
 
 func AttrsToMap(kvs []*commonpb.KeyValue) map[string]string {
 	m := make(map[string]string, len(kvs))
-	AttrsToMapInto(m, kvs)
-	return m
-}
-
-func AttrsToMapInto(dst map[string]string, kvs []*commonpb.KeyValue) {
 	for _, kv := range kvs {
-		dst[kv.Key] = AnyValueString(kv.Value)
+		m[kv.Key] = AnyValueString(kv.Value)
 	}
+	return m
 }
 
 func BytesToHex(b []byte) string {

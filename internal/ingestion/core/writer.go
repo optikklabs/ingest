@@ -17,13 +17,6 @@ type Writer[T Row] interface {
 	Insert(ctx context.Context, rows []T) error
 }
 
-type permanentInsertError struct {
-	err error
-}
-
-func (e *permanentInsertError) Error() string { return e.err.Error() }
-func (e *permanentInsertError) Unwrap() error { return e.err }
-
 type ClickHouseWriter[T Row] struct {
 	ch        clickhouse.Conn
 	query     string
@@ -61,7 +54,7 @@ func (w *ClickHouseWriter[T]) Insert(ctx context.Context, rows []T) error {
 	for _, r := range rows {
 		w.rowMapper(r, vals)
 		if err := batch.Append(vals...); err != nil {
-			return &permanentInsertError{err: fmt.Errorf("core writer: append: %w", err)}
+			return fmt.Errorf("core writer: append: %w", err)
 		}
 	}
 	sendStart := time.Now()

@@ -6,9 +6,10 @@ import (
 	"testing"
 )
 
-// referenceSeriesHash is the pre-optimization implementation, kept verbatim
-// as the equivalence oracle: fingerprints persist in metrics_series, so the
-// optimized path must produce byte-identical hashes forever.
+// referenceSeriesHash is the original implementation, kept verbatim as the
+// equivalence oracle: fingerprints persist in metrics_series, so SeriesHash
+// must produce byte-identical hashes forever. It expects resource attributes
+// already stripped of high-cardinality keys.
 func referenceSeriesHash(metricName, temporality string, filteredResAttrs, dpAttrs map[string]string) uint64 {
 	merged := make(map[string]string, len(filteredResAttrs)+len(dpAttrs)+2)
 	for k, v := range filteredResAttrs {
@@ -25,7 +26,17 @@ func referenceSeriesHash(metricName, temporality string, filteredResAttrs, dpAtt
 	return FingerprintHash(merged)
 }
 
-func TestSeriesHashPreFilteredMatchesReference(t *testing.T) {
+func dropHighCardinality(attrs map[string]string) map[string]string {
+	out := make(map[string]string, len(attrs))
+	for k, v := range attrs {
+		if _, drop := highCardinalityKeys[k]; !drop {
+			out[k] = v
+		}
+	}
+	return out
+}
+
+func TestSeriesHashMatchesReference(t *testing.T) {
 	cases := []struct {
 		name     string
 		res, dp  map[string]string
@@ -53,7 +64,7 @@ func TestSeriesHashPreFilteredMatchesReference(t *testing.T) {
 			temporal: "Cumulative",
 		},
 		{
-			name:     "high-cardinality dp key dropped, resource value kept",
+			name:     "high-cardinality keys dropped from both maps",
 			res:      map[string]string{"container.id": "res-cid", "service.name": "api"},
 			dp:       map[string]string{"container.id": "dp-cid", "k8s.pod.uid": "u1"},
 			metric:   "cpu",
@@ -69,8 +80,8 @@ func TestSeriesHashPreFilteredMatchesReference(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			want := referenceSeriesHash(tc.metric, tc.temporal, tc.res, tc.dp)
-			got := SeriesHashPreFiltered(tc.metric, tc.temporal, tc.res, tc.dp)
+			want := referenceSeriesHash(tc.metric, tc.temporal, dropHighCardinality(tc.res), tc.dp)
+			got := SeriesHash(tc.metric, tc.temporal, tc.res, tc.dp)
 			if got != want {
 				t.Fatalf("hash mismatch: got %d want %d", got, want)
 			}
@@ -78,7 +89,7 @@ func TestSeriesHashPreFilteredMatchesReference(t *testing.T) {
 	}
 }
 
-func TestSeriesHashPreFilteredMatchesReferenceRandomized(t *testing.T) {
+func TestSeriesHashMatchesReferenceRandomized(t *testing.T) {
 	rng := rand.New(rand.NewSource(42))
 	keyPool := []string{
 		"service.name", "host.name", "region", "method", "code", "zone",
@@ -94,38 +105,10 @@ func TestSeriesHashPreFilteredMatchesReferenceRandomized(t *testing.T) {
 	for i := 0; i < 1000; i++ {
 		res := randAttrs(rng.Intn(8))
 		dp := randAttrs(rng.Intn(6))
-		want := referenceSeriesHash("m", "Cumulative", res, dp)
-		got := SeriesHashPreFiltered("m", "Cumulative", res, dp)
+		want := referenceSeriesHash("m", "Cumulative", dropHighCardinality(res), dp)
+		got := SeriesHash("m", "Cumulative", res, dp)
 		if got != want {
 			t.Fatalf("iteration %d mismatch (res=%v dp=%v): got %d want %d", i, res, dp, got, want)
 		}
-	}
-}
-
-var benchRes = map[string]string{
-	"service.name": "checkout", "service.version": "1.4.2",
-	"host.name": "node-7", "k8s.namespace.name": "prod",
-	"k8s.pod.name": "checkout-6f7c", "deployment.environment": "production",
-	"cloud.region": "ap-south-1", "os.type": "linux",
-	"telemetry.sdk.name": "opentelemetry", "telemetry.sdk.language": "go",
-}
-
-var benchDP = map[string]string{
-	"http.method": "GET", "http.status_code": "200", "http.route": "/api/v1/cart",
-}
-
-var benchSink uint64
-
-func BenchmarkSeriesHashReference(b *testing.B) {
-	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
-		benchSink = referenceSeriesHash("http_server_duration", "Cumulative", benchRes, benchDP)
-	}
-}
-
-func BenchmarkSeriesHashPreFiltered(b *testing.B) {
-	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
-		benchSink = SeriesHashPreFiltered("http_server_duration", "Cumulative", benchRes, benchDP)
 	}
 }

@@ -1,6 +1,9 @@
 package logs
 
 import (
+	"fmt"
+	"hash/fnv"
+	"io"
 	"strconv"
 	"strings"
 	"time"
@@ -33,10 +36,7 @@ func mapRequest(tenantID int64, req *logspb.ExportLogsServiceRequest) ([]*schema
 			resAttrs = rl.Resource.Attributes
 		}
 
-		resourceMap := otlp.GetAttrMap()
-		otlp.AttrsToMapInto(resourceMap, resAttrs)
-		rc := newResourceContext(resourceMap)
-		otlp.PutAttrMap(resourceMap)
+		rc := newResourceContext(otlp.AttrsToMap(resAttrs))
 		before := len(rows)
 		for _, sl := range rl.GetScopeLogs() {
 			scopeName, scopeVersion := "", ""
@@ -157,46 +157,16 @@ func buildLogRow(tenantID int64, rc resourceContext, scopeName, scopeVersion str
 	}
 }
 
+// computeLogID is a stable FNV-1a hash of (trace_id, timestamp, body).
+// IDs are stored, so the hash inputs and hex format must never change.
 func computeLogID(traceID string, tsNs uint64, body string) string {
-	const (
-		offset64      uint64 = 14695981039346656037
-		prime64       uint64 = 1099511628211
-		separatorByte byte   = 255
-	)
-	addStr := func(h uint64, s string) uint64 {
-		for i := 0; i < len(s); i++ {
-			h ^= uint64(s[i])
-			h *= prime64
-		}
-		return h
-	}
-	addByte := func(h uint64, b byte) uint64 {
-		h ^= uint64(b)
-		h *= prime64
-		return h
-	}
-	// Stored IDs: hash inputs and hex format must stay byte-identical to the
-	// old FormatUint + Sprintf("%016x") version. See TestComputeLogID.
-	var tsBuf [20]byte
-	ts := strconv.AppendUint(tsBuf[:0], tsNs, 10)
-	h := offset64
-	h = addStr(h, traceID)
-	h = addByte(h, separatorByte)
-	for _, b := range ts {
-		h = addByte(h, b)
-	}
-	h = addByte(h, separatorByte)
-	h = addStr(h, body)
-
-	var hexBuf [16]byte
-	hx := strconv.AppendUint(hexBuf[:0], h, 16)
-	var out [16]byte
-	pad := len(out) - len(hx)
-	for i := 0; i < pad; i++ {
-		out[i] = '0'
-	}
-	copy(out[pad:], hx)
-	return string(out[:])
+	h := fnv.New64a()
+	_, _ = io.WriteString(h, traceID)
+	_, _ = h.Write([]byte{255})
+	_, _ = io.WriteString(h, strconv.FormatUint(tsNs, 10))
+	_, _ = h.Write([]byte{255})
+	_, _ = io.WriteString(h, body)
+	return fmt.Sprintf("%016x", h.Sum64())
 }
 
 func resolveSeverity(lr *logv1.LogRecord) string {

@@ -1,14 +1,12 @@
 package otlphttp
 
 import (
-	"bytes"
 	"compress/gzip"
 	"context"
 	"errors"
 	"io"
 	"mime"
 	"net/http"
-	"sync"
 
 	"github.com/optikklabs/ingest/internal/auth"
 	"github.com/optikklabs/ingest/internal/infra/metrics"
@@ -18,22 +16,11 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-const (
-	maxBodyBytes = 16 << 20
-	// Buffers above this cap are not pooled to avoid pinning rare huge bodies.
-	maxPooledBodyCap = 1 << 20
-)
+const maxBodyBytes = 16 << 20
 
 var errUnsupportedEncoding = errors.New("unsupported content encoding")
 
-var gzipReaders = sync.Pool{New: func() any { return new(gzip.Reader) }}
-
-var bodyBuffers = sync.Pool{New: func() any { return new(bytes.Buffer) }}
-
 func Export[Req proto.Message, Resp proto.Message](signal string, resolver auth.TeamResolver, limiter *auth.TenantRateLimiter, newReq func() Req, export func(context.Context, Req) (Resp, error)) http.HandlerFunc {
-	pool := sync.Pool{
-		New: func() any { return newReq() },
-	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			w.Header().Set("Allow", http.MethodPost)
@@ -65,20 +52,7 @@ func Export[Req proto.Message, Resp proto.Message](signal string, resolver auth.
 			http.Error(w, "unsupported OTLP content type", http.StatusUnsupportedMediaType)
 			return
 		}
-		req := pool.Get().(Req)
-		defer func() {
-			proto.Reset(req)
-			pool.Put(req)
-		}()
-		buf := bodyBuffers.Get().(*bytes.Buffer)
-		// Unmarshal copies all it needs, so the buffer can be recycled after.
-		defer func() {
-			if buf.Cap() <= maxPooledBodyCap {
-				buf.Reset()
-				bodyBuffers.Put(buf)
-			}
-		}()
-		body, err := readBody(w, r, buf)
+		body, err := readBody(w, r)
 		if err != nil {
 			var maxErr *http.MaxBytesError
 			switch {
@@ -91,6 +65,7 @@ func Export[Req proto.Message, Resp proto.Message](signal string, resolver auth.
 			}
 			return
 		}
+		req := newReq()
 		if contentType == "application/json" {
 			err = protojson.Unmarshal(body, req)
 		} else {
@@ -116,31 +91,24 @@ func Export[Req proto.Message, Resp proto.Message](signal string, resolver auth.
 	}
 }
 
-// readBody reads the request body into the pooled buffer, inflating gzip
-// payloads (the OTel Collector default). The size cap applies to
-// decompressed bytes, so a gzip bomb cannot expand past maxBodyBytes.
-func readBody(w http.ResponseWriter, r *http.Request, buf *bytes.Buffer) ([]byte, error) {
-	if n := r.ContentLength; n > 0 && n <= maxBodyBytes {
-		buf.Grow(int(n))
-	}
+// readBody reads the request body, inflating gzip payloads (the OTel
+// Collector default). The size cap applies to decompressed bytes, so a gzip
+// bomb cannot expand past maxBodyBytes.
+func readBody(w http.ResponseWriter, r *http.Request) ([]byte, error) {
 	var src io.Reader
 	switch r.Header.Get("Content-Encoding") {
 	case "", "identity":
 		src = http.MaxBytesReader(w, r.Body, maxBodyBytes)
 	case "gzip":
-		zr := gzipReaders.Get().(*gzip.Reader)
-		defer gzipReaders.Put(zr)
-		if err := zr.Reset(r.Body); err != nil {
+		zr, err := gzip.NewReader(r.Body)
+		if err != nil {
 			return nil, err
 		}
 		src = http.MaxBytesReader(w, zr, maxBodyBytes)
 	default:
 		return nil, errUnsupportedEncoding
 	}
-	if _, err := buf.ReadFrom(src); err != nil {
-		return nil, err
-	}
-	return buf.Bytes(), nil
+	return io.ReadAll(src)
 }
 
 func writeError(w http.ResponseWriter, err error) {

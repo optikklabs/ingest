@@ -28,8 +28,6 @@ type KafkaConfig struct {
 
 	ConsumerMaxPollRecords int `yaml:"consumer_max_poll_records"`
 
-	ConsumerMaxRetries int `yaml:"consumer_max_retries"`
-
 	ConsumerInsertWorkers int `yaml:"consumer_insert_workers"`
 }
 
@@ -57,7 +55,5 @@ func (c Config) KafkaFetchMaxBytes() int { return c.Kafka.FetchMaxBytes }
 func (c Config) KafkaFetchMaxPartitionBytes() int { return c.Kafka.FetchMaxPartitionBytes }
 
 func (c Config) KafkaConsumerMaxPollRecords() int { return c.Kafka.ConsumerMaxPollRecords }
-
-func (c Config) KafkaConsumerMaxRetries() int { return c.Kafka.ConsumerMaxRetries }
 
 func (c Config) KafkaConsumerInsertWorkers() int { return c.Kafka.ConsumerInsertWorkers }
