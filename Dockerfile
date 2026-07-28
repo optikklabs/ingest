@@ -26,7 +26,8 @@ COPY config.yml .
 
 EXPOSE 18090 18317 18318
 
-USER nobody
+# Numeric so runAsNonRoot can verify the user (65534 = nobody).
+USER 65534:65534
 
 ENTRYPOINT ["./ingest"]
 
