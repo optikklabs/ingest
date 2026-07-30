@@ -1,3 +1,4 @@
+-- Metric series metadata keyed by fingerprint.
 CREATE TABLE IF NOT EXISTS optikk.metrics_series (
     tenant_id          UInt32 CODEC(T64, ZSTD(1)),
     timestamp        DateTime CODEC(DoubleDelta, LZ4),

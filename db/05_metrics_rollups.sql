@@ -1,9 +1,6 @@
--- Dimensional metrics rollup cascade, replacing the fingerprint-only tables in
--- 07_metrics_rollups.sql. Row counts are unchanged: every dimension is
--- functionally determined by (metric_name, fingerprint), already in the key.
--- service/host join the sort key to prune; the rest are constant per
--- fingerprint, so SimpleAggregateFunction(any). fingerprint stays as the series
--- identity the cumulative counter-reset window partitions by.
+-- Metric pre-aggregation cascade: raw metrics roll up 1m -> 5m -> 1h.
+-- Dimensions are carried with each fingerprint so queries do not join the
+-- metrics_series metadata table on the read path.
 
 CREATE TABLE IF NOT EXISTS optikk.metrics_1m_v2 (
     tenant_id     UInt32 CODEC(T64, ZSTD(1)),
@@ -19,7 +16,7 @@ CREATE TABLE IF NOT EXISTS optikk.metrics_1m_v2 (
     k8s_namespace   SimpleAggregateFunction(any, LowCardinality(String)) CODEC(ZSTD(1)),
     environment     SimpleAggregateFunction(any, LowCardinality(String)) CODEC(ZSTD(1)),
     temporality     SimpleAggregateFunction(any, LowCardinality(String)) CODEC(ZSTD(1)),
-    attributes      SimpleAggregateFunction(any, Map(LowCardinality(String), String)) CODEC(ZSTD(1)),
+    attributes      SimpleAggregateFunction(any, Map(String, String)) CODEC(ZSTD(1)),
     cloud_provider  SimpleAggregateFunction(any, LowCardinality(String)) CODEC(ZSTD(1)),
     cloud_account   SimpleAggregateFunction(any, LowCardinality(String)) CODEC(ZSTD(1)),
     cloud_region    SimpleAggregateFunction(any, LowCardinality(String)) CODEC(ZSTD(1)),
@@ -93,7 +90,7 @@ CREATE TABLE IF NOT EXISTS optikk.metrics_5m_v2 (
     k8s_namespace   SimpleAggregateFunction(any, LowCardinality(String)) CODEC(ZSTD(1)),
     environment     SimpleAggregateFunction(any, LowCardinality(String)) CODEC(ZSTD(1)),
     temporality     SimpleAggregateFunction(any, LowCardinality(String)) CODEC(ZSTD(1)),
-    attributes      SimpleAggregateFunction(any, Map(LowCardinality(String), String)) CODEC(ZSTD(1)),
+    attributes      SimpleAggregateFunction(any, Map(String, String)) CODEC(ZSTD(1)),
     cloud_provider  SimpleAggregateFunction(any, LowCardinality(String)) CODEC(ZSTD(1)),
     cloud_account   SimpleAggregateFunction(any, LowCardinality(String)) CODEC(ZSTD(1)),
     cloud_region    SimpleAggregateFunction(any, LowCardinality(String)) CODEC(ZSTD(1)),
@@ -164,7 +161,7 @@ CREATE TABLE IF NOT EXISTS optikk.metrics_1h_v2 (
     k8s_namespace   SimpleAggregateFunction(any, LowCardinality(String)) CODEC(ZSTD(1)),
     environment     SimpleAggregateFunction(any, LowCardinality(String)) CODEC(ZSTD(1)),
     temporality     SimpleAggregateFunction(any, LowCardinality(String)) CODEC(ZSTD(1)),
-    attributes      SimpleAggregateFunction(any, Map(LowCardinality(String), String)) CODEC(ZSTD(1)),
+    attributes      SimpleAggregateFunction(any, Map(String, String)) CODEC(ZSTD(1)),
     cloud_provider  SimpleAggregateFunction(any, LowCardinality(String)) CODEC(ZSTD(1)),
     cloud_account   SimpleAggregateFunction(any, LowCardinality(String)) CODEC(ZSTD(1)),
     cloud_region    SimpleAggregateFunction(any, LowCardinality(String)) CODEC(ZSTD(1)),
@@ -220,41 +217,3 @@ SELECT
     quantilesPrometheusHistogramMergeState(0.5, 0.95, 0.99)(latency_state) AS latency_state
 FROM optikk.metrics_5m_v2
 GROUP BY tenant_id, metric_name, fingerprint, timestamp, service, host;
-
--- CUTOVER — one-time, not idempotent. Both cascades dual-write until step 3.
---
--- 1. Backfill per day partition, oldest first. Raw metrics has a 2 DAY TTL, so
---    only 5m/1h need this, sourced from the old rollup joined to metrics_series.
---    Safe only because service/host are in the v2 sort key.
---
---      INSERT INTO optikk.metrics_5m_v2
---      SELECT m.tenant_id, m.metric_name, m.fingerprint, m.timestamp,
---             s.service, s.host, s.pod, s.container, s.k8s_namespace,
---             s.environment, s.temporality, s.attributes,
---             s.resource_attributes['cloud.provider'],
---             s.resource_attributes['cloud.account.id'],
---             if(s.resource_attributes['cloud.region'] != '',
---                s.resource_attributes['cloud.region'],
---                s.resource_attributes['aws.region']),
---             s.resource_attributes['cloud.platform'],
---             s.resource_attributes['k8s.node.name'],
---             m.val_last, m.val_min, m.val_max, m.val_sum, m.val_count,
---             m.hist_sum, m.hist_count, m.latency_state
---      FROM optikk.metrics_5m AS m
---      INNER JOIN (
---          SELECT fingerprint, argMax(service, timestamp) AS service, ...
---          FROM optikk.metrics_series GROUP BY fingerprint
---      ) AS s ON m.fingerprint = s.fingerprint
---      WHERE m.timestamp >= '<DAY>' AND m.timestamp < '<DAY+1>';
---
--- 2. Reconcile per partition; both must match:
---      SELECT count(), sum(val_count) FROM optikk.metrics_5m    WHERE ...;
---      SELECT count(), sum(val_count) FROM optikk.metrics_5m_v2 WHERE ...;
---    And check the k8s.pod.uid fallback lost no labels (uid is not in the
---    fingerprint, so pod is not determined by it):
---      SELECT count() FROM optikk.metrics_5m_v2 WHERE pod = '' AND k8s_node != '';
---
--- 3. Deploy query, which reads the _v2 names (timebucket.RollupTableForGrain).
---    No RENAME — it would orphan the v2 MVs' TO targets. Rollback = revert deploy.
---
--- 4. After a soak, drop optikk.metrics_{1m,5m,1h}_mv then the three old tables.

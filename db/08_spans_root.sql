@@ -1,4 +1,4 @@
--- Root-span index — a narrow copy of every root span, powering the traces
+-- Root-span index: a narrow copy of every root span, powering the traces
 -- explorer list / facets / trend. Those queries page and aggregate one row per
 -- trace, so scanning the full spans table (root + child) decoded ~N× the rows
 -- it needed. Reading root-only spans here removes that fan-out.
@@ -50,16 +50,3 @@ SELECT
     has_error
 FROM optikk.spans
 WHERE is_root = 1;
-
--- One-time backfill for spans that predate the MV. Run AFTER the statements
--- above. The upper bound must be the MV creation time so rows the MV already
--- captured are not double-inserted (spans_root is a plain MergeTree):
---
---   INSERT INTO optikk.spans_root
---   SELECT tenant_id, timestamp, trace_id, span_id, duration_nano,
---          service, name, kind_string, status_code_string, http_method,
---          response_status_code, has_error
---   FROM optikk.spans
---   WHERE is_root = 1
---     AND timestamp >= now() - INTERVAL 15 DAY
---     AND timestamp <  '<MV_CREATION_UTC>';

@@ -61,6 +61,14 @@ CREATE TABLE IF NOT EXISTS optikk.spans (
     -- Promoted LLM content, capped at 16KiB by the ingest mapper.
     gen_ai_prompt                         String                 CODEC(ZSTD(2)),
     gen_ai_completion                     String                 CODEC(ZSTD(2)),
+    gen_ai_span_kind                      LowCardinality(String) CODEC(ZSTD(1)),
+
+    llm_user_id                           String                        CODEC(ZSTD(1)),
+    llm_session_id                        String                        CODEC(ZSTD(1)),
+    llm_tags                              Array(LowCardinality(String)) CODEC(ZSTD(1)),
+    llm_release                           LowCardinality(String)        CODEC(ZSTD(1)),
+    llm_prompt_name                       LowCardinality(String)        CODEC(ZSTD(1)),
+    llm_prompt_version                    UInt32                        CODEC(T64, ZSTD(1)),
 
     events                                Array(Tuple(name LowCardinality(String), time_unix_nano UInt64, attributes Map(LowCardinality(String), String))) CODEC(ZSTD(2)),
     links                                 Array(Tuple(trace_id String, span_id String, trace_state String, attributes Map(LowCardinality(String), String))) CODEC(ZSTD(1)),

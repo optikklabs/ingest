@@ -1,3 +1,4 @@
+-- Per-tenant ingestion accounting.
 CREATE TABLE IF NOT EXISTS optikk.ingestion_stats (
     tenant_id     UInt32 CODEC(T64, ZSTD(1)),
     bucket_hour   DateTime CODEC(DoubleDelta, LZ4),

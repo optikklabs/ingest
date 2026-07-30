@@ -1,4 +1,4 @@
--- 1-minute rollup of GenAI spans. Powers LLM Observability aggregates
+-- One-minute rollup of GenAI spans for LLM observability aggregates
 -- (apps table, KPIs, token/latency/cost charts) without scanning raw spans.
 -- Latency kept in ms as tDigest state; cost is derived at query time from tokens.
 

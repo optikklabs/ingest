@@ -1,4 +1,4 @@
--- RED span-stats cascade: spans roll up 1m -> 5m -> 1h with every APM
+-- RED span-stat cascade: spans roll up 1m -> 5m -> 1h with every APM
 -- dimension as a real column, replacing the Go spanmetrics aggregator and the
 -- fingerprint join against metrics_series (same pattern as llm_stats_1m).
 -- Latency is a mergeable tDigest state in milliseconds; error counting stays a
@@ -230,6 +230,3 @@ GROUP BY tenant_id, timestamp, service, environment, host, pod, span_name,
          http_method, rpc_system,
          db_system, messaging_system, messaging_destination, messaging_consumer_group,
          cloud_provider, cloud_platform, cloud_region, k8s_node, peer_name, peer_type;
-
--- A historical repair inserts bounded rows into span_stats_1m; the 5m and 1h
--- tiers then populate through their materialized views.

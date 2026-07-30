@@ -1,4 +1,4 @@
--- Evaluation scores attached to LLM traces/spans. Populated by the ingest
+-- Evaluation scores attached to LLM traces/spans, populated by the ingest
 -- score sink (from gen_ai.evaluation.result / langfuse.score span events) and
 -- by the query POST /llm/scores API (human + programmatic scores).
 -- One row = one score on one trace (optionally one span).

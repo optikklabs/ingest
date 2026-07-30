@@ -1,3 +1,4 @@
+-- Raw OTLP logs.
 CREATE TABLE IF NOT EXISTS optikk.logs (
     tenant_id              UInt32 CODEC(T64, ZSTD(1)),
     ts_bucket            UInt32 CODEC(DoubleDelta, LZ4),
