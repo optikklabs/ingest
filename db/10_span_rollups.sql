@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS optikk.span_stats_1m (
     tenant_id                UInt32                 CODEC(T64, ZSTD(1)),
     timestamp                DateTime               CODEC(DoubleDelta, LZ4),
     service                  LowCardinality(String) CODEC(ZSTD(1)),
+    service_version          LowCardinality(String) CODEC(ZSTD(1)),
     environment              LowCardinality(String) CODEC(ZSTD(1)),
     host                     LowCardinality(String) CODEC(ZSTD(1)),
     pod                      LowCardinality(String) CODEC(ZSTD(1)),
@@ -46,7 +47,7 @@ CREATE TABLE IF NOT EXISTS optikk.span_stats_1m (
     latency_state            AggregateFunction(quantilesTDigest(0.5, 0.95, 0.99), Float64) CODEC(ZSTD(1))
 ) ENGINE = ReplicatedAggregatingMergeTree('/clickhouse/tables/{shard}/optikk/span_stats_1m', '{replica}')
 PARTITION BY toYYYYMMDD(timestamp)
-ORDER BY (tenant_id, timestamp, service, span_name, kind_string, status_code_string,
+ORDER BY (tenant_id, timestamp, service, service_version, span_name, kind_string, status_code_string,
           http_status_bucket, http_route, db_system, messaging_system,
           messaging_destination, messaging_consumer_group, environment, host, pod,
           cloud_provider, cloud_platform, cloud_region, k8s_node,
@@ -65,6 +66,7 @@ SELECT
     tenant_id,
     toStartOfMinute(timestamp) AS timestamp,
     service,
+    service_version,
     environment,
     host,
     pod,
@@ -103,7 +105,7 @@ SELECT
     sum(duration_nano / 1000000.0)              AS duration_ms_sum,
     quantilesTDigestState(0.5, 0.95, 0.99)(duration_nano / 1000000.0) AS latency_state
 FROM optikk.spans
-GROUP BY tenant_id, timestamp, service, environment, host, pod, span_name,
+GROUP BY tenant_id, timestamp, service, service_version, environment, host, pod, span_name,
          kind_string, status_code_string, http_status_bucket, http_route,
          http_method, rpc_system,
          db_system, messaging_system, messaging_destination, messaging_consumer_group,
@@ -113,6 +115,7 @@ CREATE TABLE IF NOT EXISTS optikk.span_stats_5m (
     tenant_id                UInt32                 CODEC(T64, ZSTD(1)),
     timestamp                DateTime               CODEC(DoubleDelta, LZ4),
     service                  LowCardinality(String) CODEC(ZSTD(1)),
+    service_version          LowCardinality(String) CODEC(ZSTD(1)),
     environment              LowCardinality(String) CODEC(ZSTD(1)),
     host                     LowCardinality(String) CODEC(ZSTD(1)),
     pod                      LowCardinality(String) CODEC(ZSTD(1)),
@@ -138,7 +141,7 @@ CREATE TABLE IF NOT EXISTS optikk.span_stats_5m (
     latency_state            AggregateFunction(quantilesTDigest(0.5, 0.95, 0.99), Float64) CODEC(ZSTD(1))
 ) ENGINE = ReplicatedAggregatingMergeTree('/clickhouse/tables/{shard}/optikk/span_stats_5m', '{replica}')
 PARTITION BY toYYYYMMDD(timestamp)
-ORDER BY (tenant_id, timestamp, service, span_name, kind_string, status_code_string,
+ORDER BY (tenant_id, timestamp, service, service_version, span_name, kind_string, status_code_string,
           http_status_bucket, http_route, db_system, messaging_system,
           messaging_destination, messaging_consumer_group, environment, host, pod,
           cloud_provider, cloud_platform, cloud_region, k8s_node,
@@ -156,7 +159,7 @@ TO optikk.span_stats_5m AS
 SELECT
     tenant_id,
     toStartOfFiveMinutes(timestamp) AS timestamp,
-    service, environment, host, pod, span_name, kind_string, status_code_string,
+    service, service_version, environment, host, pod, span_name, kind_string, status_code_string,
     http_status_bucket, http_route, http_method, rpc_system, db_system, messaging_system,
     messaging_destination, messaging_consumer_group,
     cloud_provider, cloud_platform, cloud_region, k8s_node, peer_name, peer_type,
@@ -164,7 +167,7 @@ SELECT
     sum(duration_ms_sum) AS duration_ms_sum,
     quantilesTDigestMergeState(0.5, 0.95, 0.99)(latency_state) AS latency_state
 FROM optikk.span_stats_1m
-GROUP BY tenant_id, timestamp, service, environment, host, pod, span_name,
+GROUP BY tenant_id, timestamp, service, service_version, environment, host, pod, span_name,
          kind_string, status_code_string, http_status_bucket, http_route,
          http_method, rpc_system,
          db_system, messaging_system, messaging_destination, messaging_consumer_group,
@@ -174,6 +177,7 @@ CREATE TABLE IF NOT EXISTS optikk.span_stats_1h (
     tenant_id                UInt32                 CODEC(T64, ZSTD(1)),
     timestamp                DateTime               CODEC(DoubleDelta, LZ4),
     service                  LowCardinality(String) CODEC(ZSTD(1)),
+    service_version          LowCardinality(String) CODEC(ZSTD(1)),
     environment              LowCardinality(String) CODEC(ZSTD(1)),
     host                     LowCardinality(String) CODEC(ZSTD(1)),
     pod                      LowCardinality(String) CODEC(ZSTD(1)),
@@ -199,7 +203,7 @@ CREATE TABLE IF NOT EXISTS optikk.span_stats_1h (
     latency_state            AggregateFunction(quantilesTDigest(0.5, 0.95, 0.99), Float64) CODEC(ZSTD(1))
 ) ENGINE = ReplicatedAggregatingMergeTree('/clickhouse/tables/{shard}/optikk/span_stats_1h', '{replica}')
 PARTITION BY toYYYYMMDD(timestamp)
-ORDER BY (tenant_id, timestamp, service, span_name, kind_string, status_code_string,
+ORDER BY (tenant_id, timestamp, service, service_version, span_name, kind_string, status_code_string,
           http_status_bucket, http_route, db_system, messaging_system,
           messaging_destination, messaging_consumer_group, environment, host, pod,
           cloud_provider, cloud_platform, cloud_region, k8s_node,
@@ -217,7 +221,7 @@ TO optikk.span_stats_1h AS
 SELECT
     tenant_id,
     toStartOfHour(timestamp) AS timestamp,
-    service, environment, host, pod, span_name, kind_string, status_code_string,
+    service, service_version, environment, host, pod, span_name, kind_string, status_code_string,
     http_status_bucket, http_route, http_method, rpc_system, db_system, messaging_system,
     messaging_destination, messaging_consumer_group,
     cloud_provider, cloud_platform, cloud_region, k8s_node, peer_name, peer_type,
@@ -225,7 +229,7 @@ SELECT
     sum(duration_ms_sum) AS duration_ms_sum,
     quantilesTDigestMergeState(0.5, 0.95, 0.99)(latency_state) AS latency_state
 FROM optikk.span_stats_5m
-GROUP BY tenant_id, timestamp, service, environment, host, pod, span_name,
+GROUP BY tenant_id, timestamp, service, service_version, environment, host, pod, span_name,
          kind_string, status_code_string, http_status_bucket, http_route,
          http_method, rpc_system,
          db_system, messaging_system, messaging_destination, messaging_consumer_group,

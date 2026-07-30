@@ -24,7 +24,7 @@ the database.
 | `07_ingestion_stats.sql` | `ingestion_stats` |
 | `08_spans_root.sql` | `spans_root` and `spans_to_root` |
 | `09_llm_scores.sql` | `llm_scores` |
-| `10_span_stats.sql` | `span_stats_1m/5m/1h` and their materialized views |
+| `10_span_rollups.sql` | `span_stats_1m/5m/1h` and their materialized views |
 
 `span_stats` is the single source for span-derived reads: RED, per-host/pod
 aggregates, database and Kafka RED, and the service-graph edges. There is no
