@@ -15,7 +15,6 @@ import (
 	_ "google.golang.org/grpc/encoding/gzip"
 	"google.golang.org/grpc/keepalive"
 
-	"github.com/optikklabs/ingest/internal/app/registry"
 	"github.com/optikklabs/ingest/internal/auth"
 )
 
@@ -46,7 +45,7 @@ func (a *App) addHTTPServerActor(g *run.Group) {
 	}
 	otlpMux := http.NewServeMux()
 	for _, mod := range a.Modules {
-		if httpMod, ok := mod.(registry.HTTPModule); ok {
+		if httpMod, ok := mod.(HTTPModule); ok {
 			httpMod.RegisterOTLPHTTP(otlpMux, a.Infra.Authenticator, a.Infra.RateLimiter)
 		}
 	}

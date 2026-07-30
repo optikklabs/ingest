@@ -3,7 +3,6 @@ package logs
 import (
 	"net/http"
 
-	"github.com/optikklabs/ingest/internal/app/registry"
 	"github.com/optikklabs/ingest/internal/auth"
 	"github.com/optikklabs/ingest/internal/ingestion/otlphttp"
 	logspb "go.opentelemetry.io/proto/otlp/collector/logs/v1"
@@ -14,7 +13,7 @@ type Deps struct {
 	Handler *Handler
 }
 
-func NewModule(d Deps) registry.Module {
+func NewModule(d Deps) *Module {
 	return &Module{handler: d.Handler}
 }
 
@@ -30,4 +29,3 @@ func (m *Module) RegisterOTLPHTTP(mux *http.ServeMux, resolver auth.TeamResolver
 	mux.Handle("/v1/logs", otlphttp.Export("logs", resolver, limiter, func() *logspb.ExportLogsServiceRequest { return &logspb.ExportLogsServiceRequest{} }, m.handler.Export))
 }
 
-var _ registry.Module = (*Module)(nil)

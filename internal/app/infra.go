@@ -10,7 +10,6 @@ import (
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/twmb/franz-go/pkg/kgo"
 
-	"github.com/optikklabs/ingest/internal/app/registry"
 	"github.com/optikklabs/ingest/internal/auth"
 	"github.com/optikklabs/ingest/internal/authrepo"
 	"github.com/optikklabs/ingest/internal/config"
@@ -28,7 +27,7 @@ type Infra struct {
 	AuthRepo      *authrepo.Repository
 	Authenticator *auth.Authenticator
 	RateLimiter   *auth.TenantRateLimiter
-	Ingest        []registry.Module
+	Ingest        []Module
 	LagPollers    []*kafkainfra.LagPoller
 	Consumers     []ConsumerRunner
 

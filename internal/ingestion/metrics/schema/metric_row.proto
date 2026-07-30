@@ -21,9 +21,25 @@ message Row {
   repeated double summary_quantiles = 15;
   repeated double summary_values    = 16;
 
+  // Series dimensions, so the rollup MVs need no metrics_series join.
+  string service = 28;
+  string host = 29;
+  string pod = 30;
+  string container = 31;
+  string k8s_namespace = 32;
+  string environment = 33;
+
+  // Datapoint attributes verbatim, so arbitrary-label group-by keeps working.
+  map<string, string> attributes = 34;
+
+  string cloud_provider = 41;   // cloud.provider
+  string cloud_account = 42;    // cloud.account.id
+  string cloud_region = 43;     // cloud.region, else aws.region
+  string cloud_platform = 44;   // cloud.platform
+  string k8s_node = 45;         // k8s.node.name
+
+  // Numbers stay reserved: in-flight messages may still carry the old types.
   reserved 3, 5, 6, 7, 17, 20, 21, 22, 23, 24, 25, 26, 27;
   reserved "metric_type", "is_monotonic", "unit", "description", "resource",
-           "attributes", "ts_bucket_hour_seconds", "service", "host",
-           "environment", "k8s_namespace", "http_method", "http_status_code",
-           "pod", "container";
+           "ts_bucket_hour_seconds", "http_method", "http_status_code";
 }

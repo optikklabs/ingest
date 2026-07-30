@@ -206,6 +206,10 @@ func scalarRow(
 ) (*schema.Row, *seriesschema.SeriesRow) {
 	normalizeAttrs(name, attrs)
 	fp := fingerprint.SeriesHash(name, temporality, hdr.resMap, attrs)
+	cloudRegion := hdr.resMap["cloud.region"]
+	if cloudRegion == "" {
+		cloudRegion = hdr.resMap["aws.region"]
+	}
 	row := &schema.Row{
 		TenantId:    hdr.tenantID,
 		MetricName:  name,
@@ -213,6 +217,22 @@ func scalarRow(
 		Fingerprint: fp,
 		TimestampNs: tsNs,
 		Value:       value,
+
+		Service:      hdr.resource.Service,
+		Host:         hdr.resource.Host,
+		Pod:          hdr.resource.Pod,
+		Container:    hdr.resource.Container,
+		K8SNamespace: hdr.resource.Namespace,
+		Environment:  hdr.resource.Environment,
+
+		Attributes: attrs,
+
+		// cloud.*/k8s.node.name are resource attributes, not datapoint ones.
+		CloudProvider: hdr.resMap["cloud.provider"],
+		CloudAccount:  hdr.resMap["cloud.account.id"],
+		CloudRegion:   cloudRegion,
+		CloudPlatform: hdr.resMap["cloud.platform"],
+		K8SNode:       hdr.resMap["k8s.node.name"],
 	}
 	series := &seriesschema.SeriesRow{
 		TenantId:     hdr.tenantID,

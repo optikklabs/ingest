@@ -9,14 +9,13 @@ import (
 
 	"github.com/oklog/run"
 
-	"github.com/optikklabs/ingest/internal/app/registry"
 	"github.com/optikklabs/ingest/internal/config"
 )
 
 type App struct {
 	Config  config.Config
 	Infra   *Infra
-	Modules []registry.Module
+	Modules []Module
 }
 
 func New(cfg config.Config) (*App, error) {

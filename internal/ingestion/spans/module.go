@@ -3,7 +3,6 @@ package spans
 import (
 	"net/http"
 
-	"github.com/optikklabs/ingest/internal/app/registry"
 	"github.com/optikklabs/ingest/internal/auth"
 	"github.com/optikklabs/ingest/internal/ingestion/otlphttp"
 	tracepb "go.opentelemetry.io/proto/otlp/collector/trace/v1"
@@ -14,7 +13,7 @@ type Deps struct {
 	Handler *Handler
 }
 
-func NewModule(d Deps) registry.Module {
+func NewModule(d Deps) *Module {
 	return &Module{handler: d.Handler}
 }
 
@@ -30,4 +29,3 @@ func (m *Module) RegisterOTLPHTTP(mux *http.ServeMux, resolver auth.TeamResolver
 	mux.Handle("/v1/traces", otlphttp.Export("spans", resolver, limiter, func() *tracepb.ExportTraceServiceRequest { return &tracepb.ExportTraceServiceRequest{} }, m.handler.Export))
 }
 
-var _ registry.Module = (*Module)(nil)

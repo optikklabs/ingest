@@ -19,9 +19,7 @@ clickhouse:
   database: optikk
   user: default
   password: "localdev"                                                                 
-  secure: false
-                                                                
-                                                               
+  secure: false                                      
   max_open_conns: 30
   max_idle_conns: 10
 
@@ -49,19 +47,13 @@ ingestion:
   ingestion_stats:
     partitions: 32
     replicas: 1
-    retention_hours: 24
-                                                                        
-                                                                         
-                                                          
+    retention_hours: 24                                    
   side_publish:
     queue_size: 4096
     workers: 2
-                                                                              
-                                                                
-  series_dedup_size: 500000
-                                                                       
-  api_key_cache_ttl_seconds: 30
-                                                                             
+                                     
+  series_dedup_size: 500000                                        
+  api_key_cache_ttl_seconds: 30                                                         
   api_key_cache_size: 50000
 
 kafka:
@@ -71,16 +63,7 @@ kafka:
   compression: zstd
   linger_ms: 20
   batch_max_bytes: 1048576
-                                                                     
-                                                                      
-                                                               
   fetch_max_bytes: 52428800
   fetch_max_partition_bytes: 8388608
-                                                                      
-                                                                
-                                                                    
-                                                  
-  consumer_max_poll_records: 50000
-                                                               
-                                                                  
+  consumer_max_poll_records: 50000                                                            
   consumer_insert_workers: 4

@@ -1,4 +1,4 @@
-package registry
+package app
 
 import (
 	"net/http"

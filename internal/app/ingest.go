@@ -10,7 +10,6 @@ import (
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/twmb/franz-go/pkg/kgo"
 
-	"github.com/optikklabs/ingest/internal/app/registry"
 	"github.com/optikklabs/ingest/internal/config"
 	kafkainfra "github.com/optikklabs/ingest/internal/infra/kafka"
 	"github.com/optikklabs/ingest/internal/ingestion/core"
@@ -30,7 +29,7 @@ import (
 )
 
 type ingestBundle struct {
-	modules         []registry.Module
+	modules         []Module
 	producerClient  *kgo.Client
 	consumerClients []*kgo.Client
 	lagPollers      []*kafkainfra.LagPoller
@@ -41,7 +40,7 @@ type ingestBundle struct {
 type signalWiring struct {
 	signal string
 	cfg    config.SignalConfig
-	wire   func(signalWireInput) (registry.Module, ConsumerRunner)
+	wire   func(signalWireInput) (Module, ConsumerRunner)
 }
 
 type signalWireInput struct {
@@ -70,7 +69,7 @@ func fingerprintKey(fingerprint uint64) []byte {
 	return b
 }
 
-func wireSpans(in signalWireInput) (registry.Module, ConsumerRunner) {
+func wireSpans(in signalWireInput) (Module, ConsumerRunner) {
 	// Trace-keyed so a whole trace stays on one partition while a tenant's
 	// volume spreads across all of them.
 	producer := core.NewProducer[*spansschema.Row](in.ingestTopic, in.producerBase).
@@ -93,7 +92,7 @@ func wireSpans(in signalWireInput) (registry.Module, ConsumerRunner) {
 	return mod, consumer
 }
 
-func wireLogs(in signalWireInput) (registry.Module, ConsumerRunner) {
+func wireLogs(in signalWireInput) (Module, ConsumerRunner) {
 	producer := core.NewProducer[*logsschema.Row](in.ingestTopic, in.producerBase).
 		WithKeyFunc(func(r *logsschema.Row) []byte { return []byte(r.GetLogId()) })
 
@@ -106,8 +105,8 @@ func wireLogs(in signalWireInput) (registry.Module, ConsumerRunner) {
 	return mod, consumer
 }
 
-func wireMetrics(seriesDedup *metricseries.Dedup) func(signalWireInput) (registry.Module, ConsumerRunner) {
-	return func(in signalWireInput) (registry.Module, ConsumerRunner) {
+func wireMetrics(seriesDedup *metricseries.Dedup) func(signalWireInput) (Module, ConsumerRunner) {
+	return func(in signalWireInput) (Module, ConsumerRunner) {
 		metricsProducer := core.NewProducer[*metricsschema.Row](in.ingestTopic, in.producerBase).
 			WithKeyFunc(func(r *metricsschema.Row) []byte { return fingerprintKey(r.GetFingerprint()) })
 		seriesTopic := kafkainfra.IngestTopic(in.topicPrefix, kafkainfra.SignalMetricSeries)
@@ -127,8 +126,8 @@ func wireMetrics(seriesDedup *metricseries.Dedup) func(signalWireInput) (registr
 func insertOnly[T core.Row](
 	newWriter func(clickhouse.Conn) core.Writer[T],
 	newRow func() T,
-) func(signalWireInput) (registry.Module, ConsumerRunner) {
-	return func(in signalWireInput) (registry.Module, ConsumerRunner) {
+) func(signalWireInput) (Module, ConsumerRunner) {
+	return func(in signalWireInput) (Module, ConsumerRunner) {
 		writer := newWriter(in.ch)
 		dlq := core.NewDLQ(in.producerBase, in.dlqTopic, in.signal)
 		return nil, core.NewInsertConsumer(in.consumer, in.signal, writer, dlq, newRow)
@@ -197,7 +196,7 @@ func buildIngest(cfg config.Config, ch clickhouse.Conn) (ingestBundle, error) {
 
 	b := ingestBundle{
 		producerClient:  producerClient,
-		modules:         make([]registry.Module, 0, len(wirings)),
+		modules:         make([]Module, 0, len(wirings)),
 		consumerClients: make([]*kgo.Client, 0, len(wirings)),
 		lagPollers:      make([]*kafkainfra.LagPoller, 0, len(wirings)),
 		consumers:       make([]ConsumerRunner, 0, len(wirings)),
