@@ -19,6 +19,8 @@ CREATE TABLE IF NOT EXISTS optikk.spans_root (
     status_code_string   LowCardinality(String) CODEC(ZSTD(1)),
     http_method          LowCardinality(String) CODEC(ZSTD(1)),
     response_status_code LowCardinality(String) CODEC(ZSTD(1)),
+    http_route           LowCardinality(String) CODEC(ZSTD(1)),
+    environment          LowCardinality(String) CODEC(ZSTD(1)),
     has_error            Bool                   CODEC(T64, ZSTD(1)),
 
     is_error UInt8 ALIAS if(has_error OR (kind_string = 'CLIENT' AND toUInt16OrZero(response_status_code) >= 400) OR toUInt16OrZero(response_status_code) >= 500, 1, 0)
@@ -47,6 +49,8 @@ SELECT
     status_code_string,
     http_method,
     response_status_code,
+    http_route,
+    environment,
     has_error
 FROM optikk.spans
 WHERE is_root = 1;
