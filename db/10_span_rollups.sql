@@ -33,6 +33,8 @@ CREATE TABLE IF NOT EXISTS optikk.span_stats_1m (
     http_method              LowCardinality(String) CODEC(ZSTD(1)),
     rpc_system               LowCardinality(String) CODEC(ZSTD(1)),
     db_system                LowCardinality(String) CODEC(ZSTD(1)),
+    db_name                  LowCardinality(String) CODEC(ZSTD(1)),
+    query_hash               String                 CODEC(ZSTD(1)),
     messaging_system         LowCardinality(String) CODEC(ZSTD(1)),
     messaging_destination    LowCardinality(String) CODEC(ZSTD(1)),
     messaging_consumer_group LowCardinality(String) CODEC(ZSTD(1)),
@@ -48,7 +50,7 @@ CREATE TABLE IF NOT EXISTS optikk.span_stats_1m (
 ) ENGINE = ReplicatedAggregatingMergeTree('/clickhouse/tables/{shard}/optikk/span_stats_1m', '{replica}')
 PARTITION BY toYYYYMMDD(timestamp)
 ORDER BY (tenant_id, timestamp, service, service_version, span_name, kind_string, status_code_string,
-          http_status_bucket, http_route, db_system, messaging_system,
+          http_status_bucket, http_route, db_system, db_name, query_hash, messaging_system,
           messaging_destination, messaging_consumer_group, environment, host, pod,
           cloud_provider, cloud_platform, cloud_region, k8s_node,
           peer_name, peer_type, http_method, rpc_system)
@@ -78,6 +80,8 @@ SELECT
     http_method,
     attributes['rpc.system']                    AS rpc_system,
     db_system,
+    db_name,
+    query_hash,
     attributes['messaging.system']              AS messaging_system,
     attributes['messaging.destination.name']    AS messaging_destination,
     attributes['messaging.consumer.group.name'] AS messaging_consumer_group,
@@ -108,7 +112,7 @@ FROM optikk.spans
 GROUP BY tenant_id, timestamp, service, service_version, environment, host, pod, span_name,
          kind_string, status_code_string, http_status_bucket, http_route,
          http_method, rpc_system,
-         db_system, messaging_system, messaging_destination, messaging_consumer_group,
+         db_system, db_name, query_hash, messaging_system, messaging_destination, messaging_consumer_group,
          cloud_provider, cloud_platform, cloud_region, k8s_node, peer_name, peer_type;
 
 CREATE TABLE IF NOT EXISTS optikk.span_stats_5m (
@@ -127,6 +131,8 @@ CREATE TABLE IF NOT EXISTS optikk.span_stats_5m (
     http_method              LowCardinality(String) CODEC(ZSTD(1)),
     rpc_system               LowCardinality(String) CODEC(ZSTD(1)),
     db_system                LowCardinality(String) CODEC(ZSTD(1)),
+    db_name                  LowCardinality(String) CODEC(ZSTD(1)),
+    query_hash               String                 CODEC(ZSTD(1)),
     messaging_system         LowCardinality(String) CODEC(ZSTD(1)),
     messaging_destination    LowCardinality(String) CODEC(ZSTD(1)),
     messaging_consumer_group LowCardinality(String) CODEC(ZSTD(1)),
@@ -142,7 +148,7 @@ CREATE TABLE IF NOT EXISTS optikk.span_stats_5m (
 ) ENGINE = ReplicatedAggregatingMergeTree('/clickhouse/tables/{shard}/optikk/span_stats_5m', '{replica}')
 PARTITION BY toYYYYMMDD(timestamp)
 ORDER BY (tenant_id, timestamp, service, service_version, span_name, kind_string, status_code_string,
-          http_status_bucket, http_route, db_system, messaging_system,
+          http_status_bucket, http_route, db_system, db_name, query_hash, messaging_system,
           messaging_destination, messaging_consumer_group, environment, host, pod,
           cloud_provider, cloud_platform, cloud_region, k8s_node,
           peer_name, peer_type, http_method, rpc_system)
@@ -160,7 +166,7 @@ SELECT
     tenant_id,
     toStartOfFiveMinutes(timestamp) AS timestamp,
     service, service_version, environment, host, pod, span_name, kind_string, status_code_string,
-    http_status_bucket, http_route, http_method, rpc_system, db_system, messaging_system,
+    http_status_bucket, http_route, http_method, rpc_system, db_system, db_name, query_hash, messaging_system,
     messaging_destination, messaging_consumer_group,
     cloud_provider, cloud_platform, cloud_region, k8s_node, peer_name, peer_type,
     sum(request_count)   AS request_count,
@@ -170,7 +176,7 @@ FROM optikk.span_stats_1m
 GROUP BY tenant_id, timestamp, service, service_version, environment, host, pod, span_name,
          kind_string, status_code_string, http_status_bucket, http_route,
          http_method, rpc_system,
-         db_system, messaging_system, messaging_destination, messaging_consumer_group,
+         db_system, db_name, query_hash, messaging_system, messaging_destination, messaging_consumer_group,
          cloud_provider, cloud_platform, cloud_region, k8s_node, peer_name, peer_type;
 
 CREATE TABLE IF NOT EXISTS optikk.span_stats_1h (
@@ -189,6 +195,8 @@ CREATE TABLE IF NOT EXISTS optikk.span_stats_1h (
     http_method              LowCardinality(String) CODEC(ZSTD(1)),
     rpc_system               LowCardinality(String) CODEC(ZSTD(1)),
     db_system                LowCardinality(String) CODEC(ZSTD(1)),
+    db_name                  LowCardinality(String) CODEC(ZSTD(1)),
+    query_hash               String                 CODEC(ZSTD(1)),
     messaging_system         LowCardinality(String) CODEC(ZSTD(1)),
     messaging_destination    LowCardinality(String) CODEC(ZSTD(1)),
     messaging_consumer_group LowCardinality(String) CODEC(ZSTD(1)),
@@ -204,7 +212,7 @@ CREATE TABLE IF NOT EXISTS optikk.span_stats_1h (
 ) ENGINE = ReplicatedAggregatingMergeTree('/clickhouse/tables/{shard}/optikk/span_stats_1h', '{replica}')
 PARTITION BY toYYYYMMDD(timestamp)
 ORDER BY (tenant_id, timestamp, service, service_version, span_name, kind_string, status_code_string,
-          http_status_bucket, http_route, db_system, messaging_system,
+          http_status_bucket, http_route, db_system, db_name, query_hash, messaging_system,
           messaging_destination, messaging_consumer_group, environment, host, pod,
           cloud_provider, cloud_platform, cloud_region, k8s_node,
           peer_name, peer_type, http_method, rpc_system)
@@ -222,7 +230,7 @@ SELECT
     tenant_id,
     toStartOfHour(timestamp) AS timestamp,
     service, service_version, environment, host, pod, span_name, kind_string, status_code_string,
-    http_status_bucket, http_route, http_method, rpc_system, db_system, messaging_system,
+    http_status_bucket, http_route, http_method, rpc_system, db_system, db_name, query_hash, messaging_system,
     messaging_destination, messaging_consumer_group,
     cloud_provider, cloud_platform, cloud_region, k8s_node, peer_name, peer_type,
     sum(request_count)   AS request_count,
@@ -232,5 +240,5 @@ FROM optikk.span_stats_5m
 GROUP BY tenant_id, timestamp, service, service_version, environment, host, pod, span_name,
          kind_string, status_code_string, http_status_bucket, http_route,
          http_method, rpc_system,
-         db_system, messaging_system, messaging_destination, messaging_consumer_group,
+         db_system, db_name, query_hash, messaging_system, messaging_destination, messaging_consumer_group,
          cloud_provider, cloud_platform, cloud_region, k8s_node, peer_name, peer_type;
