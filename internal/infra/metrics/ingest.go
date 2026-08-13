@@ -13,13 +13,6 @@ var (
 		Help:      "Records published to Kafka by the ingest pipeline, by signal and result (ok/err).",
 	}, []string{"signal", "result"})
 
-	OTLPRateLimitedTotal = promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "optikk",
-		Subsystem: "ingest",
-		Name:      "otlp_rate_limited_total",
-		Help:      "Total OTLP requests rate limited, labeled by signal.",
-	}, []string{"signal"})
-
 	ConsumedRecordsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "optikk",
 		Subsystem: "ingest",

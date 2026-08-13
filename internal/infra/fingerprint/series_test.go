@@ -4,10 +4,12 @@ import "testing"
 
 // SeriesHash must be order-independent across both maps.
 func TestSeriesHashOrderIndependent(t *testing.T) {
-	res := map[string]string{"service.name": "api", "host.name": "h1"}
-	dp := map[string]string{"db.system": "postgres", "topic": "orders"}
-	if SeriesHash("m", "Unspecified", res, dp) != SeriesHash("m", "Unspecified", res, dp) {
-		t.Fatal("hash not stable for identical input")
+	resA := map[string]string{"service.name": "api", "host.name": "h1"}
+	resB := map[string]string{"host.name": "h1", "service.name": "api"}
+	dpA := map[string]string{"db.system": "postgres", "topic": "orders"}
+	dpB := map[string]string{"topic": "orders", "db.system": "postgres"}
+	if SeriesHash("m", "Unspecified", resA, dpA) != SeriesHash("m", "Unspecified", resB, dpB) {
+		t.Fatal("map insertion order changed the fingerprint")
 	}
 }
 

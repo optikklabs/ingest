@@ -25,7 +25,6 @@ func (m *Module) RegisterGRPC(srv *grpc.Server) {
 	metricspb.RegisterMetricsServiceServer(srv, m.handler)
 }
 
-func (m *Module) RegisterOTLPHTTP(mux *http.ServeMux, resolver auth.TeamResolver, limiter *auth.TenantRateLimiter) {
-	mux.Handle("/v1/metrics", otlphttp.Export("metrics", resolver, limiter, func() *metricspb.ExportMetricsServiceRequest { return &metricspb.ExportMetricsServiceRequest{} }, m.handler.Export))
+func (m *Module) RegisterOTLPHTTP(mux *http.ServeMux, resolver auth.TeamResolver) {
+	mux.Handle("/v1/metrics", otlphttp.Export(resolver, func() *metricspb.ExportMetricsServiceRequest { return &metricspb.ExportMetricsServiceRequest{} }, m.handler.Export))
 }
-

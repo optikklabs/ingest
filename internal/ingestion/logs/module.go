@@ -25,7 +25,6 @@ func (m *Module) RegisterGRPC(srv *grpc.Server) {
 	logspb.RegisterLogsServiceServer(srv, m.handler)
 }
 
-func (m *Module) RegisterOTLPHTTP(mux *http.ServeMux, resolver auth.TeamResolver, limiter *auth.TenantRateLimiter) {
-	mux.Handle("/v1/logs", otlphttp.Export("logs", resolver, limiter, func() *logspb.ExportLogsServiceRequest { return &logspb.ExportLogsServiceRequest{} }, m.handler.Export))
+func (m *Module) RegisterOTLPHTTP(mux *http.ServeMux, resolver auth.TeamResolver) {
+	mux.Handle("/v1/logs", otlphttp.Export(resolver, func() *logspb.ExportLogsServiceRequest { return &logspb.ExportLogsServiceRequest{} }, m.handler.Export))
 }
-

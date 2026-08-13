@@ -9,7 +9,6 @@ import (
 	"net/http"
 
 	"github.com/optikklabs/ingest/internal/auth"
-	"github.com/optikklabs/ingest/internal/infra/metrics"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -20,7 +19,7 @@ const maxBodyBytes = 16 << 20
 
 var errUnsupportedEncoding = errors.New("unsupported content encoding")
 
-func Export[Req proto.Message, Resp proto.Message](signal string, resolver auth.TeamResolver, limiter *auth.TenantRateLimiter, newReq func() Req, export func(context.Context, Req) (Resp, error)) http.HandlerFunc {
+func Export[Req proto.Message, Resp proto.Message](resolver auth.TeamResolver, newReq func() Req, export func(context.Context, Req) (Resp, error)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			w.Header().Set("Allow", http.MethodPost)
@@ -38,13 +37,6 @@ func Export[Req proto.Message, Resp proto.Message](signal string, resolver auth.
 			} else {
 				http.Error(w, "authentication service unavailable", http.StatusInternalServerError)
 			}
-			return
-		}
-		// Rate-limit before body read + unmarshal so throttled requests stay cheap.
-		if !limiter.Allow(tenant) {
-			metrics.OTLPRateLimitedTotal.WithLabelValues(signal).Inc()
-			w.Header().Set("Retry-After", "1")
-			http.Error(w, "tenant rate limit exceeded", http.StatusTooManyRequests)
 			return
 		}
 		contentType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))

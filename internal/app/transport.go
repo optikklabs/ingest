@@ -46,7 +46,7 @@ func (a *App) addHTTPServerActor(g *run.Group) {
 	otlpMux := http.NewServeMux()
 	for _, mod := range a.Modules {
 		if httpMod, ok := mod.(HTTPModule); ok {
-			httpMod.RegisterOTLPHTTP(otlpMux, a.Infra.Authenticator, a.Infra.RateLimiter)
+			httpMod.RegisterOTLPHTTP(otlpMux, a.Infra.Authenticator)
 		}
 	}
 	otlpSrv := &http.Server{Addr: fmt.Sprintf(":%s", a.Config.OTLP.HTTPPort), Handler: otlpMux, ReadTimeout: 30 * time.Second, WriteTimeout: 60 * time.Second, IdleTimeout: 120 * time.Second}
@@ -88,7 +88,7 @@ func (a *App) addGRPCServerActor(g *run.Group) error {
 
 		grpc.ChainUnaryInterceptor(
 			grpcMetricsUnary(),
-			auth.UnaryInterceptor(a.Infra.Authenticator, a.Infra.RateLimiter),
+			auth.UnaryInterceptor(a.Infra.Authenticator),
 		),
 		grpc.ChainStreamInterceptor(
 			grpcMetricsStream(),

@@ -19,7 +19,6 @@ type Config struct {
 	Kafka       KafkaConfig      `yaml:"kafka"`
 	OTLP        OTLPConfig       `yaml:"otlp"`
 	Ingestion   IngestionConfig  `yaml:"ingestion"`
-	RateLimit   RateLimitConfig  `yaml:"ratelimit"`
 }
 
 func Load(path ...string) (Config, error) {
@@ -129,10 +128,6 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("kafka.fetch_max_partition_bytes", 1<<20)
 	v.SetDefault("kafka.consumer_max_poll_records", 5000)
 	v.SetDefault("kafka.consumer_insert_workers", 1)
-
-	v.SetDefault("ratelimit.tenant_rps", 1000)
-	v.SetDefault("ratelimit.tenant_burst", 2000)
-	v.SetDefault("ratelimit.max_tenants", 10000)
 
 	v.SetDefault("otlp.grpc_port", "")
 	v.SetDefault("otlp.http_port", "")

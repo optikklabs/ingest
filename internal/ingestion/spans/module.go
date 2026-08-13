@@ -25,7 +25,6 @@ func (m *Module) RegisterGRPC(srv *grpc.Server) {
 	tracepb.RegisterTraceServiceServer(srv, m.handler)
 }
 
-func (m *Module) RegisterOTLPHTTP(mux *http.ServeMux, resolver auth.TeamResolver, limiter *auth.TenantRateLimiter) {
-	mux.Handle("/v1/traces", otlphttp.Export("spans", resolver, limiter, func() *tracepb.ExportTraceServiceRequest { return &tracepb.ExportTraceServiceRequest{} }, m.handler.Export))
+func (m *Module) RegisterOTLPHTTP(mux *http.ServeMux, resolver auth.TeamResolver) {
+	mux.Handle("/v1/traces", otlphttp.Export(resolver, func() *tracepb.ExportTraceServiceRequest { return &tracepb.ExportTraceServiceRequest{} }, m.handler.Export))
 }
-

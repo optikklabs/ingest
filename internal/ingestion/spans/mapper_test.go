@@ -94,8 +94,12 @@ func TestMapRequestSharesResourceBase(t *testing.T) {
 		}
 	}
 	// Attr-less spans must share one map instance across the resource.
-	if len(rows[0].Attributes) == 0 || &rows[0].Attributes == nil {
+	if len(rows[0].Attributes) == 0 {
 		t.Fatal("expected non-empty base attrs")
+	}
+	rows[0].Attributes["sharing.test"] = "shared"
+	if rows[4].Attributes["sharing.test"] != "shared" {
+		t.Fatal("attr-less spans do not share the resource attribute map")
 	}
 }
 

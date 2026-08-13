@@ -82,17 +82,17 @@ func (c *Consumer) fetchLoop(ctx context.Context, workerChan chan<- batchJob, co
 			done: make(chan error, 1),
 		}
 
+		select {
+		case workerChan <- job:
+		case <-ctx.Done():
+			return
+		}
 		metrics.ConsumerInflightBatches.WithLabelValues(c.signal).Inc()
 
 		select {
 		case committerChan <- job:
 		case <-ctx.Done():
-			return
-		}
-
-		select {
-		case workerChan <- job:
-		case <-ctx.Done():
+			metrics.ConsumerInflightBatches.WithLabelValues(c.signal).Dec()
 			return
 		}
 	}
