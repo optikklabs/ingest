@@ -64,7 +64,7 @@ func NewInsertHandler[T Row](signal string, writer Writer[T], dlq *DLQ, newRow f
 					slog.Any("panic", p),
 					slog.String("stack", string(debug.Stack())),
 				)
-				dlq.PublishAll(ctx, recs, DLQReasonPanic, fmt.Errorf("panic: %v", p))
+				dlq.PublishAll(ctx, recs, DLQReasonPanic, fmt.Errorf("worker panic: %v", p))
 			}
 		}()
 		rows := make([]T, 0, len(recs))
