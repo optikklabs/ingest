@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/optikklabs/ingest/internal/infra/metrics"
+	"github.com/optikklabs/ingest/internal/ingestion/core"
 	"github.com/optikklabs/ingest/internal/ingestion/ingestionstats/schema"
 )
 
@@ -21,9 +22,6 @@ const (
 
 type Recorder interface{ Record([]*schema.StatRow) }
 
-type publisher interface {
-	Publish(context.Context, []*schema.StatRow) error
-}
 type statKey struct {
 	tenant                       uint32
 	hour                         int64
@@ -31,7 +29,7 @@ type statKey struct {
 }
 
 type HourlyRecorder struct {
-	pub           publisher
+	pub           core.Publisher[*schema.StatRow]
 	flushInterval time.Duration
 	mu            sync.Mutex
 	rows          map[statKey]*schema.StatRow
@@ -43,7 +41,7 @@ type HourlyRecorder struct {
 
 const publishTimeout = 5 * time.Second
 
-func NewHourlyRecorder(pub publisher, flushInterval time.Duration) *HourlyRecorder {
+func NewHourlyRecorder(pub core.Publisher[*schema.StatRow], flushInterval time.Duration) *HourlyRecorder {
 	r := &HourlyRecorder{pub: pub, flushInterval: flushInterval, rows: make(map[statKey]*schema.StatRow), done: make(chan struct{})}
 	r.wg.Add(1)
 	go r.run()
@@ -141,12 +139,6 @@ func (r *HourlyRecorder) Close() {
 	})
 }
 
-func Emit(rec Recorder, rows []*schema.StatRow) {
-	if rec != nil && len(rows) > 0 {
-		rec.Record(rows)
-	}
-}
-
-func NewRow(tenantID uint32, signal Signal, service, env string, records, bytes uint64) *schema.StatRow {
+func newRow(tenantID uint32, signal Signal, service, env string, records, bytes uint64) *schema.StatRow {
 	return &schema.StatRow{TenantId: tenantID, BucketUnix: time.Now().UTC().Truncate(time.Hour).Unix(), Signal: string(signal), Service: service, Environment: env, RecordCount: records, ByteCount: bytes}
 }

@@ -12,13 +12,12 @@ import (
 )
 
 type Config struct {
-	Environment string           `yaml:"environment"`
-	Server      ServerConfig     `yaml:"server"`
-	MySQL       MySQLConfig      `yaml:"mysql"`
-	ClickHouse  ClickHouseConfig `yaml:"clickhouse"`
-	Kafka       KafkaConfig      `yaml:"kafka"`
-	OTLP        OTLPConfig       `yaml:"otlp"`
-	Ingestion   IngestionConfig  `yaml:"ingestion"`
+	Server     ServerConfig     `yaml:"server"`
+	MySQL      MySQLConfig      `yaml:"mysql"`
+	ClickHouse ClickHouseConfig `yaml:"clickhouse"`
+	Kafka      KafkaConfig      `yaml:"kafka"`
+	OTLP       OTLPConfig       `yaml:"otlp"`
+	Ingestion  IngestionConfig  `yaml:"ingestion"`
 }
 
 func Load(path ...string) (Config, error) {
@@ -96,9 +95,6 @@ func resolveConfigFilePath(p string) (string, error) {
 }
 
 func setDefaults(v *viper.Viper) {
-
-	v.SetDefault("environment", "")
-
 	v.SetDefault("server.port", "")
 
 	v.SetDefault("mysql.host", "")

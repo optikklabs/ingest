@@ -37,7 +37,7 @@ func (h *Handler) Export(ctx context.Context, req *tracepb.ExportTraceServiceReq
 	ingestionstats.EmitUsage(h.stats, tenantID, ingestionstats.SignalSpans, usage, req)
 
 	if scores := llmscores.ExtractFromSpans(rows); len(scores) > 0 {
-		h.scoresPublisher.Enqueue(scores, nil)
+		h.scoresPublisher.Enqueue(scores)
 	}
 	return &tracepb.ExportTraceServiceResponse{}, nil
 }

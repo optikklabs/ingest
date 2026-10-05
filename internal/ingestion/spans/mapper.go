@@ -1,6 +1,8 @@
 package spans
 
 import (
+	"maps"
+
 	"github.com/optikklabs/ingest/internal/infra/fingerprint"
 	obsmetrics "github.com/optikklabs/ingest/internal/infra/metrics"
 	"github.com/optikklabs/ingest/internal/infra/otlp"
@@ -75,10 +77,10 @@ func buildSpanRow(tenantID int64, baseAttrs map[string]string, dims fingerprint.
 	spanMap := otlp.AttrsToMap(s.GetAttributes())
 	merged := mergeAndCapAttrs(baseAttrs, spanMap)
 
-	httpMethod := firstNonEmpty(spanMap, "http.method", "http.request.method")
-	httpURL := firstNonEmpty(spanMap, "http.url", "url.full")
-	httpHost := firstNonEmpty(spanMap, "http.host", "net.host.name")
-	httpStatus := firstNonEmpty(spanMap, "http.status_code", "http.response.status_code")
+	httpMethod := otlp.FirstNonEmpty(spanMap, "http.method", "http.request.method")
+	httpURL := otlp.FirstNonEmpty(spanMap, "http.url", "url.full")
+	httpHost := otlp.FirstNonEmpty(spanMap, "http.host", "net.host.name")
+	httpStatus := otlp.FirstNonEmpty(spanMap, "http.status_code", "http.response.status_code")
 	gen := extractGenAI(spanMap, spanDuration(s))
 
 	return &schema.Row{
@@ -151,9 +153,7 @@ func mergeAndCapAttrs(baseAttrs, spanMap map[string]string) map[string]string {
 		return baseAttrs
 	}
 	merged := make(map[string]string, len(baseAttrs)+len(spanMap))
-	for k, v := range baseAttrs {
-		merged[k] = v
-	}
+	maps.Copy(merged, baseAttrs)
 	for k, v := range spanMap {
 		if !isPromotedKey(k) {
 			merged[k] = v
@@ -201,15 +201,6 @@ func serializeLinks(links []*trace.Span_Link) []*schema.Row_SpanLink {
 		})
 	}
 	return out
-}
-
-func firstNonEmpty(m map[string]string, keys ...string) string {
-	for _, k := range keys {
-		if v := m[k]; v != "" {
-			return v
-		}
-	}
-	return ""
 }
 
 var promotedSpanKeys = []string{

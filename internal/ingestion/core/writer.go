@@ -26,7 +26,6 @@ type ClickHouseWriter[T Row] struct {
 }
 
 func NewClickHouseWriter[T Row](ch clickhouse.Conn, table string, columns []string, rowMapper RowMapper[T]) *ClickHouseWriter[T] {
-
 	signal := table
 	if i := strings.LastIndex(table, "."); i >= 0 {
 		signal = table[i+1:]

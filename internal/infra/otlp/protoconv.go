@@ -28,7 +28,6 @@ func pcommonValueToString(v *commonpb.AnyValue) string {
 	case *commonpb.AnyValue_BytesValue:
 		return hex.EncodeToString(val.BytesValue)
 	default:
-
 		b, err := json.Marshal(anyValueToGo(v))
 		if err != nil {
 			return ""

@@ -37,13 +37,13 @@ func strAttr(k, v string) *commonpb.KeyValue {
 // most spans carrying a few own attrs and some carrying none.
 func benchRequest(spans int) *tracepb.ExportTraceServiceRequest {
 	resAttrs := make([]*commonpb.KeyValue, 0, 12)
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		resAttrs = append(resAttrs, strAttr(fmt.Sprintf("resource.attr.%d", i), "value"))
 	}
 	resAttrs = append(resAttrs, strAttr("service.name", "checkout"), strAttr("deployment.environment", "prod"))
 
 	ss := &trace.ScopeSpans{Spans: make([]*trace.Span, 0, spans)}
-	for i := 0; i < spans; i++ {
+	for i := range spans {
 		s := &trace.Span{
 			TraceId:           []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, byte(i), byte(i >> 8)},
 			SpanId:            []byte{1, 2, 3, 4, 5, 6, 7, byte(i)},

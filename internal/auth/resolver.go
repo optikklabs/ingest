@@ -32,27 +32,23 @@ type cacheEntry struct {
 	expiresAt time.Time
 }
 
-type TeamResolver interface {
+type TenantResolver interface {
 	ResolveTenantID(ctx context.Context, apiKey string) (int64, error)
 }
 
-type TeamFinder interface {
+type TenantFinder interface {
 	FindTenantIDByAPIKey(ctx context.Context, apiKey string) (int64, error)
 }
 
 type Authenticator struct {
-	finder        TeamFinder
+	finder        TenantFinder
 	cache         *lru.Cache[[32]byte, cacheEntry]
 	group         singleflight.Group
 	lookupLimiter *rate.Limiter
 	ttl           time.Duration
 }
 
-func NewAuthenticator(finder TeamFinder, ttl time.Duration, cacheSize int) *Authenticator {
-	return newAuthenticator(finder, ttl, cacheSize, rate.NewLimiter(coldLookupRate, coldLookupBurst))
-}
-
-func newAuthenticator(finder TeamFinder, ttl time.Duration, cacheSize int, lookupLimiter *rate.Limiter) *Authenticator {
+func NewAuthenticator(finder TenantFinder, ttl time.Duration, cacheSize int) *Authenticator {
 	if ttl <= 0 {
 		ttl = defaultCacheTTL
 	}
@@ -66,7 +62,7 @@ func newAuthenticator(finder TeamFinder, ttl time.Duration, cacheSize int, looku
 	return &Authenticator{
 		finder:        finder,
 		cache:         cache,
-		lookupLimiter: lookupLimiter,
+		lookupLimiter: rate.NewLimiter(coldLookupRate, coldLookupBurst),
 		ttl:           ttl,
 	}
 }
@@ -85,12 +81,11 @@ func (a *Authenticator) ResolveTenantID(ctx context.Context, apiKey string) (int
 		if entry, ok := a.lookupCache(cacheKey); ok {
 			return entry.tenantID, entry.err
 		}
-		if a.lookupLimiter != nil && !a.lookupLimiter.Allow() {
+		if !a.lookupLimiter.Allow() {
 			return int64(0), ErrAuthRateLimited
 		}
 		id, err := a.finder.FindTenantIDByAPIKey(ctx, apiKey)
 		if err != nil {
-
 			if errors.Is(err, ErrInvalidAPIKey) {
 				a.cacheSet(cacheKey, 0, err)
 			}
@@ -119,9 +114,6 @@ func (a *Authenticator) lookupCache(cacheKey [32]byte) (cacheEntry, bool) {
 
 func (a *Authenticator) cacheSet(cacheKey [32]byte, tenantID int64, err error) {
 	ttl := a.ttl
-	if ttl <= 0 {
-		ttl = defaultCacheTTL
-	}
 	if err != nil {
 		ttl = negativeCacheTTL
 	}

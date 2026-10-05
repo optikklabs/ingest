@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"hash/fnv"
 	"io"
+	"maps"
 	"strconv"
 	"strings"
 	"time"
@@ -66,9 +67,7 @@ type resourceContext struct {
 
 func newResourceContext(resourceMap map[string]string) resourceContext {
 	res := make(map[string]string, len(resourceMap))
-	for k, v := range resourceMap {
-		res[k] = v
-	}
+	maps.Copy(res, resourceMap)
 	var missing []string
 	for _, k := range resourceFallbackKeys {
 		if res[k] == "" {
@@ -90,9 +89,7 @@ func (rc resourceContext) resolveResource(attrs map[string]string) (map[string]s
 		}
 		if !patched {
 			m := make(map[string]string, len(rc.res)+len(rc.missing))
-			for k2, v2 := range rc.res {
-				m[k2] = v2
-			}
+			maps.Copy(m, rc.res)
 			res = m
 			patched = true
 		}
@@ -191,4 +188,3 @@ func resolveSeverity(lr *logv1.LogRecord) string {
 		return "FATAL"
 	}
 }
-

@@ -8,17 +8,12 @@ import (
 )
 
 type Config struct {
-	Brokers []string
-
-	LingerMs int
-
-	BatchMaxBytes int
-
-	FetchMaxBytes int
-
+	Brokers                []string
+	LingerMs               int
+	BatchMaxBytes          int
+	FetchMaxBytes          int
 	FetchMaxPartitionBytes int
-
-	Compression string
+	Compression            string
 }
 
 func NewProducerClient(cfg Config) (*kgo.Client, error) {

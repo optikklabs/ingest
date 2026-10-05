@@ -1,34 +1,25 @@
 package config
 
-import (
-	"strings"
-)
+import "strings"
 
 type KafkaConfig struct {
 	BrokerList string   `yaml:"broker_list"`
 	Brokers    []string `yaml:"brokers"`
 
 	TopicPrefix string `yaml:"topic_prefix"`
-
-	DLQPrefix string `yaml:"dlq_prefix"`
+	DLQPrefix   string `yaml:"dlq_prefix"`
 
 	// DLQ topics outlive ingest topics so operators can inspect and
 	// replay failed records before they age out.
 	DLQRetentionHours int `yaml:"dlq_retention_hours"`
 
-	Compression string `yaml:"compression"`
-
-	LingerMs int `yaml:"linger_ms"`
-
-	BatchMaxBytes int `yaml:"batch_max_bytes"`
-
-	FetchMaxBytes int `yaml:"fetch_max_bytes"`
-
-	FetchMaxPartitionBytes int `yaml:"fetch_max_partition_bytes"`
-
-	ConsumerMaxPollRecords int `yaml:"consumer_max_poll_records"`
-
-	ConsumerInsertWorkers int `yaml:"consumer_insert_workers"`
+	Compression            string `yaml:"compression"`
+	LingerMs               int    `yaml:"linger_ms"`
+	BatchMaxBytes          int    `yaml:"batch_max_bytes"`
+	FetchMaxBytes          int    `yaml:"fetch_max_bytes"`
+	FetchMaxPartitionBytes int    `yaml:"fetch_max_partition_bytes"`
+	ConsumerMaxPollRecords int    `yaml:"consumer_max_poll_records"`
+	ConsumerInsertWorkers  int    `yaml:"consumer_insert_workers"`
 }
 
 func (c Config) KafkaBrokers() []string {

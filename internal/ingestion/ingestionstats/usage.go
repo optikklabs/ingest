@@ -13,16 +13,21 @@ type ResourceUsage struct {
 	Records     uint64
 }
 
-// UsageRows builds stat rows from mapper usage. The request byte size is
-// measured once and apportioned across resources by record share; the last
-// row takes the remainder so totals stay exact.
 // EmitUsage records a request's per-resource usage against the recorder,
 // sizing the whole OTLP request once for byte attribution.
 func EmitUsage(rec Recorder, tenantID int64, signal Signal, usage []ResourceUsage, req proto.Message) {
-	Emit(rec, UsageRows(uint32(tenantID), signal, usage, uint64(proto.Size(req))))
+	if rec == nil {
+		return
+	}
+	if rows := usageRows(uint32(tenantID), signal, usage, uint64(proto.Size(req))); len(rows) > 0 {
+		rec.Record(rows)
+	}
 }
 
-func UsageRows(tenantID uint32, signal Signal, usage []ResourceUsage, totalBytes uint64) []*schema.StatRow {
+// usageRows builds stat rows from mapper usage. The request byte size is
+// measured once and apportioned across resources by record share; the last
+// row takes the remainder so totals stay exact.
+func usageRows(tenantID uint32, signal Signal, usage []ResourceUsage, totalBytes uint64) []*schema.StatRow {
 	var totalRecords uint64
 	for _, u := range usage {
 		totalRecords += u.Records
@@ -38,7 +43,7 @@ func UsageRows(tenantID uint32, signal Signal, usage []ResourceUsage, totalBytes
 			bytes = remaining
 		}
 		remaining -= bytes
-		rows = append(rows, NewRow(tenantID, signal, u.Service, u.Environment, u.Records, bytes))
+		rows = append(rows, newRow(tenantID, signal, u.Service, u.Environment, u.Records, bytes))
 	}
 	return rows
 }

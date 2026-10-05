@@ -12,5 +12,5 @@ type Module interface {
 }
 
 type HTTPModule interface {
-	RegisterOTLPHTTP(*http.ServeMux, auth.TeamResolver)
+	RegisterOTLPHTTP(*http.ServeMux, auth.TenantResolver)
 }

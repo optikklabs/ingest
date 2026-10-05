@@ -19,7 +19,7 @@ const maxBodyBytes = 16 << 20
 
 var errUnsupportedEncoding = errors.New("unsupported content encoding")
 
-func Export[Req proto.Message, Resp proto.Message](resolver auth.TeamResolver, newReq func() Req, export func(context.Context, Req) (Resp, error)) http.HandlerFunc {
+func Export[Req proto.Message, Resp proto.Message](resolver auth.TenantResolver, newReq func() Req, export func(context.Context, Req) (Resp, error)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			w.Header().Set("Allow", http.MethodPost)
@@ -29,12 +29,13 @@ func Export[Req proto.Message, Resp proto.Message](resolver auth.TeamResolver, n
 		key := r.Header.Get("x-api-key")
 		tenant, err := resolver.ResolveTenantID(r.Context(), key)
 		if err != nil {
-			if errors.Is(err, auth.ErrMissingAPIKey) || errors.Is(err, auth.ErrInvalidAPIKey) {
+			switch {
+			case errors.Is(err, auth.ErrMissingAPIKey), errors.Is(err, auth.ErrInvalidAPIKey):
 				http.Error(w, "unauthenticated", http.StatusUnauthorized)
-			} else if errors.Is(err, auth.ErrAuthRateLimited) {
+			case errors.Is(err, auth.ErrAuthRateLimited):
 				w.Header().Set("Retry-After", "1")
 				http.Error(w, "authentication rate limited", http.StatusTooManyRequests)
-			} else {
+			default:
 				http.Error(w, "authentication service unavailable", http.StatusInternalServerError)
 			}
 			return
@@ -96,6 +97,7 @@ func readBody(w http.ResponseWriter, r *http.Request) ([]byte, error) {
 		if err != nil {
 			return nil, err
 		}
+		defer zr.Close()
 		src = http.MaxBytesReader(w, zr, maxBodyBytes)
 	default:
 		return nil, errUnsupportedEncoding

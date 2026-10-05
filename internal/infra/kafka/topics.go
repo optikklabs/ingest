@@ -98,7 +98,10 @@ func EnsureTopicPartitions(ctx context.Context, adm *kadm.Client, topic string, 
 		return 0, fmt.Errorf("list topic %q: %w", topic, err)
 	}
 	detail, ok := td[topic]
-	if !ok || detail.Err != nil {
+	if !ok {
+		return 0, fmt.Errorf("topic %q missing from metadata response", topic)
+	}
+	if detail.Err != nil {
 		return 0, fmt.Errorf("topic %q metadata unavailable: %w", topic, detail.Err)
 	}
 	current := int32(len(detail.Partitions))
@@ -149,7 +152,6 @@ func isTopicExists(err error) bool {
 	if errors.Is(err, kerr.TopicAlreadyExists) {
 		return true
 	}
-
 	return strings.Contains(strings.ToLower(err.Error()), "topic already exists")
 }
 

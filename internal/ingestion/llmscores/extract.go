@@ -4,6 +4,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/optikklabs/ingest/internal/infra/otlp"
 	"github.com/optikklabs/ingest/internal/ingestion/llmscores/schema"
 	spansschema "github.com/optikklabs/ingest/internal/ingestion/spans/schema"
 )
@@ -43,7 +44,7 @@ func otelScore(row *spansschema.Row, attrs map[string]string) *schema.ScoreRow {
 		return nil
 	}
 	s := baseScore(row, name)
-	s.Comment = capBytes(attrs["gen_ai.evaluation.explanation"], maxCommentBytes)
+	s.Comment = otlp.TruncateUTF8(attrs["gen_ai.evaluation.explanation"], maxCommentBytes)
 	assignValue(s, attrs["gen_ai.evaluation.score.value"], attrs["gen_ai.evaluation.score.label"])
 	return s
 }
@@ -54,7 +55,7 @@ func langfuseScore(row *spansschema.Row, attrs map[string]string) *schema.ScoreR
 		return nil
 	}
 	s := baseScore(row, name)
-	s.Comment = capBytes(attrs["langfuse.score.comment"], maxCommentBytes)
+	s.Comment = otlp.TruncateUTF8(attrs["langfuse.score.comment"], maxCommentBytes)
 	if dt := attrs["langfuse.score.dataType"]; dt != "" {
 		s.DataType = normalizeType(dt)
 	}
@@ -118,11 +119,4 @@ func normalizeType(dt string) string {
 	default:
 		return typeCategorical
 	}
-}
-
-func capBytes(s string, max int) string {
-	if len(s) <= max {
-		return s
-	}
-	return s[:max]
 }

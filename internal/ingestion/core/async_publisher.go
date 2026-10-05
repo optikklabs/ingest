@@ -11,82 +11,69 @@ import (
 
 const asyncPublishTimeout = 5 * time.Second
 
-type resourcePublisher[T Row] interface {
-	Publish(ctx context.Context, rows []T) error
-}
-
-type asyncJob[T Row] struct {
-	rows   []T
-	onFail func()
-}
-
+// AsyncPublisher publishes side-effect rows off the request path. It is
+// best-effort: rows are dropped (and counted) when the queue is full, the
+// publisher is closed, or the publish fails.
 type AsyncPublisher[T Row] struct {
-	pub    resourcePublisher[T]
+	pub    Publisher[T]
 	signal string
 	topic  string
-	queue  chan asyncJob[T]
+	queue  chan []T
 	mu     sync.RWMutex
 	closed bool
 	wg     sync.WaitGroup
 }
 
-func NewAsyncPublisher[T Row](pub resourcePublisher[T], signal, topic string, queueSize, workers int) *AsyncPublisher[T] {
+func NewAsyncPublisher[T Row](pub Publisher[T], signal, topic string, queueSize, workers int) *AsyncPublisher[T] {
 	a := &AsyncPublisher[T]{
 		pub:    pub,
 		signal: signal,
 		topic:  topic,
-		queue:  make(chan asyncJob[T], queueSize),
+		queue:  make(chan []T, queueSize),
 	}
-	for i := 0; i < workers; i++ {
+	for range workers {
 		a.wg.Add(1)
 		go a.worker()
 	}
 	return a
 }
 
-func (a *AsyncPublisher[T]) Enqueue(rows []T, onFail func()) bool {
+func (a *AsyncPublisher[T]) Enqueue(rows []T) {
 	if len(rows) == 0 {
-		return true
+		return
 	}
 	a.mu.RLock()
+	defer a.mu.RUnlock()
 	if a.closed {
-		a.mu.RUnlock()
-		a.drop(len(rows), onFail)
-		return false
+		a.drop(len(rows))
+		return
 	}
 	select {
-	case a.queue <- asyncJob[T]{rows: rows, onFail: onFail}:
-		a.mu.RUnlock()
-		return true
+	case a.queue <- rows:
 	default:
-		a.mu.RUnlock()
-		a.drop(len(rows), onFail)
-		return false
+		a.drop(len(rows))
 	}
 }
 
 func (a *AsyncPublisher[T]) worker() {
 	defer a.wg.Done()
-	for job := range a.queue {
+	for rows := range a.queue {
 		ctx, cancel := context.WithTimeout(context.Background(), asyncPublishTimeout)
-		if err := a.pub.Publish(ctx, job.rows); err != nil {
-			slog.WarnContext(ctx, "core: async side-publish failed, rolling back",
+		if err := a.pub.Publish(ctx, rows); err != nil {
+			slog.WarnContext(ctx, "core: async side-publish failed, dropping rows",
 				slog.String("signal", a.signal),
 				slog.String("topic", a.topic),
-				slog.Int("rows", len(job.rows)),
+				slog.Int("rows", len(rows)),
 				slog.Any("error", err),
 			)
-			a.drop(len(job.rows), job.onFail)
+			a.drop(len(rows))
 		}
 		cancel()
 	}
 }
 
-func (a *AsyncPublisher[T]) drop(rows int, onFail func()) {
+func (a *AsyncPublisher[T]) drop(rows int) {
 	metrics.SidePublishDropped.WithLabelValues(a.signal, a.topic).Add(float64(rows))
-	if onFail != nil {
-		onFail()
-	}
 }
 
 func (a *AsyncPublisher[T]) Close() {

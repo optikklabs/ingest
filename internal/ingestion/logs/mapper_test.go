@@ -56,7 +56,7 @@ func TestComputeLogIDMatchesReference(t *testing.T) {
 		}
 	}
 	rng := rand.New(rand.NewSource(7))
-	for i := 0; i < 1000; i++ {
+	for i := range 1000 {
 		ts := rng.Uint64()
 		body := fmt.Sprintf("body-%d", rng.Int63())
 		want := referenceComputeLogID("4bf92f3577b34da6a3ce929d0e0e4736", ts, body)

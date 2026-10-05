@@ -7,7 +7,7 @@
 //   - active = 1 gates ingestion; trial suspension flips it to 0
 //
 // Any query-side change to this schema or hashing convention silently kills
-// ALL ingestion auth. ProbeSchema fails readiness if the shape drifts.
+// ALL ingestion auth. TestAPIKeyHashContract pins the hashing half.
 package authrepo
 
 import (
@@ -16,7 +16,6 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"errors"
-	"fmt"
 
 	"github.com/jmoiron/sqlx"
 
@@ -47,18 +46,4 @@ func (r *Repository) FindTenantIDByAPIKey(ctx context.Context, apiKey string) (i
 		return 0, auth.ErrInvalidAPIKey
 	}
 	return tenantID, err
-}
-
-// ProbeSchema cheaply verifies the tenant-table contract (table plus the
-// id / api_key_hash / active columns) so a query-side schema change fails
-// readiness with a clear error instead of rejecting every ingest request.
-func (r *Repository) ProbeSchema(ctx context.Context) error {
-	var n int64
-	err := dbutil.GetSQL(ctx, r.db, "authrepo.ProbeSchema", &n, `
-		SELECT COUNT(*) FROM tenant WHERE api_key_hash = '' AND active = 1
-	`)
-	if err != nil {
-		return fmt.Errorf("tenant table contract check (see authrepo package doc; owned by query db/01_tenant.sql): %w", err)
-	}
-	return nil
 }

@@ -27,7 +27,7 @@ func ExportOTLP[T Row, U any](
 ) (rows []T, usage U, tenantID int64, err error) {
 	tenantID, ok := auth.TenantIDFromContext(ctx)
 	if !ok {
-		return nil, usage, 0, status.Error(codes.Unauthenticated, "team id missing from context")
+		return nil, usage, 0, status.Error(codes.Unauthenticated, "tenant id missing from context")
 	}
 
 	mapStart := time.Now()
@@ -42,7 +42,7 @@ func ExportOTLP[T Row, U any](
 	if err := publish(ctx, rows); err != nil {
 		metrics.HandlerPublishDuration.WithLabelValues(signal, "err").Observe(time.Since(pubStart).Seconds())
 		slog.ErrorContext(ctx, signal+" handler: publish failed", slog.Any("error", err))
-		return nil, usage, tenantID, status.Error(codes.Unavailable, err.Error())
+		return nil, usage, tenantID, status.Error(codes.Unavailable, "telemetry pipeline unavailable")
 	}
 	metrics.HandlerPublishDuration.WithLabelValues(signal, "ok").Observe(time.Since(pubStart).Seconds())
 	return rows, usage, tenantID, nil

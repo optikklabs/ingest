@@ -2,6 +2,7 @@ package fingerprint
 
 import (
 	"fmt"
+	"maps"
 	"math/rand"
 	"testing"
 )
@@ -12,9 +13,7 @@ import (
 // already stripped of high-cardinality keys.
 func referenceSeriesHash(metricName, temporality string, filteredResAttrs, dpAttrs map[string]string) uint64 {
 	merged := make(map[string]string, len(filteredResAttrs)+len(dpAttrs)+2)
-	for k, v := range filteredResAttrs {
-		merged[k] = v
-	}
+	maps.Copy(merged, filteredResAttrs)
 	for k, v := range dpAttrs {
 		if _, drop := highCardinalityKeys[k]; !drop {
 			merged[k] = v
@@ -97,12 +96,12 @@ func TestSeriesHashMatchesReferenceRandomized(t *testing.T) {
 	}
 	randAttrs := func(n int) map[string]string {
 		m := make(map[string]string, n)
-		for i := 0; i < n; i++ {
+		for range n {
 			m[keyPool[rng.Intn(len(keyPool))]] = fmt.Sprintf("v%d", rng.Intn(5))
 		}
 		return m
 	}
-	for i := 0; i < 1000; i++ {
+	for i := range 1000 {
 		res := randAttrs(rng.Intn(8))
 		dp := randAttrs(rng.Intn(6))
 		want := referenceSeriesHash("m", "Cumulative", dropHighCardinality(res), dp)

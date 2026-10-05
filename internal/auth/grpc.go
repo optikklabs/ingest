@@ -13,7 +13,7 @@ import (
 
 const apiKeyHeader = "x-api-key"
 
-func UnaryInterceptor(resolver TeamResolver) grpc.UnaryServerInterceptor {
+func UnaryInterceptor(resolver TenantResolver) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req any, _ *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 		tenantID, err := resolveFromContext(ctx, resolver)
 		if err != nil {
@@ -23,7 +23,7 @@ func UnaryInterceptor(resolver TeamResolver) grpc.UnaryServerInterceptor {
 	}
 }
 
-func StreamInterceptor(resolver TeamResolver) grpc.StreamServerInterceptor {
+func StreamInterceptor(resolver TenantResolver) grpc.StreamServerInterceptor {
 	return func(srv any, ss grpc.ServerStream, _ *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 		tenantID, err := resolveFromContext(ss.Context(), resolver)
 		if err != nil {
@@ -40,7 +40,7 @@ type wrappedStream struct {
 
 func (w *wrappedStream) Context() context.Context { return w.ctx }
 
-func resolveFromContext(ctx context.Context, resolver TeamResolver) (int64, error) {
+func resolveFromContext(ctx context.Context, resolver TenantResolver) (int64, error) {
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
 		return 0, status.Error(codes.Unauthenticated, "missing metadata")
@@ -59,7 +59,9 @@ func resolveFromContext(ctx context.Context, resolver TeamResolver) (int64, erro
 		if errors.Is(err, ErrAuthRateLimited) {
 			return 0, status.Error(codes.ResourceExhausted, err.Error())
 		}
-		return 0, status.Error(codes.Internal, err.Error())
+		// Lookup failures can carry driver/SQL detail; it is logged above,
+		// never returned to the client.
+		return 0, status.Error(codes.Internal, "authentication unavailable")
 	}
 	return tenantID, nil
 }

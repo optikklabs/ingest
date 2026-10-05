@@ -4,7 +4,8 @@ import (
 	"encoding/json"
 	"strconv"
 	"strings"
-	"unicode/utf8"
+
+	"github.com/optikklabs/ingest/internal/infra/otlp"
 )
 
 const maxGenAIContentBytes = 16 * 1024
@@ -35,19 +36,19 @@ func extractGenAI(spanMap map[string]string, durationNano uint64) genAI {
 		System:        spanMap["gen_ai.system"],
 		RequestModel:  spanMap["gen_ai.request.model"],
 		ResponseModel: spanMap["gen_ai.response.model"],
-		Prompt:        capUTF8(firstNonEmpty(spanMap, "gen_ai.prompt", "gen_ai.input.messages"), maxGenAIContentBytes),
-		Completion:    capUTF8(firstNonEmpty(spanMap, "gen_ai.completion", "gen_ai.output.messages"), maxGenAIContentBytes),
-		InputTokens:   parseTokenCount(firstNonEmpty(spanMap, "gen_ai.usage.input_tokens", "gen_ai.usage.prompt_tokens")),
-		OutputTokens:  parseTokenCount(firstNonEmpty(spanMap, "gen_ai.usage.output_tokens", "gen_ai.usage.completion_tokens")),
-		UserID:        firstNonEmpty(spanMap, "gen_ai.request.user", "user.id", "enduser.id", "langfuse.user.id"),
-		SessionID:     firstNonEmpty(spanMap, "gen_ai.conversation.id", "session.id", "langfuse.session.id"),
-		Release:       firstNonEmpty(spanMap, "langfuse.release", "service.version"),
-		PromptName:    firstNonEmpty(spanMap, "langfuse.prompt.name", "optikk.prompt.name"),
+		Prompt:        otlp.TruncateUTF8(otlp.FirstNonEmpty(spanMap, "gen_ai.prompt", "gen_ai.input.messages"), maxGenAIContentBytes),
+		Completion:    otlp.TruncateUTF8(otlp.FirstNonEmpty(spanMap, "gen_ai.completion", "gen_ai.output.messages"), maxGenAIContentBytes),
+		InputTokens:   parseTokenCount(otlp.FirstNonEmpty(spanMap, "gen_ai.usage.input_tokens", "gen_ai.usage.prompt_tokens")),
+		OutputTokens:  parseTokenCount(otlp.FirstNonEmpty(spanMap, "gen_ai.usage.output_tokens", "gen_ai.usage.completion_tokens")),
+		UserID:        otlp.FirstNonEmpty(spanMap, "gen_ai.request.user", "user.id", "enduser.id", "langfuse.user.id"),
+		SessionID:     otlp.FirstNonEmpty(spanMap, "gen_ai.conversation.id", "session.id", "langfuse.session.id"),
+		Release:       otlp.FirstNonEmpty(spanMap, "langfuse.release", "service.version"),
+		PromptName:    otlp.FirstNonEmpty(spanMap, "langfuse.prompt.name", "optikk.prompt.name"),
 	}
 	op := spanMap["gen_ai.operation.name"]
 	g.Operation = normalizeGenAIOperation(op)
-	g.Tags = parseTags(firstNonEmpty(spanMap, "langfuse.trace.tags", "optikk.llm.tags"))
-	g.PromptVersion = uint32(parseTokenCount(firstNonEmpty(spanMap, "langfuse.prompt.version", "optikk.prompt.version")))
+	g.Tags = parseTags(otlp.FirstNonEmpty(spanMap, "langfuse.trace.tags", "optikk.llm.tags"))
+	g.PromptVersion = uint32(parseTokenCount(otlp.FirstNonEmpty(spanMap, "langfuse.prompt.version", "optikk.prompt.version")))
 	g.Present = g.System != "" || op != "" || g.SessionID != "" || g.UserID != ""
 	g.SpanKind = genAISpanKind(spanMap, g, durationNano)
 	return g
@@ -60,7 +61,7 @@ func genAISpanKind(spanMap map[string]string, g genAI, durationNano uint64) stri
 	if _, ok := spanMap["optikk.eval"]; ok {
 		return "eval"
 	}
-	if t := firstNonEmpty(spanMap, "langfuse.observation.type", "gen_ai.observation.type"); t != "" {
+	if t := otlp.FirstNonEmpty(spanMap, "langfuse.observation.type", "gen_ai.observation.type"); t != "" {
 		switch t {
 		case "generation", "event", "span", "eval":
 			return t
@@ -119,17 +120,6 @@ func normalizeGenAIOperation(op string) string {
 	default:
 		return "other"
 	}
-}
-
-func capUTF8(s string, max int) string {
-	if len(s) <= max {
-		return s
-	}
-	cut := max
-	for cut > 0 && !utf8.RuneStart(s[cut]) {
-		cut--
-	}
-	return s[:cut]
 }
 
 func parseTokenCount(v string) uint64 {

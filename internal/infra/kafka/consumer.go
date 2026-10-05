@@ -23,9 +23,6 @@ func NewConsumer(client *kgo.Client, maxPollRecords, workers int, signal string)
 	return &Consumer{client: client, maxPollRecords: maxPollRecords, workers: workers, signal: signal}
 }
 
-func (c *Consumer) Client() *kgo.Client { return c.client }
-func (c *Consumer) Close()              { c.client.Close() }
-
 type RecordHandler func(ctx context.Context, recs []*kgo.Record) error
 
 type batchJob struct {
@@ -40,18 +37,14 @@ func (c *Consumer) Run(ctx context.Context, handle RecordHandler) {
 	var wg sync.WaitGroup
 
 	for i := 0; i < c.workers; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			c.workerLoop(ctx, workerChan, handle)
-		}()
+		})
 	}
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		c.committerLoop(ctx, committerChan)
-	}()
+	})
 
 	c.fetchLoop(ctx, workerChan, committerChan)
 

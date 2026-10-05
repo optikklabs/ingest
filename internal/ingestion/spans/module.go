@@ -25,6 +25,6 @@ func (m *Module) RegisterGRPC(srv *grpc.Server) {
 	tracepb.RegisterTraceServiceServer(srv, m.handler)
 }
 
-func (m *Module) RegisterOTLPHTTP(mux *http.ServeMux, resolver auth.TeamResolver) {
+func (m *Module) RegisterOTLPHTTP(mux *http.ServeMux, resolver auth.TenantResolver) {
 	mux.Handle("/v1/traces", otlphttp.Export(resolver, func() *tracepb.ExportTraceServiceRequest { return &tracepb.ExportTraceServiceRequest{} }, m.handler.Export))
 }

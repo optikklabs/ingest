@@ -163,7 +163,7 @@ func fetchGroupLag(ctx context.Context, client *kgo.Client, groupID, topic strin
 func fetchPartitions(ctx context.Context, client *kgo.Client, topic string) ([]int32, error) {
 	req := kmsg.NewPtrMetadataRequest()
 	t := kmsg.NewMetadataRequestTopic()
-	t.Topic = kmsg.StringPtr(topic)
+	t.Topic = new(topic)
 	req.Topics = append(req.Topics, t)
 	resp, err := req.RequestWith(ctx, client)
 	if err != nil {

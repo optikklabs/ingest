@@ -21,9 +21,9 @@ import (
 func (a *App) addHTTPServerActor(g *run.Group) {
 	mux := http.NewServeMux()
 	mux.Handle("/metrics", promhttp.HandlerFor(prometheus.DefaultGatherer, promhttp.HandlerOpts{}))
-	mux.HandleFunc("/health", a.healthLive)
-	mux.HandleFunc("/health/live", a.healthLive)
-	mux.HandleFunc("/health/ready", a.healthReady)
+	mux.HandleFunc("/health", a.health)
+	mux.HandleFunc("/health/live", a.health)
+	mux.HandleFunc("/health/ready", a.health)
 
 	srv := &http.Server{
 		Addr:         fmt.Sprintf(":%s", a.Config.Server.Port),
@@ -35,9 +35,7 @@ func (a *App) addHTTPServerActor(g *run.Group) {
 	g.Add(func() error {
 		return srv.ListenAndServe()
 	}, func(error) {
-		shutCtx, c := context.WithTimeout(context.Background(), 10*time.Second)
-		defer c()
-		srv.Shutdown(shutCtx)
+		shutdownServer(srv, "http")
 	})
 
 	if a.Config.OTLP.HTTPPort == "" {
@@ -49,12 +47,26 @@ func (a *App) addHTTPServerActor(g *run.Group) {
 			httpMod.RegisterOTLPHTTP(otlpMux, a.Infra.Authenticator)
 		}
 	}
-	otlpSrv := &http.Server{Addr: fmt.Sprintf(":%s", a.Config.OTLP.HTTPPort), Handler: otlpMux, ReadTimeout: 30 * time.Second, WriteTimeout: 60 * time.Second, IdleTimeout: 120 * time.Second}
-	g.Add(func() error { return otlpSrv.ListenAndServe() }, func(error) {
-		shutCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		_ = otlpSrv.Shutdown(shutCtx)
+	otlpSrv := &http.Server{
+		Addr:         fmt.Sprintf(":%s", a.Config.OTLP.HTTPPort),
+		Handler:      otlpMux,
+		ReadTimeout:  30 * time.Second,
+		WriteTimeout: 60 * time.Second,
+		IdleTimeout:  120 * time.Second,
+	}
+	g.Add(func() error {
+		return otlpSrv.ListenAndServe()
+	}, func(error) {
+		shutdownServer(otlpSrv, "otlp-http")
 	})
+}
+
+func shutdownServer(srv *http.Server, name string) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(ctx); err != nil {
+		slog.Warn("server shutdown incomplete", slog.String("server", name), slog.Any("error", err))
+	}
 }
 
 func (a *App) addGRPCServerActor(g *run.Group) error {
@@ -71,7 +83,7 @@ func (a *App) addGRPCServerActor(g *run.Group) error {
 
 	slog.Info("starting OTLP gRPC server",
 		slog.String("addr", addr),
-		slog.String("hint", "send gRPC metadata x-api-key (team API key); use OTLP gRPC on this port, not HTTP/protobuf"))
+		slog.String("hint", "send gRPC metadata x-api-key (tenant API key); use OTLP gRPC on this port, not HTTP/protobuf"))
 
 	grpcSrv := grpc.NewServer(
 		grpc.MaxConcurrentStreams(a.Config.OTLP.GRPCMaxConcurrentStr),

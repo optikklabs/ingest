@@ -1,7 +1,5 @@
 .PHONY: build run fmt vet proto
 
-                                                                            
-                                                                  
 PROTO_FILES := $(shell find internal -name '*.proto')
 
 proto:

@@ -24,7 +24,6 @@ type ConsumerRunner interface {
 type Infra struct {
 	DB            *sql.DB
 	CH            clickhouse.Conn
-	AuthRepo      *authrepo.Repository
 	Authenticator *auth.Authenticator
 	Ingest        []Module
 	LagPollers    []*kafkainfra.LagPoller
@@ -61,13 +60,11 @@ func newInfra(cfg config.Config) (_ *Infra, err error) {
 		return nil, err
 	}
 
-	authRepo := authrepo.New(dbConn)
-	authenticator := auth.NewAuthenticator(authRepo, cfg.APIKeyCacheTTL(), cfg.APIKeyCacheSize())
+	authenticator := auth.NewAuthenticator(authrepo.New(dbConn), cfg.APIKeyCacheTTL(), cfg.APIKeyCacheSize())
 
 	return &Infra{
 		DB:              dbConn,
 		CH:              chConn,
-		AuthRepo:        authRepo,
 		Authenticator:   authenticator,
 		Ingest:          ingest.modules,
 		LagPollers:      ingest.lagPollers,
