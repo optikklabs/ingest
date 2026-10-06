@@ -97,7 +97,8 @@ func (a *Authenticator) ResolveTenantID(ctx context.Context, apiKey string) (int
 	if err != nil {
 		return 0, err
 	}
-	return v.(int64), nil
+	id, _ := v.(int64) // the singleflight func above only returns int64
+	return id, nil
 }
 
 func (a *Authenticator) lookupCache(cacheKey [32]byte) (cacheEntry, bool) {

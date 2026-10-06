@@ -3,10 +3,11 @@ package metrics
 import (
 	"net/http"
 
-	"github.com/optikklabs/ingest/internal/auth"
-	"github.com/optikklabs/ingest/internal/ingestion/otlphttp"
 	metricspb "go.opentelemetry.io/proto/otlp/collector/metrics/v1"
 	"google.golang.org/grpc"
+
+	"github.com/optikklabs/ingest/internal/auth"
+	"github.com/optikklabs/ingest/internal/ingestion/otlphttp"
 )
 
 type Deps struct {

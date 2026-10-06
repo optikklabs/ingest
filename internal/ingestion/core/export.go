@@ -5,10 +5,11 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/optikklabs/ingest/internal/auth"
-	"github.com/optikklabs/ingest/internal/infra/metrics"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
+	"github.com/optikklabs/ingest/internal/auth"
+	"github.com/optikklabs/ingest/internal/infra/metrics"
 )
 
 // ExportOTLP is the shared body of the spans/logs/metrics OTLP handlers:

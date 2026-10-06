@@ -85,7 +85,7 @@ func (r *HourlyRecorder) run() {
 	// produced identical insert blocks that ClickHouse's
 	// replicated_deduplication_window silently dropped (prod incident).
 	// Rows keep their hourly bucket; partial increments sum in the table.
-	delay := time.Duration(rand.Int64N(int64(r.flushInterval)))
+	delay := time.Duration(rand.Int64N(int64(r.flushInterval))) //nolint:gosec // G404: scheduling jitter, not a secret
 	for {
 		timer := time.NewTimer(delay)
 		select {

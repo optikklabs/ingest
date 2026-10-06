@@ -1,4 +1,4 @@
-.PHONY: build run fmt vet proto lint
+.PHONY: build run fmt vet proto lint test vulncheck
 
 PROTO_FILES := $(shell find internal -name '*.proto')
 
@@ -14,10 +14,16 @@ run:
 	go run ./cmd/ingest
 
 fmt:
-	gofmt -w .
+	golangci-lint fmt ./...
 
 vet:
 	go vet ./...
 
 lint:
 	golangci-lint run ./...
+
+test:
+	go test -race ./...
+
+vulncheck:
+	go run golang.org/x/vuln/cmd/govulncheck@latest ./...

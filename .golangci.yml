@@ -1,14 +1,119 @@
+# Lint policy: every enabled linter catches a class of bugs or enforces an
+# idiom from Effective Go / Go Code Review Comments. Style-only noise (doc
+# comments on every export, line length, cognitive scores) is deliberately
+# left out. Fix findings instead of suppressing them; a //nolint must name the
+# linter and say why (enforced by nolintlint).
 version: "2"
+
 linters:
+  # "standard" = errcheck, govet, ineffassign, staticcheck, unused.
+  default: standard
   enable:
-    - bodyclose
-    - copyloopvar
-    - errorlint
-    - intrange
+    - bodyclose        # unclosed HTTP response bodies
+    - contextcheck     # functions that drop the caller's context
+    - copyloopvar      # redundant loop-variable copies (Go 1.22+)
+    - durationcheck    # duration * duration
+    - errchkjson       # unchecked json.Marshal errors on unsafe types
+    - errname          # ErrFoo sentinels, FooError types
+    - errorlint        # errors.Is/As and %w instead of == and %v
+    - exhaustive       # missing enum cases in switches
+    - fatcontext       # contexts nested inside loops
+    - forcetypeassert  # unchecked type assertions
+    - gocritic         # diagnostic / performance / style checks, see settings
+    - gosec            # security issues, see settings
+    - intrange         # for i := range n
+    - makezero         # append to a slice made with non-zero length
     - misspell
-    - nilerr
-    - rowserrcheck
-    - sqlclosecheck
-    - unconvert
-    - usestdlibvars
-    - wastedassign
+    - musttag          # marshaled structs without field tags
+    - nakedret         # naked returns in long functions
+    - nilerr           # returning nil after checking err != nil
+    - nilnil           # (nil, nil) returns; use a sentinel or a value
+    - noctx            # network calls without a context
+    - nolintlint       # //nolint must be specific and explained
+    - perfsprint       # fmt.Sprintf where strconv / concatenation suffices
+    - predeclared      # shadowing builtins such as max, len, new
+    - revive           # curated Go Code Review Comments rules, see settings
+    - rowserrcheck     # sql.Rows.Err left unchecked
+    - sloglint         # consistent, structured slog calls
+    - sqlclosecheck    # sql.Rows / Stmt left open
+    - unconvert        # needless conversions
+    - unparam          # parameters that always receive the same value
+    - usestdlibvars    # http.MethodGet over "GET", etc.
+    - usetesting       # t.Context / t.TempDir in tests
+    - wastedassign     # assignments that are never read
+
+  settings:
+    exhaustive:
+      # A default branch is an explicit decision to handle the rest.
+      default-signifies-exhaustive: true
+    gocritic:
+      enabled-tags: [diagnostic, performance, style]
+      disabled-checks:
+        - hugeParam        # value receivers on request structs are intentional
+        - rangeValCopy
+        - unnamedResult
+        - whyNoLint        # covered by nolintlint
+        - commentedOutCode
+        - paramTypeCombine
+    gosec:
+      excludes:
+        # Integer-width conversions of bounded values (timestamps, counts,
+        # ClickHouse UInt columns) dominate this check and are not overflows.
+        - G115
+        # slog attrs are escaped by the handler; structured logging is not
+        # injectable the way printf-style log lines are.
+        - G706
+    nilnil:
+      # A nil map is a valid, readable empty map, so (nil, nil) is not ambiguous.
+      checked-types: [chan, func, iface, ptr, uintptr, unsafeptr]
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+    sloglint:
+      attr-only: true      # slog.String(...) attrs, never alternating key/values
+      context: scope       # use *Context variants when a ctx is in scope
+    perfsprint:
+      # SQL clause builders append a handful of fragments; a Builder would
+      # only obscure them.
+      concat-loop: false
+    revive:
+      rules:
+        - name: blank-imports
+        - name: context-as-argument
+        - name: context-keys-type
+        - name: dot-imports
+        - name: empty-block
+        - name: error-naming
+        - name: error-return
+        - name: error-strings
+        - name: errorf
+        - name: increment-decrement
+        - name: indent-error-flow
+        - name: range
+        - name: receiver-naming
+        - name: redefines-builtin-id
+        - name: superfluous-else
+        - name: time-naming
+        - name: unreachable-code
+        - name: unused-parameter
+        - name: var-declaration
+
+  exclusions:
+    rules:
+      # Tests may use math/rand fixtures and httptest.NewRequest, whose
+      # context is the test's own.
+      - path: _test\.go
+        linters: [gosec, noctx]
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/optikklabs

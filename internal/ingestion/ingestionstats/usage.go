@@ -1,8 +1,9 @@
 package ingestionstats
 
 import (
-	"github.com/optikklabs/ingest/internal/ingestion/ingestionstats/schema"
 	"google.golang.org/protobuf/proto"
+
+	"github.com/optikklabs/ingest/internal/ingestion/ingestionstats/schema"
 )
 
 // ResourceUsage is the per-resource record tally each signal's mapRequest

@@ -9,9 +9,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/optikklabs/ingest/internal/infra/metrics"
 	"github.com/twmb/franz-go/pkg/kgo"
 	"github.com/twmb/franz-go/pkg/kmsg"
+
+	"github.com/optikklabs/ingest/internal/infra/metrics"
 )
 
 type hooks struct {

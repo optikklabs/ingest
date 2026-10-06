@@ -5,8 +5,9 @@ import (
 	"testing"
 	"unicode/utf8"
 
-	spansschema "github.com/optikklabs/ingest/internal/ingestion/spans/schema"
 	"google.golang.org/protobuf/proto"
+
+	spansschema "github.com/optikklabs/ingest/internal/ingestion/spans/schema"
 )
 
 // A comment cut mid-rune makes proto.Marshal fail, which would drop the whole

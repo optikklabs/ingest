@@ -3,10 +3,11 @@ package spans
 import (
 	"net/http"
 
-	"github.com/optikklabs/ingest/internal/auth"
-	"github.com/optikklabs/ingest/internal/ingestion/otlphttp"
 	tracepb "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	"google.golang.org/grpc"
+
+	"github.com/optikklabs/ingest/internal/auth"
+	"github.com/optikklabs/ingest/internal/ingestion/otlphttp"
 )
 
 type Deps struct {

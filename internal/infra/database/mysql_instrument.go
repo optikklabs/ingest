@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/jmoiron/sqlx"
+
 	"github.com/optikklabs/ingest/internal/infra/metrics"
 )
 

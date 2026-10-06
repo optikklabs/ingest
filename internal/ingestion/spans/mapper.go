@@ -3,14 +3,15 @@ package spans
 import (
 	"maps"
 
+	tracepb "go.opentelemetry.io/proto/otlp/collector/trace/v1"
+	commonpb "go.opentelemetry.io/proto/otlp/common/v1"
+	trace "go.opentelemetry.io/proto/otlp/trace/v1"
+
 	"github.com/optikklabs/ingest/internal/infra/fingerprint"
 	obsmetrics "github.com/optikklabs/ingest/internal/infra/metrics"
 	"github.com/optikklabs/ingest/internal/infra/otlp"
 	"github.com/optikklabs/ingest/internal/ingestion/ingestionstats"
 	"github.com/optikklabs/ingest/internal/ingestion/spans/schema"
-	tracepb "go.opentelemetry.io/proto/otlp/collector/trace/v1"
-	commonpb "go.opentelemetry.io/proto/otlp/common/v1"
-	trace "go.opentelemetry.io/proto/otlp/trace/v1"
 )
 
 const maxSpanAttributes = 128

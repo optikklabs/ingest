@@ -3,8 +3,9 @@ package app
 import (
 	"net/http"
 
-	"github.com/optikklabs/ingest/internal/auth"
 	"google.golang.org/grpc"
+
+	"github.com/optikklabs/ingest/internal/auth"
 )
 
 type Module interface {

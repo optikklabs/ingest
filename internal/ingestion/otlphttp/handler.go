@@ -8,11 +8,12 @@ import (
 	"mime"
 	"net/http"
 
-	"github.com/optikklabs/ingest/internal/auth"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
+
+	"github.com/optikklabs/ingest/internal/auth"
 )
 
 const maxBodyBytes = 16 << 20
@@ -104,9 +105,8 @@ func readBody(w http.ResponseWriter, r *http.Request) ([]byte, error) {
 }
 
 func writeError(w http.ResponseWriter, err error) {
-	code := status.Code(err)
-	httpCode := http.StatusInternalServerError
-	switch code {
+	var httpCode int
+	switch status.Code(err) {
 	case codes.Unauthenticated:
 		httpCode = http.StatusUnauthorized
 	case codes.InvalidArgument:
@@ -115,6 +115,8 @@ func writeError(w http.ResponseWriter, err error) {
 		httpCode = http.StatusTooManyRequests
 	case codes.Unavailable:
 		httpCode = http.StatusServiceUnavailable
+	default:
+		httpCode = http.StatusInternalServerError
 	}
 	http.Error(w, status.Convert(err).Message(), httpCode)
 }

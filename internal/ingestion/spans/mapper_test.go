@@ -4,12 +4,13 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/optikklabs/ingest/internal/infra/fingerprint"
-	"github.com/optikklabs/ingest/internal/infra/otlp"
 	tracepb "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	commonpb "go.opentelemetry.io/proto/otlp/common/v1"
 	resourcepb "go.opentelemetry.io/proto/otlp/resource/v1"
 	trace "go.opentelemetry.io/proto/otlp/trace/v1"
+
+	"github.com/optikklabs/ingest/internal/infra/fingerprint"
+	"github.com/optikklabs/ingest/internal/infra/otlp"
 )
 
 // referenceMergeAndCapAttrs is the pre-optimization per-span merge, kept as

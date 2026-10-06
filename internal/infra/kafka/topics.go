@@ -59,7 +59,7 @@ func EnsureTopics(ctx context.Context, brokers []string, specs []TopicSpec) erro
 		default:
 			return fmt.Errorf("kafka ensure topics: create %q: %w", s.Name, createErr)
 		}
-		slog.Info("kafka topic ready",
+		slog.InfoContext(ctx, "kafka topic ready",
 			slog.String("topic", s.Name),
 			slog.Int("partitions", int(actual)),
 			slog.Int("replicas", int(s.Replicas)),
@@ -106,7 +106,7 @@ func EnsureTopicPartitions(ctx context.Context, adm *kadm.Client, topic string, 
 	case partitionNoop:
 		return current, nil
 	case partitionShrinkSkip:
-		slog.Warn("kafka topic has more partitions than desired, skipping shrink",
+		slog.WarnContext(ctx, "kafka topic has more partitions than desired, skipping shrink",
 			slog.String("topic", topic),
 			slog.Int("current", int(current)),
 			slog.Int("desired", int(target)),
@@ -120,7 +120,7 @@ func EnsureTopicPartitions(ctx context.Context, adm *kadm.Client, topic string, 
 		if err := partitionsRespError(resp, topic); err != nil {
 			return current, err
 		}
-		slog.Info("kafka topic partitions grown",
+		slog.InfoContext(ctx, "kafka topic partitions grown",
 			slog.String("topic", topic),
 			slog.Int("old", int(current)),
 			slog.Int("new", int(target)),

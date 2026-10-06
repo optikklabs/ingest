@@ -9,15 +9,16 @@ import (
 	"strings"
 	"time"
 
+	logspb "go.opentelemetry.io/proto/otlp/collector/logs/v1"
+	commonpb "go.opentelemetry.io/proto/otlp/common/v1"
+	logv1 "go.opentelemetry.io/proto/otlp/logs/v1"
+
 	"github.com/optikklabs/ingest/internal/infra/fingerprint"
 	obsmetrics "github.com/optikklabs/ingest/internal/infra/metrics"
 	"github.com/optikklabs/ingest/internal/infra/otlp"
 	"github.com/optikklabs/ingest/internal/infra/timebucket"
 	"github.com/optikklabs/ingest/internal/ingestion/ingestionstats"
 	"github.com/optikklabs/ingest/internal/ingestion/logs/schema"
-	logspb "go.opentelemetry.io/proto/otlp/collector/logs/v1"
-	commonpb "go.opentelemetry.io/proto/otlp/common/v1"
-	logv1 "go.opentelemetry.io/proto/otlp/logs/v1"
 )
 
 const (

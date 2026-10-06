@@ -4,12 +4,13 @@ import (
 	"context"
 	"time"
 
+	metricspb "go.opentelemetry.io/proto/otlp/collector/metrics/v1"
+
 	"github.com/optikklabs/ingest/internal/ingestion/core"
 	"github.com/optikklabs/ingest/internal/ingestion/ingestionstats"
 	"github.com/optikklabs/ingest/internal/ingestion/metrics/schema"
 	"github.com/optikklabs/ingest/internal/ingestion/metricseries"
 	seriesschema "github.com/optikklabs/ingest/internal/ingestion/metricseries/schema"
-	metricspb "go.opentelemetry.io/proto/otlp/collector/metrics/v1"
 )
 
 type Handler struct {

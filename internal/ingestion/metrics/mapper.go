@@ -4,15 +4,16 @@ import (
 	"math"
 	"strings"
 
+	metricspb "go.opentelemetry.io/proto/otlp/collector/metrics/v1"
+	commonpb "go.opentelemetry.io/proto/otlp/common/v1"
+	metricsdatapb "go.opentelemetry.io/proto/otlp/metrics/v1"
+
 	"github.com/optikklabs/ingest/internal/infra/fingerprint"
 	obsmetrics "github.com/optikklabs/ingest/internal/infra/metrics"
 	"github.com/optikklabs/ingest/internal/infra/otlp"
 	"github.com/optikklabs/ingest/internal/ingestion/ingestionstats"
 	"github.com/optikklabs/ingest/internal/ingestion/metrics/schema"
 	seriesschema "github.com/optikklabs/ingest/internal/ingestion/metricseries/schema"
-	metricspb "go.opentelemetry.io/proto/otlp/collector/metrics/v1"
-	commonpb "go.opentelemetry.io/proto/otlp/common/v1"
-	metricsdatapb "go.opentelemetry.io/proto/otlp/metrics/v1"
 )
 
 type rowHeader struct {

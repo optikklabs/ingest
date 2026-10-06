@@ -3,10 +3,11 @@ package logs
 import (
 	"net/http"
 
-	"github.com/optikklabs/ingest/internal/auth"
-	"github.com/optikklabs/ingest/internal/ingestion/otlphttp"
 	logspb "go.opentelemetry.io/proto/otlp/collector/logs/v1"
 	"google.golang.org/grpc"
+
+	"github.com/optikklabs/ingest/internal/auth"
+	"github.com/optikklabs/ingest/internal/ingestion/otlphttp"
 )
 
 type Deps struct {

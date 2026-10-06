@@ -13,13 +13,13 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"google.golang.org/grpc"
-	_ "google.golang.org/grpc/encoding/gzip"
+	_ "google.golang.org/grpc/encoding/gzip" // registers the gzip codec so OTLP clients may compress
 	"google.golang.org/grpc/keepalive"
 
 	"github.com/optikklabs/ingest/internal/auth"
 )
 
-func (a *App) addHTTPServerActor(g *run.Group) {
+func (a *App) addHTTPServerActor(ctx context.Context, g *run.Group) {
 	mux := http.NewServeMux()
 	mux.Handle("/metrics", promhttp.HandlerFor(prometheus.DefaultGatherer, promhttp.HandlerOpts{}))
 	mux.HandleFunc("/health", a.health)
@@ -36,7 +36,7 @@ func (a *App) addHTTPServerActor(g *run.Group) {
 	g.Add(func() error {
 		return srv.ListenAndServe()
 	}, func(error) {
-		shutdownServer(srv, "http")
+		shutdownServer(ctx, srv, "http")
 	})
 
 	if a.Config.OTLP.HTTPPort == "" {
@@ -58,31 +58,34 @@ func (a *App) addHTTPServerActor(g *run.Group) {
 	g.Add(func() error {
 		return otlpSrv.ListenAndServe()
 	}, func(error) {
-		shutdownServer(otlpSrv, "otlp-http")
+		shutdownServer(ctx, otlpSrv, "otlp-http")
 	})
 }
 
-func shutdownServer(srv *http.Server, name string) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+// shutdownServer drains srv within a fixed budget. It runs after ctx is
+// cancelled, so it keeps ctx's values but not its cancellation.
+func shutdownServer(ctx context.Context, srv *http.Server, name string) {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
 	defer cancel()
 	if err := srv.Shutdown(ctx); err != nil {
-		slog.Warn("server shutdown incomplete", slog.String("server", name), slog.Any("error", err))
+		slog.WarnContext(ctx, "server shutdown incomplete", slog.String("server", name), slog.Any("error", err))
 	}
 }
 
-func (a *App) addGRPCServerActor(g *run.Group) error {
+func (a *App) addGRPCServerActor(ctx context.Context, g *run.Group) error {
 	port := a.Config.OTLP.GRPCPort
 	if port == "" {
 		return errors.New("ingest: gRPC port is not configured (otlp.grpc_port)")
 	}
 
 	addr := ":" + port
-	lis, err := net.Listen("tcp", addr)
+	var lc net.ListenConfig
+	lis, err := lc.Listen(ctx, "tcp", addr)
 	if err != nil {
 		return fmt.Errorf("ingest: gRPC listen failed on %s: %w", addr, err)
 	}
 
-	slog.Info("starting OTLP gRPC server",
+	slog.InfoContext(ctx, "starting OTLP gRPC server",
 		slog.String("addr", addr),
 		slog.String("hint", "send gRPC metadata x-api-key (tenant API key); use OTLP gRPC on this port, not HTTP/protobuf"))
 
@@ -105,7 +108,7 @@ func (a *App) addGRPCServerActor(g *run.Group) error {
 		),
 		grpc.ChainStreamInterceptor(
 			grpcMetricsStream(),
-			auth.StreamInterceptor(a.Infra.Authenticator),
+			auth.StreamInterceptor(a.Infra.Authenticator), //nolint:contextcheck // runs per stream on the stream's own context
 		),
 	)
 	for _, mod := range a.Modules {

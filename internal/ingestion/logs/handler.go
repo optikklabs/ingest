@@ -3,10 +3,11 @@ package logs
 import (
 	"context"
 
+	logspb "go.opentelemetry.io/proto/otlp/collector/logs/v1"
+
 	"github.com/optikklabs/ingest/internal/ingestion/core"
 	"github.com/optikklabs/ingest/internal/ingestion/ingestionstats"
 	"github.com/optikklabs/ingest/internal/ingestion/logs/schema"
-	logspb "go.opentelemetry.io/proto/otlp/collector/logs/v1"
 )
 
 type Handler struct {

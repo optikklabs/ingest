@@ -33,9 +33,9 @@ func New(cfg config.Config) (*App, error) {
 
 func (a *App) Start(ctx context.Context) error {
 	var g run.Group
-	runAddContextCancelActor(&g, ctx)
-	a.addHTTPServerActor(&g)
-	if err := a.addGRPCServerActor(&g); err != nil {
+	runAddContextCancelActor(ctx, &g)
+	a.addHTTPServerActor(ctx, &g)
+	if err := a.addGRPCServerActor(ctx, &g); err != nil {
 		return err
 	}
 	a.addLagPollerActors(ctx, &g)
@@ -49,7 +49,7 @@ func (a *App) Start(ctx context.Context) error {
 	return normalizeRunError(err)
 }
 
-func runAddContextCancelActor(g *run.Group, ctx context.Context) {
+func runAddContextCancelActor(ctx context.Context, g *run.Group) {
 	ctx, cancel := context.WithCancel(ctx)
 	g.Add(func() error { <-ctx.Done(); return ctx.Err() },
 		func(error) { cancel() })

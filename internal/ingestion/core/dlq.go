@@ -4,9 +4,10 @@ import (
 	"context"
 	"log/slog"
 
+	"github.com/twmb/franz-go/pkg/kgo"
+
 	kafkainfra "github.com/optikklabs/ingest/internal/infra/kafka"
 	"github.com/optikklabs/ingest/internal/infra/metrics"
-	"github.com/twmb/franz-go/pkg/kgo"
 )
 
 type DLQ struct {

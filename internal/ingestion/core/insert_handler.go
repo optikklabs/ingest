@@ -11,10 +11,11 @@ import (
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
-	kafkainfra "github.com/optikklabs/ingest/internal/infra/kafka"
-	"github.com/optikklabs/ingest/internal/infra/metrics"
 	"github.com/twmb/franz-go/pkg/kgo"
 	"google.golang.org/protobuf/proto"
+
+	kafkainfra "github.com/optikklabs/ingest/internal/infra/kafka"
+	"github.com/optikklabs/ingest/internal/infra/metrics"
 )
 
 const insertTimeout = 30 * time.Second

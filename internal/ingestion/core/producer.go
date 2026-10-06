@@ -6,9 +6,10 @@ import (
 	"fmt"
 	"time"
 
-	kafkainfra "github.com/optikklabs/ingest/internal/infra/kafka"
 	"github.com/twmb/franz-go/pkg/kgo"
 	"google.golang.org/protobuf/proto"
+
+	kafkainfra "github.com/optikklabs/ingest/internal/infra/kafka"
 )
 
 type Producer[T Row] struct {

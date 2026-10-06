@@ -4,9 +4,10 @@ import (
 	"context"
 	"time"
 
-	"github.com/optikklabs/ingest/internal/infra/metrics"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/status"
+
+	"github.com/optikklabs/ingest/internal/infra/metrics"
 )
 
 func grpcMetricsUnary() grpc.UnaryServerInterceptor {

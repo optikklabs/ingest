@@ -3,12 +3,13 @@ package spans
 import (
 	"context"
 
+	tracepb "go.opentelemetry.io/proto/otlp/collector/trace/v1"
+
 	"github.com/optikklabs/ingest/internal/ingestion/core"
 	"github.com/optikklabs/ingest/internal/ingestion/ingestionstats"
 	"github.com/optikklabs/ingest/internal/ingestion/llmscores"
 	llmscoresschema "github.com/optikklabs/ingest/internal/ingestion/llmscores/schema"
 	"github.com/optikklabs/ingest/internal/ingestion/spans/schema"
-	tracepb "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 )
 
 type Handler struct {
