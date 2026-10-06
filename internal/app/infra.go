@@ -76,7 +76,11 @@ func newInfra(cfg config.Config) (_ *Infra, err error) {
 }
 
 func openMySQL(cfg config.Config) (*sql.DB, error) {
-	dbConn, err := dbutil.Open(cfg.MySQLDSN(), cfg.MySQL.MaxOpenConns, cfg.MySQL.MaxIdleConns)
+	driverCfg, err := cfg.MySQLDriverConfig()
+	if err != nil {
+		return nil, fmt.Errorf("mysql: %w", err)
+	}
+	dbConn, err := dbutil.Open(driverCfg, cfg.MySQL.MaxOpenConns, cfg.MySQL.MaxIdleConns)
 	if err != nil {
 		return nil, fmt.Errorf("mysql: %w", err)
 	}
@@ -88,7 +92,7 @@ func openMySQL(cfg config.Config) (*sql.DB, error) {
 }
 
 func openClickHouse(cfg config.Config) (clickhouse.Conn, error) {
-	chConn, err := dbutil.OpenClickHouseConn(cfg.ClickHouseDSN(), cfg.ClickHouseMaxOpenConns(), cfg.ClickHouseMaxIdleConns())
+	chConn, err := dbutil.OpenClickHouseConn(cfg.ClickHouseOptions())
 	if err != nil {
 		return nil, fmt.Errorf("clickhouse: %w", err)
 	}

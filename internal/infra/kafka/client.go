@@ -1,7 +1,7 @@
 package kafka
 
 import (
-	"fmt"
+	"errors"
 	"time"
 
 	"github.com/twmb/franz-go/pkg/kgo"
@@ -18,7 +18,7 @@ type Config struct {
 
 func NewProducerClient(cfg Config) (*kgo.Client, error) {
 	if len(cfg.Brokers) == 0 {
-		return nil, fmt.Errorf("kafka: brokers required")
+		return nil, errors.New("kafka: brokers required")
 	}
 	return kgo.NewClient(
 		kgo.SeedBrokers(cfg.Brokers...),
@@ -34,10 +34,10 @@ func NewProducerClient(cfg Config) (*kgo.Client, error) {
 
 func NewConsumerClient(cfg Config, groupID, topic string) (*kgo.Client, error) {
 	if len(cfg.Brokers) == 0 {
-		return nil, fmt.Errorf("kafka: brokers required")
+		return nil, errors.New("kafka: brokers required")
 	}
 	if groupID == "" || topic == "" {
-		return nil, fmt.Errorf("kafka: group and topic required")
+		return nil, errors.New("kafka: group and topic required")
 	}
 	return kgo.NewClient(
 		kgo.SeedBrokers(cfg.Brokers...),

@@ -14,13 +14,13 @@ func FirstNonEmpty(attrs map[string]string, keys ...string) string {
 	return ""
 }
 
-// TruncateUTF8 caps s at max bytes without splitting a rune. Rows are proto3
+// TruncateUTF8 caps s at maxBytes without splitting a rune. Rows are proto3
 // messages, and proto.Marshal rejects string fields holding invalid UTF-8.
-func TruncateUTF8(s string, max int) string {
-	if len(s) <= max {
+func TruncateUTF8(s string, maxBytes int) string {
+	if len(s) <= maxBytes {
 		return s
 	}
-	cut := max
+	cut := maxBytes
 	for cut > 0 && !utf8.RuneStart(s[cut]) {
 		cut--
 	}

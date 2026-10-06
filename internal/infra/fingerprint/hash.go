@@ -1,7 +1,8 @@
 package fingerprint
 
 import (
-	"sort"
+	"maps"
+	"slices"
 
 	"github.com/cespare/xxhash/v2"
 )
@@ -15,14 +16,8 @@ func FingerprintHash(attrs map[string]string) uint64 {
 		return 0
 	}
 
-	keys := make([]string, 0, len(attrs))
-	for k := range attrs {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-
 	h := xxhash.New()
-	for _, k := range keys {
+	for _, k := range slices.Sorted(maps.Keys(attrs)) {
 		_, _ = h.WriteString(k)
 		_, _ = h.Write(separator)
 		_, _ = h.WriteString(attrs[k])

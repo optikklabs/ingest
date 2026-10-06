@@ -43,8 +43,7 @@ const publishTimeout = 5 * time.Second
 
 func NewHourlyRecorder(pub core.Publisher[*schema.StatRow], flushInterval time.Duration) *HourlyRecorder {
 	r := &HourlyRecorder{pub: pub, flushInterval: flushInterval, rows: make(map[statKey]*schema.StatRow), done: make(chan struct{})}
-	r.wg.Add(1)
-	go r.run()
+	r.wg.Go(r.run)
 	return r
 }
 
@@ -82,7 +81,6 @@ func cloneRow(row *schema.StatRow) *schema.StatRow {
 }
 
 func (r *HourlyRecorder) run() {
-	defer r.wg.Done()
 	// Jittered start so replicas never flush in lockstep: aligned flushes
 	// produced identical insert blocks that ClickHouse's
 	// replicated_deduplication_window silently dropped (prod incident).

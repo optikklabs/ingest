@@ -69,14 +69,14 @@ func TestComputeLogIDMatchesReference(t *testing.T) {
 
 func BenchmarkComputeLogIDReference(b *testing.B) {
 	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = referenceComputeLogID("4bf92f3577b34da6a3ce929d0e0e4736", 1721900000123456789, "GET /api/v1/cart 200")
 	}
 }
 
 func BenchmarkComputeLogID(b *testing.B) {
 	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_ = computeLogID("4bf92f3577b34da6a3ce929d0e0e4736", 1721900000123456789, "GET /api/v1/cart 200")
 	}
 }

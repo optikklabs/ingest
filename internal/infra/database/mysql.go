@@ -3,54 +3,33 @@ package database
 import (
 	"context"
 	"database/sql"
-	"strings"
 	"time"
 
-	_ "github.com/go-sql-driver/mysql"
+	"github.com/go-sql-driver/mysql"
 )
 
-func injectMySQLTimeouts(dsn string) string {
-	params := map[string]string{
-		"timeout":      "5s",
-		"readTimeout":  "30s",
-		"writeTimeout": "30s",
-		"parseTime":    "true",
-	}
-	for param, val := range params {
-		if !strings.Contains(dsn, param+"=") {
-			sep := "&"
-			if !strings.Contains(dsn, "?") {
-				sep = "?"
-			}
-			dsn = dsn + sep + param + "=" + val
-		}
-	}
-	return dsn
-}
-
-func Open(dsn string, maxOpen, maxIdle int) (*sql.DB, error) {
-	dsn = injectMySQLTimeouts(dsn)
-	db, err := sql.Open("mysql", dsn)
+// Open connects to MySQL with cfg and verifies the connection.
+func Open(cfg *mysql.Config, maxOpen, maxIdle int) (*sql.DB, error) {
+	connector, err := mysql.NewConnector(cfg)
 	if err != nil {
 		return nil, err
 	}
-
+	db := sql.OpenDB(connector)
 	if maxOpen <= 0 {
 		maxOpen = 50
 	}
 	if maxIdle <= 0 {
 		maxIdle = maxOpen / 2
 	}
-
 	db.SetConnMaxLifetime(15 * time.Minute)
 	db.SetMaxOpenConns(maxOpen)
 	db.SetMaxIdleConns(maxIdle)
 
-	pingCtx, pingCancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer pingCancel()
+	pingCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 	if err := db.PingContext(pingCtx); err != nil {
+		_ = db.Close()
 		return nil, err
 	}
-
 	return db, nil
 }

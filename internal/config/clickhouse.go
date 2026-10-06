@@ -1,6 +1,11 @@
 package config
 
-import "fmt"
+import (
+	"crypto/tls"
+	"net"
+
+	"github.com/ClickHouse/clickhouse-go/v2"
+)
 
 type ClickHouseConfig struct {
 	Host         string `yaml:"host"`
@@ -27,16 +32,20 @@ func (c Config) ClickHouseMaxIdleConns() int {
 	return 3
 }
 
-func (c Config) ClickHouseDSN() string {
-	dsn := fmt.Sprintf("clickhouse://%s:%s@%s:%s/%s",
-		c.ClickHouse.User,
-		c.ClickHouse.Password,
-		c.ClickHouse.Host,
-		c.ClickHouse.Port,
-		c.ClickHouse.Database,
-	)
-	if c.ClickHouse.Secure {
-		dsn += "?secure=true"
+// ClickHouseOptions builds the client settings for the configured server.
+func (c Config) ClickHouseOptions() *clickhouse.Options {
+	opts := &clickhouse.Options{
+		Addr: []string{net.JoinHostPort(c.ClickHouse.Host, c.ClickHouse.Port)},
+		Auth: clickhouse.Auth{
+			Database: c.ClickHouse.Database,
+			Username: c.ClickHouse.User,
+			Password: c.ClickHouse.Password,
+		},
+		MaxOpenConns: c.ClickHouseMaxOpenConns(),
+		MaxIdleConns: c.ClickHouseMaxIdleConns(),
 	}
-	return dsn
+	if c.ClickHouse.Secure {
+		opts.TLS = &tls.Config{}
+	}
+	return opts
 }

@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
@@ -26,7 +27,7 @@ func (a *App) addHTTPServerActor(g *run.Group) {
 	mux.HandleFunc("/health/ready", a.health)
 
 	srv := &http.Server{
-		Addr:         fmt.Sprintf(":%s", a.Config.Server.Port),
+		Addr:         ":" + a.Config.Server.Port,
 		Handler:      mux,
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 60 * time.Second,
@@ -48,7 +49,7 @@ func (a *App) addHTTPServerActor(g *run.Group) {
 		}
 	}
 	otlpSrv := &http.Server{
-		Addr:         fmt.Sprintf(":%s", a.Config.OTLP.HTTPPort),
+		Addr:         ":" + a.Config.OTLP.HTTPPort,
 		Handler:      otlpMux,
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 60 * time.Second,
@@ -72,10 +73,10 @@ func shutdownServer(srv *http.Server, name string) {
 func (a *App) addGRPCServerActor(g *run.Group) error {
 	port := a.Config.OTLP.GRPCPort
 	if port == "" {
-		return fmt.Errorf("ingest: gRPC port is not configured (otlp.grpc_port)")
+		return errors.New("ingest: gRPC port is not configured (otlp.grpc_port)")
 	}
 
-	addr := fmt.Sprintf(":%s", port)
+	addr := ":" + port
 	lis, err := net.Listen("tcp", addr)
 	if err != nil {
 		return fmt.Errorf("ingest: gRPC listen failed on %s: %w", addr, err)
@@ -127,7 +128,7 @@ func (a *App) addGRPCServerActor(g *run.Group) error {
 	return nil
 }
 
-func (a *App) addLagPollerActors(g *run.Group, parentCtx context.Context) {
+func (a *App) addLagPollerActors(parentCtx context.Context, g *run.Group) {
 	for _, p := range a.Infra.LagPollers {
 		pollCtx, cancel := context.WithCancel(parentCtx)
 		g.Add(func() error {
@@ -137,7 +138,7 @@ func (a *App) addLagPollerActors(g *run.Group, parentCtx context.Context) {
 	}
 }
 
-func (a *App) addConsumerActors(g *run.Group, parentCtx context.Context) {
+func (a *App) addConsumerActors(parentCtx context.Context, g *run.Group) {
 	for _, c := range a.Infra.Consumers {
 		runCtx, cancel := context.WithCancel(parentCtx)
 		g.Add(func() error {

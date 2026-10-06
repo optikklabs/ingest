@@ -22,11 +22,19 @@ type KafkaConfig struct {
 	ConsumerInsertWorkers  int    `yaml:"consumer_insert_workers"`
 }
 
+// KafkaBrokers returns the comma-separated broker list when set, else the
+// brokers array; blank entries and surrounding spaces are dropped.
 func (c Config) KafkaBrokers() []string {
-	if c.Kafka.BrokerList != "" {
-		return strings.Split(c.Kafka.BrokerList, ",")
+	if c.Kafka.BrokerList == "" {
+		return c.Kafka.Brokers
 	}
-	return c.Kafka.Brokers
+	var brokers []string
+	for broker := range strings.SplitSeq(c.Kafka.BrokerList, ",") {
+		if broker = strings.TrimSpace(broker); broker != "" {
+			brokers = append(brokers, broker)
+		}
+	}
+	return brokers
 }
 
 func (c Config) KafkaTopicPrefix() string { return c.Kafka.TopicPrefix }

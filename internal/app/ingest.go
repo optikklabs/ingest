@@ -64,9 +64,7 @@ func newStatsProducer(in signalWireInput) *core.Producer[*statsschema.StatRow] {
 // fingerprintKey spreads metric rows across partitions; tenant keying would
 // funnel a whole tenant through one partition and cap it at one consumer.
 func fingerprintKey(fingerprint uint64) []byte {
-	b := make([]byte, 8)
-	binary.BigEndian.PutUint64(b, fingerprint)
-	return b
+	return binary.BigEndian.AppendUint64(nil, fingerprint)
 }
 
 func wireSpans(in signalWireInput) (Module, ConsumerRunner) {

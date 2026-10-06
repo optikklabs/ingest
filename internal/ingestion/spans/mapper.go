@@ -81,6 +81,9 @@ func buildSpanRow(tenantID int64, baseAttrs map[string]string, dims fingerprint.
 	httpURL := otlp.FirstNonEmpty(spanMap, "http.url", "url.full")
 	httpHost := otlp.FirstNonEmpty(spanMap, "http.host", "net.host.name")
 	httpStatus := otlp.FirstNonEmpty(spanMap, "http.status_code", "http.response.status_code")
+	dbSystem := otlp.FirstNonEmpty(spanMap, "db.system", "db.system.name")
+	dbName := otlp.FirstNonEmpty(spanMap, "db.name", "db.namespace")
+	dbStatement := otlp.FirstNonEmpty(spanMap, "db.statement", "db.query.text")
 	gen := extractGenAI(spanMap, spanDuration(s))
 
 	return &schema.Row{
@@ -107,9 +110,9 @@ func buildSpanRow(tenantID int64, baseAttrs map[string]string, dims fingerprint.
 		ServiceVersion:      dims.Version,
 		Environment:         dims.Environment,
 		PeerService:         spanMap["peer.service"],
-		DbSystem:            spanMap["db.system"],
-		DbName:              spanMap["db.name"],
-		DbStatement:         spanMap["db.statement"],
+		DbSystem:            dbSystem,
+		DbName:              dbName,
+		DbStatement:         dbStatement,
 		HttpRoute:           spanMap["http.route"],
 		Attributes:          merged,
 		Events:              serializeEvents(s.GetEvents()),
@@ -210,7 +213,8 @@ var promotedSpanKeys = []string{
 	"http.status_code", "http.response.status_code",
 	"exception.type", "exception.message", "exception.stacktrace", "exception.escaped",
 	"service.name", "host.name", "k8s.pod.name", "service.version", "deployment.environment",
-	"peer.service", "db.system", "db.name", "db.statement", "http.route",
+	"peer.service", "http.route",
+	"db.system", "db.system.name", "db.name", "db.namespace", "db.statement", "db.query.text",
 	"gen_ai.system", "gen_ai.operation.name", "gen_ai.request.model", "gen_ai.response.model",
 	"gen_ai.usage.input_tokens", "gen_ai.usage.output_tokens",
 	"gen_ai.usage.prompt_tokens", "gen_ai.usage.completion_tokens",

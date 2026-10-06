@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/optikklabs/ingest/internal/infra/fingerprint"
 	"github.com/optikklabs/ingest/internal/infra/otlp"
 	tracepb "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	commonpb "go.opentelemetry.io/proto/otlp/common/v1"
@@ -106,8 +107,7 @@ func TestMapRequestSharesResourceBase(t *testing.T) {
 func BenchmarkMapRequest(b *testing.B) {
 	req := benchRequest(200)
 	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		rows, _ := mapRequest(1, req)
 		if len(rows) != 200 {
 			b.Fatal("unexpected row count")
@@ -122,8 +122,7 @@ func BenchmarkMergeAttrsReference(b *testing.B) {
 	resMap := otlp.AttrsToMap(req.ResourceSpans[0].Resource.Attributes)
 	spans := req.ResourceSpans[0].ScopeSpans[0].Spans
 	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		for _, s := range spans {
 			spanMap := otlp.AttrsToMap(s.Attributes)
 			_ = referenceMergeAndCapAttrs(resMap, spanMap)
@@ -137,12 +136,26 @@ func BenchmarkMergeAttrs(b *testing.B) {
 	resMap := otlp.AttrsToMap(req.ResourceSpans[0].Resource.Attributes)
 	spans := req.ResourceSpans[0].ScopeSpans[0].Spans
 	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		base := resourceBaseAttrs(resMap)
 		for _, s := range spans {
 			spanMap := otlp.AttrsToMap(s.Attributes)
 			_ = mergeAndCapAttrs(base, spanMap)
+		}
+	}
+}
+
+func TestBuildSpanRowReadsBothDBConventions(t *testing.T) {
+	for name, attrs := range map[string][]*commonpb.KeyValue{
+		"legacy": {strAttr("db.system", "postgresql"), strAttr("db.name", "shop"), strAttr("db.statement", "SELECT 1")},
+		"stable": {strAttr("db.system.name", "postgresql"), strAttr("db.namespace", "shop"), strAttr("db.query.text", "SELECT 1")},
+	} {
+		row := buildSpanRow(1, map[string]string{}, fingerprint.ResourceDimensions{}, &trace.Span{Attributes: attrs})
+		if row.DbSystem != "postgresql" || row.DbName != "shop" || row.DbStatement != "SELECT 1" {
+			t.Errorf("%s: db columns = %q, %q, %q", name, row.DbSystem, row.DbName, row.DbStatement)
+		}
+		if len(row.Attributes) != 0 {
+			t.Errorf("%s: promoted db keys left in attributes: %v", name, row.Attributes)
 		}
 	}
 }

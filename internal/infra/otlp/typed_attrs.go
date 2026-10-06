@@ -1,7 +1,8 @@
 package otlp
 
 import (
-	"sort"
+	"maps"
+	"slices"
 
 	commonpb "go.opentelemetry.io/proto/otlp/common/v1"
 )
@@ -38,19 +39,15 @@ func TypedAttrs(kvs []*commonpb.KeyValue, maxStringKeys int) (
 	return
 }
 
-func CapStringMap(strMap map[string]string, max int) int {
-	if max <= 0 || len(strMap) <= max {
+// CapStringMap keeps the limit lexically smallest keys of strMap, deleting
+// the rest, and returns how many it deleted.
+func CapStringMap(strMap map[string]string, limit int) int {
+	if limit <= 0 || len(strMap) <= limit {
 		return 0
 	}
-	keys := make([]string, 0, len(strMap))
-	for k := range strMap {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	dropped := 0
-	for _, k := range keys[max:] {
+	excess := slices.Sorted(maps.Keys(strMap))[limit:]
+	for _, k := range excess {
 		delete(strMap, k)
-		dropped++
 	}
-	return dropped
+	return len(excess)
 }

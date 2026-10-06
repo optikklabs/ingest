@@ -32,8 +32,7 @@ func NewAsyncPublisher[T Row](pub Publisher[T], signal, topic string, queueSize,
 		queue:  make(chan []T, queueSize),
 	}
 	for range workers {
-		a.wg.Add(1)
-		go a.worker()
+		a.wg.Go(a.worker)
 	}
 	return a
 }
@@ -56,7 +55,6 @@ func (a *AsyncPublisher[T]) Enqueue(rows []T) {
 }
 
 func (a *AsyncPublisher[T]) worker() {
-	defer a.wg.Done()
 	for rows := range a.queue {
 		ctx, cancel := context.WithTimeout(context.Background(), asyncPublishTimeout)
 		if err := a.pub.Publish(ctx, rows); err != nil {

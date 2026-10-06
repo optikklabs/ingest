@@ -38,8 +38,8 @@ func (a *App) Start(ctx context.Context) error {
 	if err := a.addGRPCServerActor(&g); err != nil {
 		return err
 	}
-	a.addLagPollerActors(&g, ctx)
-	a.addConsumerActors(&g, ctx)
+	a.addLagPollerActors(ctx, &g)
+	a.addConsumerActors(ctx, &g)
 
 	err := g.Run()
 	if closeErr := a.Infra.Close(); closeErr != nil {

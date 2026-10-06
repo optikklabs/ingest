@@ -36,7 +36,7 @@ func (c *Consumer) Run(ctx context.Context, handle RecordHandler) {
 
 	var wg sync.WaitGroup
 
-	for i := 0; i < c.workers; i++ {
+	for range c.workers {
 		wg.Go(func() {
 			c.workerLoop(ctx, workerChan, handle)
 		})
