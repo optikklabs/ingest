@@ -16,7 +16,7 @@ func referenceComputeLogID(traceID string, tsNs uint64, body string) string {
 		separatorByte byte   = 255
 	)
 	addStr := func(h uint64, s string) uint64 {
-		for i := 0; i < len(s); i++ {
+		for i := range len(s) {
 			h ^= uint64(s[i])
 			h *= prime64
 		}

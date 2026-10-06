@@ -1,4 +1,4 @@
-.PHONY: build run fmt vet proto
+.PHONY: build run fmt vet proto lint
 
 PROTO_FILES := $(shell find internal -name '*.proto')
 
@@ -18,3 +18,6 @@ fmt:
 
 vet:
 	go vet ./...
+
+lint:
+	golangci-lint run ./...

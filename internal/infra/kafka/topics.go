@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"strconv"
-	"strings"
 
 	"github.com/twmb/franz-go/pkg/kadm"
 	"github.com/twmb/franz-go/pkg/kerr"
@@ -45,23 +44,20 @@ func EnsureTopics(ctx context.Context, brokers []string, specs []TopicSpec) erro
 			cfg["retention.ms"] = &ms
 		}
 		resp, err := adm.CreateTopics(ctx, s.Partitions, s.Replicas, cfg, s.Name)
-		if err != nil && !isTopicExists(err) {
+		if err != nil {
 			return fmt.Errorf("kafka ensure topics: create %q: %w", s.Name, err)
 		}
-		for _, r := range resp {
-			if r.Err != nil && !isTopicExists(r.Err) {
-				return fmt.Errorf("kafka ensure topics: create %q: %w", r.Topic, r.Err)
+		// A topic created now already has s.Partitions; only an existing one
+		// may need growing.
+		actual := s.Partitions
+		switch createErr := resp[s.Name].Err; {
+		case createErr == nil:
+		case isTopicExists(createErr):
+			if actual, err = EnsureTopicPartitions(ctx, adm, s.Name, s.Partitions); err != nil {
+				return fmt.Errorf("kafka ensure topics: %w", err)
 			}
-		}
-
-		actual, err := EnsureTopicPartitions(ctx, adm, s.Name, s.Partitions)
-		if err != nil {
-			slog.Warn("kafka topic partition reconcile failed, keeping current partitions",
-				slog.String("topic", s.Name),
-				slog.Int("desired", int(s.Partitions)),
-				slog.Any("error", err),
-			)
-			continue
+		default:
+			return fmt.Errorf("kafka ensure topics: create %q: %w", s.Name, createErr)
 		}
 		slog.Info("kafka topic ready",
 			slog.String("topic", s.Name),
@@ -146,13 +142,7 @@ func partitionsRespError(resp kadm.CreatePartitionsResponses, topic string) erro
 }
 
 func isTopicExists(err error) bool {
-	if err == nil {
-		return false
-	}
-	if errors.Is(err, kerr.TopicAlreadyExists) {
-		return true
-	}
-	return strings.Contains(strings.ToLower(err.Error()), "topic already exists")
+	return errors.Is(err, kerr.TopicAlreadyExists)
 }
 
 func IngestTopic(prefix, signal string) string { return prefix + "." + signal }

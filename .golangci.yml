@@ -1,0 +1,14 @@
+version: "2"
+linters:
+  enable:
+    - bodyclose
+    - copyloopvar
+    - errorlint
+    - intrange
+    - misspell
+    - nilerr
+    - rowserrcheck
+    - sqlclosecheck
+    - unconvert
+    - usestdlibvars
+    - wastedassign

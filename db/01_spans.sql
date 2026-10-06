@@ -87,7 +87,7 @@ CREATE TABLE IF NOT EXISTS optikk.spans (
     http_status_code         UInt16                 ALIAS toUInt16OrZero(response_status_code),
     -- OTel HTTP semconv: 4xx errors only on CLIENT spans; 5xx errors on any kind.
     is_error                 UInt8                  ALIAS if(has_error OR (kind_string = 'CLIENT' AND toUInt16OrZero(response_status_code) >= 400) OR toUInt16OrZero(response_status_code) >= 500, 1, 0),
-    is_root                  UInt8                  ALIAS if((parent_span_id = '') OR (parent_span_id = '0000000000000000'), 1, 0),
+    is_root                  UInt8                  ALIAS parent_span_id = '',
 
     INDEX idx_trace_id trace_id TYPE bloom_filter(0.01) GRANULARITY 1,
     INDEX idx_error_group_id error_group_id TYPE bloom_filter GRANULARITY 1,

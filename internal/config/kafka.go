@@ -3,8 +3,8 @@ package config
 import "strings"
 
 type KafkaConfig struct {
-	BrokerList string   `yaml:"broker_list"`
-	Brokers    []string `yaml:"brokers"`
+	// BrokerList is a comma-separated list of host:port brokers.
+	BrokerList string `yaml:"broker_list"`
 
 	TopicPrefix string `yaml:"topic_prefix"`
 	DLQPrefix   string `yaml:"dlq_prefix"`
@@ -22,12 +22,9 @@ type KafkaConfig struct {
 	ConsumerInsertWorkers  int    `yaml:"consumer_insert_workers"`
 }
 
-// KafkaBrokers returns the comma-separated broker list when set, else the
-// brokers array; blank entries and surrounding spaces are dropped.
+// KafkaBrokers splits the broker list, dropping blank entries and
+// surrounding spaces.
 func (c Config) KafkaBrokers() []string {
-	if c.Kafka.BrokerList == "" {
-		return c.Kafka.Brokers
-	}
 	var brokers []string
 	for broker := range strings.SplitSeq(c.Kafka.BrokerList, ",") {
 		if broker = strings.TrimSpace(broker); broker != "" {

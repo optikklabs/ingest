@@ -16,5 +16,8 @@ jobs:
           go-version: '1.26.1'
           cache: true
       - run: go vet ./...
+      - uses: golangci/golangci-lint-action@v8
+        with:
+          version: v2.11
       - run: go test ./...
       - run: go build ./cmd/ingest

@@ -88,21 +88,19 @@ func Export[Req proto.Message, Resp proto.Message](resolver auth.TenantResolver,
 // Collector default). The size cap applies to decompressed bytes, so a gzip
 // bomb cannot expand past maxBodyBytes.
 func readBody(w http.ResponseWriter, r *http.Request) ([]byte, error) {
-	var src io.Reader
 	switch r.Header.Get("Content-Encoding") {
 	case "", "identity":
-		src = http.MaxBytesReader(w, r.Body, maxBodyBytes)
+		return io.ReadAll(http.MaxBytesReader(w, r.Body, maxBodyBytes))
 	case "gzip":
 		zr, err := gzip.NewReader(r.Body)
 		if err != nil {
 			return nil, err
 		}
-		defer zr.Close()
-		src = http.MaxBytesReader(w, zr, maxBodyBytes)
+		body, err := io.ReadAll(http.MaxBytesReader(w, zr, maxBodyBytes))
+		return body, errors.Join(err, zr.Close())
 	default:
 		return nil, errUnsupportedEncoding
 	}
-	return io.ReadAll(src)
 }
 
 func writeError(w http.ResponseWriter, err error) {

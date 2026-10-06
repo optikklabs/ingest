@@ -65,6 +65,9 @@ func (c Config) Validate() error {
 	if c.ClickHouse.Password == "" {
 		return errors.New("clickhouse.password must not be empty")
 	}
+	if len(c.KafkaBrokers()) == 0 {
+		return errors.New("kafka.broker_list must name at least one broker")
+	}
 	return nil
 }
 
