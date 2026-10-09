@@ -2,6 +2,7 @@ package spans
 
 import (
 	"maps"
+	"slices"
 
 	tracepb "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	commonpb "go.opentelemetry.io/proto/otlp/common/v1"
@@ -76,7 +77,10 @@ func buildSpanRow(tenantID int64, baseAttrs map[string]string, dims fingerprint.
 	}
 
 	spanMap := otlp.AttrsToMap(s.GetAttributes())
-	merged := mergeAndCapAttrs(baseAttrs, spanMap)
+	normalizeMessagingAttrs(spanMap)
+	gen := extractGenAI(spanMap, spanDuration(s), dims.Version)
+	merged := mergeAndCapAttrs(baseAttrs, spanMap, gen.Present)
+	exc := exceptionAttrs(spanMap, s.GetEvents())
 
 	httpMethod := otlp.FirstNonEmpty(spanMap, "http.method", "http.request.method")
 	httpURL := otlp.FirstNonEmpty(spanMap, "http.url", "url.full")
@@ -85,7 +89,6 @@ func buildSpanRow(tenantID int64, baseAttrs map[string]string, dims fingerprint.
 	dbSystem := otlp.FirstNonEmpty(spanMap, "db.system", "db.system.name")
 	dbName := otlp.FirstNonEmpty(spanMap, "db.name", "db.namespace")
 	dbStatement := otlp.FirstNonEmpty(spanMap, "db.statement", "db.query.text")
-	gen := extractGenAI(spanMap, spanDuration(s))
 
 	return &schema.Row{
 		TenantId:            uint32(tenantID),
@@ -118,10 +121,10 @@ func buildSpanRow(tenantID int64, baseAttrs map[string]string, dims fingerprint.
 		Attributes:          merged,
 		Events:              serializeEvents(s.GetEvents()),
 		Links:               serializeLinks(s.GetLinks()),
-		ExceptionType:       spanMap["exception.type"],
-		ExceptionMessage:    spanMap["exception.message"],
-		ExceptionStacktrace: spanMap["exception.stacktrace"],
-		ExceptionEscaped:    spanMap["exception.escaped"] == "true",
+		ExceptionType:       exc["exception.type"],
+		ExceptionMessage:    exc["exception.message"],
+		ExceptionStacktrace: exc["exception.stacktrace"],
+		ExceptionEscaped:    exc["exception.escaped"] == "true",
 		GenAiSystem:         gen.System,
 		GenAiOperation:      gen.Operation,
 		GenAiRequestModel:   gen.RequestModel,
@@ -144,11 +147,13 @@ func buildSpanRow(tenantID int64, baseAttrs map[string]string, dims fingerprint.
 // mergeAndCapAttrs merges span attrs over the precomputed resource base.
 // Spans with no own attrs alias baseAttrs: rows are marshaled synchronously
 // in this request and never mutated afterwards, so sharing one read-only
-// map across spans is safe and skips a full copy per span.
-func mergeAndCapAttrs(baseAttrs, spanMap map[string]string) map[string]string {
+// map across spans is safe and skips a full copy per span. genAI spans also
+// drop genAIIdentityKeys, which their llm_user_id/llm_session_id hold.
+func mergeAndCapAttrs(baseAttrs, spanMap map[string]string, genAI bool) map[string]string {
+	keep := func(k string) bool { return !isPromotedKey(k) && (!genAI || !genAIIdentityKeys[k]) }
 	hasOwn := false
 	for k := range spanMap {
-		if !isPromotedKey(k) {
+		if keep(k) {
 			hasOwn = true
 			break
 		}
@@ -159,7 +164,7 @@ func mergeAndCapAttrs(baseAttrs, spanMap map[string]string) map[string]string {
 	merged := make(map[string]string, len(baseAttrs)+len(spanMap))
 	maps.Copy(merged, baseAttrs)
 	for k, v := range spanMap {
-		if !isPromotedKey(k) {
+		if keep(k) {
 			merged[k] = v
 		}
 	}
@@ -167,6 +172,45 @@ func mergeAndCapAttrs(baseAttrs, spanMap map[string]string) map[string]string {
 		obsmetrics.MapperAttrsDropped.WithLabelValues("spans").Add(float64(dropped))
 	}
 	return merged
+}
+
+// exceptionAttrs returns the attributes holding a span's exception.* keys.
+// SDKs record exceptions as an "exception" span event (span.RecordError); the
+// last one is the exception the span ended with. Exception keys set on the span
+// itself take precedence.
+func exceptionAttrs(spanMap map[string]string, events []*trace.Span_Event) map[string]string {
+	if spanMap["exception.type"] != "" || spanMap["exception.message"] != "" {
+		return spanMap
+	}
+	for _, e := range slices.Backward(events) {
+		if e.GetName() == "exception" {
+			return otlp.AttrsToMap(e.GetAttributes())
+		}
+	}
+	return spanMap
+}
+
+// legacyMessagingKeys maps the current messaging semconv keys the span rollups
+// read to their older names, still emitted by e.g. franz-go's kotel plugin.
+var legacyMessagingKeys = []struct {
+	key    string
+	legacy []string
+}{
+	{"messaging.destination.name", []string{"messaging.source.name", "messaging.destination"}},
+	{"messaging.consumer.group.name", []string{"messaging.kafka.consumer.group"}},
+}
+
+// normalizeMessagingAttrs fills the current messaging keys from their legacy
+// names when only the legacy ones are set.
+func normalizeMessagingAttrs(spanMap map[string]string) {
+	for _, k := range legacyMessagingKeys {
+		if spanMap[k.key] != "" {
+			continue
+		}
+		if v := otlp.FirstNonEmpty(spanMap, k.legacy...); v != "" {
+			spanMap[k.key] = v
+		}
+	}
 }
 
 func spanDuration(s *trace.Span) uint64 {
@@ -216,18 +260,22 @@ var promotedSpanKeys = []string{
 	"service.name", "host.name", "k8s.pod.name", "service.version", "deployment.environment",
 	"peer.service", "http.route",
 	"db.system", "db.system.name", "db.name", "db.namespace", "db.statement", "db.query.text",
-	"gen_ai.system", "gen_ai.operation.name", "gen_ai.request.model", "gen_ai.response.model",
+	"gen_ai.provider.name", "gen_ai.system", "gen_ai.operation.name", "gen_ai.request.model", "gen_ai.response.model",
 	"gen_ai.usage.input_tokens", "gen_ai.usage.output_tokens",
 	"gen_ai.usage.prompt_tokens", "gen_ai.usage.completion_tokens",
 	"gen_ai.prompt", "gen_ai.completion",
 	"gen_ai.input.messages", "gen_ai.output.messages",
-	"gen_ai.request.user", "user.id", "enduser.id", "langfuse.user.id",
-	"gen_ai.conversation.id", "session.id", "langfuse.session.id",
+	"gen_ai.request.user", "langfuse.user.id",
+	"gen_ai.conversation.id", "langfuse.session.id",
 	"langfuse.release", "langfuse.trace.tags", "optikk.llm.tags",
 	"langfuse.prompt.name", "optikk.prompt.name",
 	"langfuse.prompt.version", "optikk.prompt.version",
 	"langfuse.observation.type", "gen_ai.observation.type", "optikk.eval",
 }
+
+// genAIIdentityKeys are generic identity keys promoted only on GenAI spans;
+// every other span keeps them in attributes.
+var genAIIdentityKeys = map[string]bool{"user.id": true, "enduser.id": true, "session.id": true}
 
 var promotedKeysMap = buildPromotedKeysMap()
 

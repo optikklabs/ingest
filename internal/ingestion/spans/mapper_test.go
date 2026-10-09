@@ -141,7 +141,7 @@ func BenchmarkMergeAttrs(b *testing.B) {
 		base := resourceBaseAttrs(resMap)
 		for _, s := range spans {
 			spanMap := otlp.AttrsToMap(s.Attributes)
-			_ = mergeAndCapAttrs(base, spanMap)
+			_ = mergeAndCapAttrs(base, spanMap, false)
 		}
 	}
 }

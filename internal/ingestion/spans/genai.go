@@ -1,6 +1,7 @@
 package spans
 
 import (
+	"cmp"
 	"encoding/json"
 	"strconv"
 	"strings"
@@ -31,25 +32,41 @@ type genAI struct {
 	SpanKind string
 }
 
-func extractGenAI(spanMap map[string]string, durationNano uint64) genAI {
+// genAIMarkerKeys are GenAI-specific keys that mark a span as GenAI even
+// without a system, operation or model. The generic genAIIdentityKeys are
+// deliberately absent: ordinary HTTP spans carry them too.
+var genAIMarkerKeys = []string{
+	"gen_ai.conversation.id", "gen_ai.request.user",
+	"langfuse.session.id", "langfuse.user.id",
+	"langfuse.observation.type", "gen_ai.observation.type",
+}
+
+// extractGenAI reads the GenAI fields of a span. resourceVersion is the
+// resource's service.version, the release fallback when langfuse.release is
+// unset.
+func extractGenAI(spanMap map[string]string, durationNano uint64, resourceVersion string) genAI {
 	g := genAI{
-		System:        spanMap["gen_ai.system"],
+		// gen_ai.provider.name replaced gen_ai.system in GenAI semconv 1.37.
+		System:        otlp.FirstNonEmpty(spanMap, "gen_ai.provider.name", "gen_ai.system"),
 		RequestModel:  spanMap["gen_ai.request.model"],
 		ResponseModel: spanMap["gen_ai.response.model"],
 		Prompt:        otlp.TruncateUTF8(otlp.FirstNonEmpty(spanMap, "gen_ai.prompt", "gen_ai.input.messages"), maxGenAIContentBytes),
 		Completion:    otlp.TruncateUTF8(otlp.FirstNonEmpty(spanMap, "gen_ai.completion", "gen_ai.output.messages"), maxGenAIContentBytes),
 		InputTokens:   parseTokenCount(otlp.FirstNonEmpty(spanMap, "gen_ai.usage.input_tokens", "gen_ai.usage.prompt_tokens")),
 		OutputTokens:  parseTokenCount(otlp.FirstNonEmpty(spanMap, "gen_ai.usage.output_tokens", "gen_ai.usage.completion_tokens")),
-		UserID:        otlp.FirstNonEmpty(spanMap, "gen_ai.request.user", "user.id", "enduser.id", "langfuse.user.id"),
-		SessionID:     otlp.FirstNonEmpty(spanMap, "gen_ai.conversation.id", "session.id", "langfuse.session.id"),
-		Release:       otlp.FirstNonEmpty(spanMap, "langfuse.release", "service.version"),
 		PromptName:    otlp.FirstNonEmpty(spanMap, "langfuse.prompt.name", "optikk.prompt.name"),
 	}
 	op := spanMap["gen_ai.operation.name"]
 	g.Operation = normalizeGenAIOperation(op)
 	g.Tags = parseTags(otlp.FirstNonEmpty(spanMap, "langfuse.trace.tags", "optikk.llm.tags"))
 	g.PromptVersion = uint32(parseTokenCount(otlp.FirstNonEmpty(spanMap, "langfuse.prompt.version", "optikk.prompt.version")))
-	g.Present = g.System != "" || op != "" || g.SessionID != "" || g.UserID != ""
+	g.Present = g.System != "" || op != "" || g.RequestModel != "" || g.ResponseModel != "" ||
+		otlp.FirstNonEmpty(spanMap, genAIMarkerKeys...) != ""
+	if g.Present {
+		g.UserID = otlp.FirstNonEmpty(spanMap, "gen_ai.request.user", "user.id", "enduser.id", "langfuse.user.id")
+		g.SessionID = otlp.FirstNonEmpty(spanMap, "gen_ai.conversation.id", "session.id", "langfuse.session.id")
+		g.Release = cmp.Or(spanMap["langfuse.release"], resourceVersion)
+	}
 	g.SpanKind = genAISpanKind(spanMap, g, durationNano)
 	return g
 }

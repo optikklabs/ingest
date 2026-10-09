@@ -34,19 +34,32 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
-                                   
+
   kafka:
-    image: ghcr.io/ramantayal12/mq:latest
+    image: apache/kafka:latest
     environment:
-      KAFKA_LISTENERS: "0.0.0.0:9092"
-      KAFKA_ADVERTISED_LISTENERS: "localhost:9092"
+      KAFKA_NODE_ID: "1"
+      KAFKA_PROCESS_ROLES: "broker,controller"
+      KAFKA_LISTENERS: "PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093"
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://localhost:9092"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT"
+      KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+      KAFKA_CONTROLLER_QUORUM_VOTERS: "1@localhost:9093"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: "1"
       KAFKA_NUM_PARTITIONS: "8"
-      KAFKA_AUTO_CREATE_TOPICS: "true"
-      KAFKA_DATA_DIR: "/var/lib/kafka"
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_LOG_DIRS: "/var/lib/kafka/data"
     ports:
       - "9092:9092"
     volumes:
-      - kafka_data:/var/lib/kafka
+      - kafka_data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD", "/opt/kafka/bin/kafka-broker-api-versions.sh", "--bootstrap-server", "localhost:9092"]
+      interval: 5s
+      timeout: 10s
+      retries: 20
 
 volumes:
   clickhouse_data:

@@ -44,6 +44,11 @@ CREATE TABLE IF NOT EXISTS optikk.span_stats_1m (
     k8s_node                 LowCardinality(String) CODEC(ZSTD(1)),
     peer_name                LowCardinality(String) CODEC(ZSTD(1)),
     peer_type                LowCardinality(String) CODEC(ZSTD(1)),
+    -- query_hash is in the key and 1:1 with the normalized statement, so the
+    -- text and row counts add no rows; DB views read only the rollups.
+    db_statement             SimpleAggregateFunction(any, String)  CODEC(ZSTD(1)),
+    db_rows_sum              SimpleAggregateFunction(sum, Float64) CODEC(Gorilla, ZSTD(1)),
+    db_rows_count            SimpleAggregateFunction(sum, UInt64)  CODEC(T64, ZSTD(1)),
     request_count            SimpleAggregateFunction(sum, UInt64)  CODEC(T64, ZSTD(1)),
     duration_ms_sum          SimpleAggregateFunction(sum, Float64) CODEC(Gorilla, ZSTD(1)),
     latency_state            AggregateFunction(quantilesTDigest(0.5, 0.95, 0.99), Float64) CODEC(ZSTD(1))
@@ -105,6 +110,10 @@ SELECT
                attributes['server.address'] != '',             '',
                attributes['messaging.destination.name'] != '', 'messaging',
                ''), '')                             AS peer_type,
+    any(db_statement_normalized)                AS db_statement,
+    -- db.response.returned_rows is optional; count only spans that carry it.
+    sum(ifNull(toFloat64OrNull(attributes['db.response.returned_rows']), 0)) AS db_rows_sum,
+    count(toFloat64OrNull(attributes['db.response.returned_rows']))          AS db_rows_count,
     count()                                     AS request_count,
     sum(duration_nano / 1000000.0)              AS duration_ms_sum,
     quantilesTDigestState(0.5, 0.95, 0.99)(duration_nano / 1000000.0) AS latency_state
@@ -142,6 +151,9 @@ CREATE TABLE IF NOT EXISTS optikk.span_stats_5m (
     k8s_node                 LowCardinality(String) CODEC(ZSTD(1)),
     peer_name                LowCardinality(String) CODEC(ZSTD(1)),
     peer_type                LowCardinality(String) CODEC(ZSTD(1)),
+    db_statement             SimpleAggregateFunction(any, String)  CODEC(ZSTD(1)),
+    db_rows_sum              SimpleAggregateFunction(sum, Float64) CODEC(Gorilla, ZSTD(1)),
+    db_rows_count            SimpleAggregateFunction(sum, UInt64)  CODEC(T64, ZSTD(1)),
     request_count            SimpleAggregateFunction(sum, UInt64)  CODEC(T64, ZSTD(1)),
     duration_ms_sum          SimpleAggregateFunction(sum, Float64) CODEC(Gorilla, ZSTD(1)),
     latency_state            AggregateFunction(quantilesTDigest(0.5, 0.95, 0.99), Float64) CODEC(ZSTD(1))
@@ -169,6 +181,9 @@ SELECT
     http_status_bucket, http_route, http_method, rpc_system, db_system, db_name, query_hash, messaging_system,
     messaging_destination, messaging_consumer_group,
     cloud_provider, cloud_platform, cloud_region, k8s_node, peer_name, peer_type,
+    any(db_statement)    AS db_statement,
+    sum(db_rows_sum)     AS db_rows_sum,
+    sum(db_rows_count)   AS db_rows_count,
     sum(request_count)   AS request_count,
     sum(duration_ms_sum) AS duration_ms_sum,
     quantilesTDigestMergeState(0.5, 0.95, 0.99)(latency_state) AS latency_state
@@ -206,6 +221,9 @@ CREATE TABLE IF NOT EXISTS optikk.span_stats_1h (
     k8s_node                 LowCardinality(String) CODEC(ZSTD(1)),
     peer_name                LowCardinality(String) CODEC(ZSTD(1)),
     peer_type                LowCardinality(String) CODEC(ZSTD(1)),
+    db_statement             SimpleAggregateFunction(any, String)  CODEC(ZSTD(1)),
+    db_rows_sum              SimpleAggregateFunction(sum, Float64) CODEC(Gorilla, ZSTD(1)),
+    db_rows_count            SimpleAggregateFunction(sum, UInt64)  CODEC(T64, ZSTD(1)),
     request_count            SimpleAggregateFunction(sum, UInt64)  CODEC(T64, ZSTD(1)),
     duration_ms_sum          SimpleAggregateFunction(sum, Float64) CODEC(Gorilla, ZSTD(1)),
     latency_state            AggregateFunction(quantilesTDigest(0.5, 0.95, 0.99), Float64) CODEC(ZSTD(1))
@@ -233,6 +251,9 @@ SELECT
     http_status_bucket, http_route, http_method, rpc_system, db_system, db_name, query_hash, messaging_system,
     messaging_destination, messaging_consumer_group,
     cloud_provider, cloud_platform, cloud_region, k8s_node, peer_name, peer_type,
+    any(db_statement)    AS db_statement,
+    sum(db_rows_sum)     AS db_rows_sum,
+    sum(db_rows_count)   AS db_rows_count,
     sum(request_count)   AS request_count,
     sum(duration_ms_sum) AS duration_ms_sum,
     quantilesTDigestMergeState(0.5, 0.95, 0.99)(latency_state) AS latency_state

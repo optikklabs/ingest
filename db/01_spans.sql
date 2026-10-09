@@ -91,7 +91,11 @@ CREATE TABLE IF NOT EXISTS optikk.spans (
 
     INDEX idx_trace_id trace_id TYPE bloom_filter(0.01) GRANULARITY 1,
     INDEX idx_error_group_id error_group_id TYPE bloom_filter GRANULARITY 1,
-    INDEX idx_query_hash query_hash TYPE bloom_filter GRANULARITY 1
+    INDEX idx_query_hash query_hash TYPE bloom_filter GRANULARITY 1,
+
+    -- Traces touching a service: the explorer's services filter matches any
+    -- span, and the main sort key cannot prune by service.
+    PROJECTION by_service (SELECT tenant_id, service, timestamp, trace_id ORDER BY tenant_id, service, timestamp)
 ) ENGINE = ReplicatedMergeTree('/clickhouse/tables/{shard}/optikk/spans_v2', '{replica}')
 PARTITION BY toYYYYMMDD(timestamp)
 ORDER BY (tenant_id, timestamp, trace_id, span_id)
